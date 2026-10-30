@@ -57,6 +57,15 @@ on every tick, so the chart moves with the header.
 Vendor docs for the gold API live in [`xaus-api/`](xaus-api) (from
 [misix-git/xaus-api](https://github.com/misix-git/xaus-api.git), MIT).
 
+## Live deployments
+
+| Service | URL | Plan |
+|---|---|---|
+| `astra6-real` | https://astra6-real.onrender.com | Render free, Singapore |
+| `renderbot-v2` | https://renderbot-v2.onrender.com | Render free, Singapore (now deploys from this repo) |
+
+Both run this repo's `main` branch. Health check: `/health`.
+
 ## Run
 
 ```bash
