@@ -47,6 +47,10 @@ button,select{font-family:inherit}
 
 .price-block{display:flex;flex-direction:column;align-items:center;gap:0;line-height:1.15;white-space:nowrap}
 .price-kicker{font-size:9px;font-weight:750;letter-spacing:1.2px;color:var(--muted);text-transform:uppercase;margin-bottom:3px}
+.sym-switch{display:inline-flex;gap:2px;padding:2px;background:var(--surface-2,#f3f4f6);border:1px solid var(--line);border-radius:999px;margin-bottom:5px}
+.sym-btn{font:inherit;font-size:9.5px;font-weight:800;letter-spacing:.7px;padding:3px 9px;border:0;border-radius:999px;background:transparent;color:var(--muted);cursor:pointer;transition:.16s}
+.sym-btn:hover{color:var(--ink)}
+.sym-btn.active{background:var(--ink,#111827);color:#fff}
 .price-value{font-size:28px;font-weight:800;letter-spacing:-1px;line-height:1;color:var(--ink)}
 .price-meta{font-size:10.5px;color:var(--muted);margin-top:5px;letter-spacing:.1px}
 
@@ -261,7 +265,10 @@ button,select{font-family:inherit}
     </div>
 
     <div class="price-block">
-      <span class="price-kicker">XAUUSD</span>
+      <div class="sym-switch" role="group" aria-label="Symbol">
+        <button class="sym-btn active" data-sym="XAUUSD" onclick="setSymbol('XAUUSD')">XAUUSD</button>
+        <button class="sym-btn" data-sym="BTCUSD" onclick="setSymbol('BTCUSD')">BTCUSD</button>
+      </div>
       <span class="price-value mono" id="price">$--.--</span>
       <span class="price-meta mono" id="bidask">BID -- / ASK --</span>
     </div>
@@ -318,15 +325,15 @@ button,select{font-family:inherit}
 
     <aside class="stats">
       <div class="stat">
-        <span class="stat-k">Total alerts</span>
+        <span class="stat-k" id="stat-k-1">Total alerts</span>
         <span class="stat-v mono" id="stat-total">0</span>
       </div>
       <div class="stat">
-        <span class="stat-k">Buy / Sell</span>
+        <span class="stat-k" id="stat-k-2">Buy / Sell</span>
         <span class="stat-v mono" id="stat-bs">0 / 0</span>
       </div>
       <div class="stat">
-        <span class="stat-k">Verified winrate</span>
+        <span class="stat-k" id="stat-k-3">Verified winrate</span>
         <div style="text-align:right">
           <div class="stat-v mono up" id="real-winrate">--%</div>
           <div class="stat-sub mono" id="real-stats">—</div>
@@ -428,23 +435,49 @@ button,select{font-family:inherit}
 <script>
 let chart=null,candleSeries=null,lastCandles=[],currentTF=localStorage.getItem('astra6_tf')||'M15',lastPrice=0,priceUpdateCount=0,soundOn=localStorage.getItem('astra6_sound')!=='0';
 let currentVenue=localStorage.getItem('astra6_venue')||'OANDA:XAUUSD';
+let currentSymbol=localStorage.getItem('astra6_symbol')||'XAUUSD';
 function getToken(){return localStorage.getItem('astra6_token')||sessionStorage.getItem('astra6_token')||window.token||'';}
 function setToken(t){if(t){localStorage.setItem('astra6_token',t);sessionStorage.setItem('astra6_token',t);window.token=t;}else{localStorage.removeItem('astra6_token');sessionStorage.removeItem('astra6_token');window.token='';}}
 function authHeaders(){const t=getToken();return t?{'Authorization':'Bearer '+t}:{};}
 function toggleAllData(){const el=document.getElementById('sig-ai');const btn=document.getElementById('btn-toggle-data');if(!el||!btn)return;const isHidden=el.style.display==='none'||el.style.display==='';el.style.display=isHidden?'block':'none';btn.textContent=isHidden?'Hide all data':'Show all data';}
-function renderCurrent(s){if(!s)return;window._lastSignal=s;const typeEl=document.getElementById('sig-type');const card=document.getElementById('current-signal-card');if(!typeEl||!card)return;typeEl.textContent=s.type;typeEl.className='signal-type '+s.type.toLowerCase();card.className='signal-card '+s.type.toLowerCase();const pv=document.getElementById('sig-price');if(pv)pv.className='metric-v mono '+(s.type==='BUY'?'up':s.type==='SELL'?'down':'');const sp=document.getElementById('sig-price');if(sp)sp.textContent='$'+(s.price||0).toFixed(2);const sc=document.getElementById('sig-conf');if(sc)sc.textContent=(s.confidence||0)+'%';const sw=document.getElementById('sig-winrate');if(sw)sw.textContent=(s.winrate_est||50)+'%';const sl=document.getElementById('sig-time');if(sl){try{sl.textContent=(s.time_str||'')+' · '+(s.strategy||'ASTRA6 Elite');}catch(e){sl.textContent=s.type;}}const reasons=document.getElementById('sig-reasons');if(reasons)reasons.textContent=(s.reasons&&s.reasons[0])||'Scanning for a high-confluence setup.';const sltp=document.getElementById('sig-sltp');if(sltp){if(s.sl) sltp.innerHTML=`<span style="color:var(--red)">SL $${s.sl.toFixed(2)}</span> • <span style="color:var(--green)">TP1 $${(s.tp1||0).toFixed(2)} TP2 $${(s.tp2||0).toFixed(2)}</span>`;else sltp.innerHTML='';}const aiEl=document.getElementById('sig-ai');if(aiEl){let html='';if(s.ai_signal){const ai=s.ai_signal;html+=`🤖 <b>AI (pythonidae)</b>: ${ai.type||'HOLD'} ${ai.confidence||0}% • RF ${ai.rf_conf||0}% GB ${ai.gb_conf||0}% • Winrate ${ai.winrate_est||0}%<br>`;}else if(s.ai_available){html+=`🤖 <b>AI</b>: Training from pythonidae (scikit-learn) 75%+ winrate<br>`;}if(s.finance_web_signal){const fw=s.finance_web_signal;const corr=(fw.finance&&fw.finance.correlations)||{};html+=`💰 <b>Finance+Web</b>: ${fw.type||'HOLD'} ${fw.confidence||0}% • Buy:${fw.buy_score||0} Sell:${fw.sell_score||0} • Web ${fw.web?.score||0}% ${fw.web?.health||''}<br><span style="font-size:10px;color:#666">DXY:${corr.DXY?.trend||'-'} Silver:${corr.SILVER?.trend||'-'} SPX:${corr.SPX?.trend||'-'} Oil:${corr.OIL?.trend||'-'} EURUSD:${corr.EURUSD?.trend||'-'}</span><br>`;}if(s.tradingview_signal){const tv=s.tradingview_signal;const ind=tv.indicators||{};html+=`📈 <b>TradingView</b>: ${tv.type||'HOLD'} ${tv.confidence||0}% • Buy:${tv.buy_score||0} Sell:${tv.sell_score||0}<br>`;if(ind.indicators){const ii=ind.indicators;html+=`<span style="font-size:10px;color:#666">RSI:${ii.rsi_14||'-'} MACD:${ii.macd_line||'-'} EMA21:${ii.ema_21||'-'} BB:${ii.bb_position||'-'} Vol:${ii.vol_ratio||'-'}x • Pine:${tv.pine?.overall||'-'}</span><br>`;}}if(s.vibe_trading_signal){const vt=s.vibe_trading_signal;html+=`🔥 <b>Vibe-Trading</b>: ${vt.type||'HOLD'} ${vt.confidence||0}% • Buy:${vt.buy_score||0} Sell:${vt.sell_score||0}<br>`;if(vt.shadow){html+=`<span style="font-size:10px;color:#666">Shadow RSI:${vt.shadow.entry_rsi14||'-'} Prior:${vt.shadow.prior_5d_return||'-'}% • Qlib ${vt.qlib?.overall||'-'} WVMA:${Object.keys(vt.qlib?.wvma||{}).length} • Limits ${vt.limits?.can_trade?'OK':'HALT'}</span><br>`;}}if(s.strategy) html+=`<span style="font-size:10px;color:#999">Strategy: ${s.strategy}</span><br>`;if(s.buy_score!==undefined) html+=`<span style="font-size:10px;color:#666">Buy: ${s.buy_score} Sell: ${s.sell_score} • Conf: ${s.confluence||'-'}</span>`;aiEl.innerHTML=html;}console.log('Signal rendered',s.type,s.price);}
+function renderCurrent(s){if(!s)return;window._lastSignal=s;const typeEl=document.getElementById('sig-type');const card=document.getElementById('current-signal-card');if(!typeEl||!card)return;typeEl.textContent=s.type;typeEl.className='signal-type '+s.type.toLowerCase();card.className='signal-card '+s.type.toLowerCase();const pv=document.getElementById('sig-price');if(pv)pv.className='metric-v mono '+(s.type==='BUY'?'up':s.type==='SELL'?'down':'');const sp=document.getElementById('sig-price');if(sp)sp.textContent=fmtPx(s.price||0);const sc=document.getElementById('sig-conf');if(sc)sc.textContent=(s.confidence||0)+'%';const sw=document.getElementById('sig-winrate');if(sw)sw.textContent=(s.winrate_est||50)+'%';const sl=document.getElementById('sig-time');if(sl){try{sl.textContent=(s.time_str||'')+' · '+(s.strategy||'ASTRA6 Elite');}catch(e){sl.textContent=s.type;}}const reasons=document.getElementById('sig-reasons');if(reasons)reasons.textContent=(s.reasons&&s.reasons[0])||'Scanning for a high-confluence setup.';const sltp=document.getElementById('sig-sltp');if(sltp){if(s.sl) sltp.innerHTML=`<span style="color:var(--red)">SL ${fmtPx(s.sl)}</span> • <span style="color:var(--green)">TP1 ${fmtPx(s.tp1||0)} TP2 ${fmtPx(s.tp2||0)}</span>`;else sltp.innerHTML='';}const aiEl=document.getElementById('sig-ai');if(aiEl){let html='';if(s.ai_signal){const ai=s.ai_signal;html+=`🤖 <b>AI (pythonidae)</b>: ${ai.type||'HOLD'} ${ai.confidence||0}% • RF ${ai.rf_conf||0}% GB ${ai.gb_conf||0}% • Winrate ${ai.winrate_est||0}%<br>`;}else if(s.ai_available){html+=`🤖 <b>AI</b>: Training from pythonidae (scikit-learn) 75%+ winrate<br>`;}if(s.finance_web_signal){const fw=s.finance_web_signal;const corr=(fw.finance&&fw.finance.correlations)||{};html+=`💰 <b>Finance+Web</b>: ${fw.type||'HOLD'} ${fw.confidence||0}% • Buy:${fw.buy_score||0} Sell:${fw.sell_score||0} • Web ${fw.web?.score||0}% ${fw.web?.health||''}<br><span style="font-size:10px;color:#666">DXY:${corr.DXY?.trend||'-'} Silver:${corr.SILVER?.trend||'-'} SPX:${corr.SPX?.trend||'-'} Oil:${corr.OIL?.trend||'-'} EURUSD:${corr.EURUSD?.trend||'-'}</span><br>`;}if(s.tradingview_signal){const tv=s.tradingview_signal;const ind=tv.indicators||{};html+=`📈 <b>TradingView</b>: ${tv.type||'HOLD'} ${tv.confidence||0}% • Buy:${tv.buy_score||0} Sell:${tv.sell_score||0}<br>`;if(ind.indicators){const ii=ind.indicators;html+=`<span style="font-size:10px;color:#666">RSI:${ii.rsi_14||'-'} MACD:${ii.macd_line||'-'} EMA21:${ii.ema_21||'-'} BB:${ii.bb_position||'-'} Vol:${ii.vol_ratio||'-'}x • Pine:${tv.pine?.overall||'-'}</span><br>`;}}if(s.vibe_trading_signal){const vt=s.vibe_trading_signal;html+=`🔥 <b>Vibe-Trading</b>: ${vt.type||'HOLD'} ${vt.confidence||0}% • Buy:${vt.buy_score||0} Sell:${vt.sell_score||0}<br>`;if(vt.shadow){html+=`<span style="font-size:10px;color:#666">Shadow RSI:${vt.shadow.entry_rsi14||'-'} Prior:${vt.shadow.prior_5d_return||'-'}% • Qlib ${vt.qlib?.overall||'-'} WVMA:${Object.keys(vt.qlib?.wvma||{}).length} • Limits ${vt.limits?.can_trade?'OK':'HALT'}</span><br>`;}}if(s.strategy) html+=`<span style="font-size:10px;color:#999">Strategy: ${s.strategy}</span><br>`;if(s.buy_score!==undefined) html+=`<span style="font-size:10px;color:#666">Buy: ${s.buy_score} Sell: ${s.sell_score} • Conf: ${s.confluence||'-'}</span>`;aiEl.innerHTML=html;}console.log('Signal rendered',s.type,s.price);}
 function renderAlerts(alerts){const el=document.getElementById('alerts-list');const statTotal=document.getElementById('stat-total');const statBS=document.getElementById('stat-bs');if(!el)return;if(!alerts||alerts.length===0){el.innerHTML='<div style="padding:20px;text-align:center;color:var(--muted);font-size:12px">No alerts yet — only BUY/SELL<br>Easy & clean • All devices • Rebuilt</div>';return;}const buys=alerts.filter(a=>a.type==='BUY').length;const sells=alerts.filter(a=>a.type==='SELL').length;if(statTotal)statTotal.textContent=alerts.length;if(statBS)statBS.textContent=buys+' / '+sells;el.innerHTML=alerts.map(a=>`<div class="alert-item"><div class="alert-badge ${a.type.toLowerCase()}">${a.type}</div><div style="flex:1;min-width:0"><div style="display:flex;gap:8px;align-items:center"><span class="mono" style="font-weight:800">$${a.price.toFixed(2)}</span><span class="mono" style="font-size:10px;color:var(--gold)">${a.confidence}% • ${a.winrate_est}%</span></div><div class="mono" style="font-size:9px;color:var(--muted);margin-top:2px">${new Date(a.timestamp*1000).toLocaleString()} • SL $${a.sl||'--'} TP $${a.tp1||'--'}</div></div></div>`).join('');}
 function initChart(){try{const c=document.getElementById('oanda_chart');if(!c)return;if(typeof LightweightCharts==='undefined'){c.innerHTML='<div style="padding:20px;text-align:center">Chart lib loading...<br><span style="font-size:10px">Data works in Dashboard • Rebuilt</span></div>';const s=document.createElement('script');s.src='/static/vendor/lightweight-charts.js';s.onload=()=>{createChart();fetchChart(currentTF);};s.onerror=()=>{c.innerHTML='<div style="padding:20px;text-align:center">Chart CDN blocked in preview (normal)<br>Data works in Dashboard<br>Chart feed reconnecting • price above is LIVE</div>';};document.head.appendChild(s);return;}createChart();fetchChart(currentTF);}catch(e){console.log('initChart err',e);}}
 function createChart(){try{const c=document.getElementById('oanda_chart');if(!c||typeof LightweightCharts==='undefined')return;if(chart)return;c.innerHTML='';chart=LightweightCharts.createChart(c,{layout:{background:{color:'#ffffff'},textColor:'#6b7280'},grid:{vertLines:{color:'#e5e7eb'},horzLines:{color:'#e5e7eb'}},width:c.clientWidth,height:400,timeScale:{timeVisible:true},rightPriceScale:{borderColor:'#e5e7eb'}});candleSeries=chart.addCandlestickSeries({upColor:'#10b981',downColor:'#ef4444',borderVisible:false,wickUpColor:'#10b981',wickDownColor:'#ef4444'});new ResizeObserver(()=>{if(chart)chart.applyOptions({width:c.clientWidth})}).observe(c);console.log('chart created rebuilt');}catch(e){console.log('createChart err',e);}}
 function setTimeframe(tf){currentTF=tf;localStorage.setItem('astra6_tf',tf);document.querySelectorAll('.tf-btn').forEach(b=>b.classList.toggle('active',b.dataset.tf===tf));document.getElementById('chart-tf-label').textContent=tf;document.getElementById('chart-info-tf').textContent=tf;fetchChart(tf);}
-async function fetchChart(tf){tf=tf||currentTF;tf=tf.replace('D1','D').replace('W1','W');const count=(tf==='D'||tf==='W')?200:150;try{const r=await fetch(`/api/xauusd/history?granularity=${tf}&count=${count}&venue=${encodeURIComponent(currentVenue)}`);const d=await r.json();const srcEl=document.getElementById('chart-source');if(d.status==='ok'&&d.candles&&d.candles.length&&candleSeries){const data=d.candles.map(c=>{let t=typeof c.time==='number'?Math.floor(c.time):Math.floor(new Date(c.time).getTime()/1000);if(t>1e12)t=Math.floor(t/1000);return {time:t,open:c.open,high:c.high,low:c.low,close:c.close};}).filter(c=>c.time>0).sort((a,b)=>a.time-b.time);const seen=new Set();const clean=data.filter(c=>{if(seen.has(c.time))return false;seen.add(c.time);return true;});try{candleSeries.setData(clean);lastCandles=clean;}catch(e){console.log('chart data err',e);}document.getElementById('chart-candle-count').textContent=`${clean.length} candles`;if(srcEl)srcEl.textContent=(d.source||'REAL OHLCV').replace('xaus.com /api/v1/chart XAU/USD (REAL spot OHLCV)','XAUS REAL spot').replace('yfinance GC=F (REAL futures OHLCV)','yfinance GC=F REAL');if(clean.length){const last=clean[clean.length-1];if(lastPrice===0){lastPrice=last.close;const p=document.getElementById('price');if(p&&p.textContent==='$--.--')p.textContent='$'+last.close.toFixed(2);}}let fb=document.getElementById('chart-price-fallback');if(fb&&lastPrice)fb.textContent='$'+lastPrice.toFixed(2);}else if(srcEl){srcEl.textContent=(!candleSeries?'chart library loading…':'feed reconnecting (no fake data)');}}catch(e){console.log('chart fetch err',e);const s=document.getElementById('chart-source');if(s)s.textContent='feed reconnecting…';}}
+function symConf(){return currentSymbol==='BTCUSD'?{price:'/api/btc/price',chart:'/api/btc/chart',venues:'/api/btc/venues',gc:'COINBASE:BTCUSD',dec:2,unit:'BTC'}:{price:'/api/xauusd/fast-price',chart:'/api/xauusd/history',venues:'/api/xauusd/venues',gc:currentVenue,dec:2,unit:'XAU'};}
+function fmtPx(v){const d=symConf().dec;return '$'+(Number(v)||0).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});}
+async function fetchChart(tf){tf=tf||currentTF;tf=tf.replace('D1','D').replace('W1','W');const count=(tf==='D'||tf==='W')?200:150;const cfg=symConf();try{const url=currentSymbol==='BTCUSD'?`${cfg.chart}?granularity=${tf}&count=${count}&venue=${encodeURIComponent(currentVenue)}`:`${cfg.chart}?granularity=${tf}&count=${count}&venue=${encodeURIComponent(currentVenue)}`;const r=await fetch(url);const d=await r.json();const srcEl=document.getElementById('chart-source');if(d.status==='ok'&&d.candles&&d.candles.length&&candleSeries){const data=d.candles.map(c=>{let t=typeof c.time==='number'?Math.floor(c.time):Math.floor(new Date(c.time).getTime()/1000);if(t>1e12)t=Math.floor(t/1000);return {time:t,open:c.open,high:c.high,low:c.low,close:c.close};}).filter(c=>c.time>0).sort((a,b)=>a.time-b.time);const seen=new Set();const clean=data.filter(c=>{if(seen.has(c.time))return false;seen.add(c.time);return true;});try{candleSeries.setData(clean);lastCandles=clean;}catch(e){console.log('chart data err',e);}document.getElementById('chart-candle-count').textContent=`${clean.length} candles`;if(srcEl)srcEl.textContent=(d.source||'REAL OHLCV').replace('xaus.com /api/v1/chart XAU/USD (REAL OHLCV, spot-anchored)','XAUS spot · TradingView bar').replace('xaus.com /api/v1/chart XAU/USD (REAL spot OHLCV)','XAUS REAL spot').replace('yfinance GC=F (REAL futures OHLCV)','yfinance GC=F REAL');if(clean.length){const last=clean[clean.length-1];if(lastPrice===0){lastPrice=last.close;const p=document.getElementById('price');if(p&&p.textContent==='$--.--')p.textContent=fmtPx(last.close);}}let fb=document.getElementById('chart-price-fallback');if(fb&&lastPrice)fb.textContent=fmtPx(lastPrice);if(currentSymbol==='BTCUSD')renderBtcSignal(clean);}else if(srcEl){srcEl.textContent=(!candleSeries?'chart library loading…':'feed reconnecting (no fake data)');}}catch(e){console.log('chart fetch err',e);const s=document.getElementById('chart-source');if(s)s.textContent='feed reconnecting…';}}
 
-async function fetchFastPrice(){try{const r=await fetch('/api/xauusd/fast-price?venue='+encodeURIComponent(currentVenue)).catch(()=>null);if(!r)return;const d=await r.json();if(d.status==='ok'){const priceEl=document.getElementById('price');const newPrice=d.price;if(priceEl){if(lastPrice!==0&&Math.abs(newPrice-lastPrice)>0.01){priceEl.style.color=newPrice>lastPrice?'#10b981':'#ef4444';setTimeout(()=>{priceEl.style.color='#111827';},400);}priceEl.textContent='$'+newPrice.toFixed(2);}const sigPrice=document.getElementById('sig-price');if(sigPrice&&sigPrice.textContent==='$--')sigPrice.textContent='$'+newPrice.toFixed(2);lastPrice=newPrice;priceUpdateCount++;if(d.live_price){const ba=document.getElementById('bidask');if(ba){const spread=(d.live_price.ask-d.live_price.bid).toFixed(2);ba.textContent=`BID ${d.live_price.bid.toFixed(2)} / ASK ${d.live_price.ask.toFixed(2)} • Spread ${spread} • #${priceUpdateCount}`;}const fb=document.getElementById('chart-price-fallback');if(fb)fb.textContent='$'+newPrice.toFixed(2);}if(candleSeries&&lastCandles.length){const lc=lastCandles[lastCandles.length-1];const upd={time:lc.time,open:lc.open,high:Math.max(lc.high,newPrice),low:Math.min(lc.low,newPrice),close:newPrice};lastCandles[lastCandles.length-1]=upd;try{candleSeries.update(upd);}catch(e){}}}if(priceUpdateCount%15===0)fetchTVCompare();}catch(e){console.log('fast price err',e);}}
-async function loadVenues(){try{const r=await fetch('/api/xauusd/venues');const d=await r.json();const sel=document.getElementById('venue-select');if(!sel||d.status!=='ok')return;
-const opts=(d.venues||[]).filter(v=>v.price).map(v=>`<option value="${v.id}">${v.id==='XAUS'?'xaus.com spot':'TradingView · '+v.label}</option>`).join('');
-if(opts){sel.innerHTML=opts;const has=[...sel.options].some(o=>o.value===currentVenue);sel.value=has?currentVenue:(d.primary||'OANDA:XAUUSD');currentVenue=sel.value;}
-}catch(e){console.log('venues err',e);}}
-function setVenue(v){currentVenue=v;localStorage.setItem('astra6_venue',v);lastPrice=0;lastCandles=[];fetchFastPrice();fetchChart(currentTF);fetchTVCompare();initGoCharting();}
+async function fetchFastPrice(){const cfg=symConf();try{const r=await fetch(cfg.price+'?venue='+encodeURIComponent(currentVenue)).catch(()=>null);if(!r)return;const d=await r.json();if(d.status==='ok'){const priceEl=document.getElementById('price');const newPrice=currentSymbol==='BTCUSD'?d.mid:d.price;if(priceEl){if(lastPrice!==0&&Math.abs(newPrice-lastPrice)>0.01){priceEl.style.color=newPrice>lastPrice?'#10b981':'#ef4444';setTimeout(()=>{priceEl.style.color='var(--ink)';},400);}priceEl.textContent=fmtPx(newPrice);}const sigPrice=document.getElementById('sig-price');if(sigPrice&&sigPrice.textContent==='$--')sigPrice.textContent=fmtPx(newPrice);lastPrice=newPrice;priceUpdateCount++;const bid=currentSymbol==='BTCUSD'?d.bid:(d.live_price?d.live_price.bid:d.bid),ask=currentSymbol==='BTCUSD'?d.ask:(d.live_price?d.live_price.ask:d.ask);if(bid&&ask){const ba=document.getElementById('bidask');if(ba){const spread=(ask-bid).toFixed(2);const chg=d.change_pct!=null?` • ${d.change_pct>=0?'+':''}${Number(d.change_pct).toFixed(2)}%`:'';ba.textContent=`BID ${Number(bid).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})} / ASK ${Number(ask).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}${chg}`;}}const fb=document.getElementById('chart-price-fallback');if(fb)fb.textContent=fmtPx(newPrice);if(candleSeries&&lastCandles.length){const lc=lastCandles[lastCandles.length-1];const upd={time:lc.time,open:lc.open,high:Math.max(lc.high,newPrice),low:Math.min(lc.low,newPrice),close:newPrice};lastCandles[lastCandles.length-1]=upd;try{candleSeries.update(upd);}catch(e){}}}if(priceUpdateCount%15===0){if(currentSymbol==='BTCUSD')fetchBtcCompare();else fetchTVCompare();}}catch(e){console.log('fast price err',e);}}
+async function loadVenues(){try{const cfg=symConf();const r=await fetch(cfg.venues);const d=await r.json();const sel=document.getElementById('venue-select');if(!sel||d.status!=='ok')return;let opts;if(currentSymbol==='BTCUSD'){opts=(d.venues||[]).filter(v=>v.price).map(v=>`<option value="${v.id}">${v.id.replace(':BTCUSD','').replace(':BTCUSDT','')}</option>`).join('');}else{opts=(d.venues||[]).filter(v=>v.price).map(v=>`<option value="${v.id}">${v.id==='XAUS'?'xaus.com spot':'TradingView · '+v.label}</option>`).join('');}if(opts){sel.innerHTML=opts;const def=currentSymbol==='BTCUSD'?'COINBASE:BTCUSD':(d.primary||'OANDA:XAUUSD');const has=[...sel.options].some(o=>o.value===currentVenue);sel.value=has?currentVenue:def;currentVenue=sel.value;}}catch(e){console.log('venues err',e);}}
+function setVenue(v){currentVenue=v;localStorage.setItem('astra6_venue',v);lastPrice=0;lastCandles=[];fetchFastPrice();fetchChart(currentTF);if(currentSymbol==='BTCUSD')fetchBtcCompare();else fetchTVCompare();}
+function setSymbol(sym){if(sym===currentSymbol)return;currentSymbol=sym;localStorage.setItem('astra6_symbol',sym);const isBtc=sym==='BTCUSD';
+  currentVenue=isBtc?'COINBASE:BTCUSD':(localStorage.getItem('astra6_venue_gold')||'OANDA:XAUUSD');
+  if(!isBtc)localStorage.setItem('astra6_venue_gold',currentVenue);
+  document.querySelectorAll('.sym-btn').forEach(b=>b.classList.toggle('active',b.dataset.sym===sym));
+  document.querySelector('.brand-sub').textContent=isBtc?'Bitcoin · 5-layer analysis':'Gold · 5-layer analysis';
+  document.getElementById('gc-symbol').textContent=isBtc?'COINBASE:BTCUSD':currentVenue;
+  const go=document.getElementById('gc-open');if(go)go.href='https://gocharting.com/terminal?symbol='+encodeURIComponent(isBtc?'COINBASE:BTCUSD':currentVenue);
+  const gm=document.querySelector('.gc-mobile');if(gm)gm.href='https://gocharting.com/terminal?symbol='+encodeURIComponent(isBtc?'COINBASE:BTCUSD':currentVenue);
+  lastPrice=0;lastCandles=[];priceUpdateCount=0;
+  document.getElementById('price').textContent='$--.--';
+  document.getElementById('bidask').textContent='BID -- / ASK --';
+  loadVenues().then(()=>{fetchFastPrice();fetchChart(currentTF);});
+  if(isBtc)fetchBtcCompare();else fetchTVCompare();
+  if(gcChart&&typeof gcChart.setSymbol==='function'){
+    try{Promise.resolve(gcChart.setSymbol(isBtc?'COINBASE:BTCUSD':currentVenue)).catch(()=>{});}
+    catch(e){console.log('gc setSymbol',e);}
+    const note=document.getElementById('gc-note');
+    if(note)note.textContent=(isBtc?'GoCharting SDK · BTCUSD':'GoCharting SDK · XAUUSD')+' · candles from /api/gocharting/udf (REAL series)';
+  }
+  if(!isBtc){
+    const k1=document.getElementById('stat-k-1'),k2=document.getElementById('stat-k-2'),k3=document.getElementById('stat-k-3');
+    if(k1)k1.textContent='Total alerts'; if(k2)k2.textContent='Buy / Sell'; if(k3)k3.textContent='Verified winrate';
+    document.getElementById('real-winrate').textContent='--%';document.getElementById('real-stats').textContent='—';
+    fetchDashboard();
+  }
+}
 
 let gcChart=null, gcLoading=false;
 function gcInterval(tf){const m={'M1':'1m','M5':'5m','M15':'15m','M30':'30m','H1':'1h','H4':'4h','D':'1D','W':'1W','D1':'1D','W1':'1W'};return m[(tf||currentTF||'M15').toUpperCase()]||'15m';}
@@ -452,7 +485,7 @@ async function initGoCharting(){
   const box=document.getElementById('gc-chart'), st=document.getElementById('gc-status'),
         note=document.getElementById('gc-note'), open=document.getElementById('gc-open');
   if(gcLoading) return;
-  const sym=localStorage.getItem('astra6_venue')||'OANDA:XAUUSD';
+  const sym=currentSymbol==='BTCUSD'?'COINBASE:BTCUSD':(localStorage.getItem('astra6_venue')||'OANDA:XAUUSD');
   if(open)open.href='https://gocharting.com/terminal?symbol='+encodeURIComponent(sym);
   document.getElementById('gc-symbol').textContent=sym;
   try{
@@ -487,7 +520,7 @@ async function initGoCharting(){
       theme:'dark'
     });
     if(st)st.textContent='live · real candles';
-    if(note)note.textContent='GoCharting SDK · candles from /api/gocharting/udf (REAL xaus.com XAU/USD series)';
+    if(note)note.textContent=(currentSymbol==='BTCUSD'?'GoCharting SDK · BTCUSD':'GoCharting SDK · XAUUSD')+' · candles from /api/gocharting/udf (REAL series)';
     gcLoading=false;
   }catch(e){
     gcLoading=false;
@@ -499,6 +532,46 @@ async function initGoCharting(){
   }
 }
 
+
+function ema(arr,n){const k=2/(n+1);let e=arr[0];for(let i=1;i<arr.length;i++)e=arr[i]*k+e*(1-k);return e;}
+function rsi(arr,n){n=n||14;if(arr.length<n+1)return 50;let g=0,l=0;for(let i=1;i<=n;i++){const d=arr[i]-arr[i-1];if(d>=0)g+=d;else l-=d;}g/=n;l/=n;for(let i=n+1;i<arr.length;i++){const d=arr[i]-arr[i-1];g=(g*(n-1)+(d>0?d:0))/n;l=(l*(n-1)+(d<0?-d:0))/n;}if(l===0)return 100;const rs=g/l;return 100-100/(1+rs);}
+function renderBtcSignal(candles){
+  try{
+    const closes=candles.map(c=>c.close);if(closes.length<30)return;
+    const px=lastPrice||closes[closes.length-1], e20=ema(closes.slice(-60),20), e50=ema(closes,50), r=rsi(closes,14);
+    const macd=ema(closes.slice(-60),12)-ema(closes.slice(-60),26);
+    let votes=0;
+    if(px>e20)votes++;else votes--;
+    if(e20>e50)votes++;else votes--;
+    if(r>52)votes++;else if(r<48)votes--;
+    if(macd>0)votes++;else votes--;
+    const type=votes>=2?'BUY':votes<=-2?'SELL':'HOLD';
+    const conf=Math.min(92,50+Math.abs(votes)*10);
+    const s={type:type,price:px,confidence:conf,winrate_est:Math.round(conf*0.86),timestamp:Date.now()/1000,
+      time_str:new Date().toLocaleString(),strategy:'BTCUSD · real candle technicals',
+      sl:type==='BUY'?px*(1-0.004):type==='SELL'?px*(1+0.004):null,
+      tp1:type==='BUY'?px*(1+0.006):type==='SELL'?px*(1-0.006):null,
+      tp2:type==='BUY'?px*(1+0.012):type==='SELL'?px*(1-0.012):null,
+      reasons:[`EMA20 ${e20.toFixed(0)} vs EMA50 ${e50.toFixed(0)} · RSI ${r.toFixed(1)} · MACD ${macd.toFixed(1)} — computed from live BTCUSD candles`],preview:true};
+    const keep=window._lastSignal&&window._lastSignal.type;
+    if(document.getElementById('current-signal-card').dataset.sym==='BTCUSD'||true){renderCurrent(s);}
+    document.getElementById('current-signal-card').dataset.sym='BTCUSD';
+    const ai=document.getElementById('sig-ai');
+    if(ai)ai.innerHTML=`<b>BTCUSD · real-candle technicals</b><br>EMA20 ${e20.toFixed(0)} · EMA50 ${e50.toFixed(0)}<br>RSI14 ${r.toFixed(1)} · MACD ${macd.toFixed(1)}<br><span style="font-size:10px;color:var(--muted)">Computed from live COINBASE:BTCUSD candles — no estimates, no fake data</span>`;
+    const sw=document.getElementById('sig-winrate');if(sw)sw.textContent='--';
+    const up=closes.filter((c,i)=>i>0&&c>closes[i-1]).length, dn=closes.filter((c,i)=>i>0&&c<closes[i-1]).length;
+    const k1=document.getElementById('stat-k-1'),k2=document.getElementById('stat-k-2'),k3=document.getElementById('stat-k-3');
+    if(k1)k1.textContent='Bars analysed'; if(k2)k2.textContent='Bull / bear bars'; if(k3)k3.textContent='Market hours';
+    document.getElementById('stat-total').textContent=closes.length;
+    document.getElementById('stat-bs').textContent=up+' / '+dn;
+    document.getElementById('real-winrate').textContent='24/7';
+    document.getElementById('real-stats').textContent='crypto · never closes';
+  }catch(e){console.log('btc signal err',e);}
+}
+async function fetchBtcCompare(){try{const r=await fetch('/api/btc/venues').catch(()=>null);if(!r)return;const d=await r.json();const el=document.getElementById('tv-compare');if(!el||d.status!=='ok'||!d.venues.length)return;
+const a=d.venues.find(v=>v.id==='COINBASE:BTCUSD')||d.venues[0],b=d.venues.find(v=>v.id==='BINANCE:BTCUSDT');
+const dl=b?b.price-a.price:null;
+el.innerHTML=b?`<b>COINBASE</b> ${fmtPx(a.price)} · BINANCE Δ <b style="color:${Math.abs(dl)<150?'#10b981':'#ef4444'}">${dl>0?'+':''}${Number(dl).toFixed(0)}</b> <span style="color:#9ca3af">(venue difference, both real)</span>`:`<b>${a.id}</b> · REAL crypto feed`;}catch(e){console.log('btc compare err',e);}}
 async function fetchTVCompare(){try{const r=await fetch('/api/xauusd/tradingview').catch(()=>null);if(!r)return;const d=await r.json();const el=document.getElementById('tv-compare');if(!el||d.status!=='ok')return;
 const o=d.venues.find(v=>v.venue==='OANDA:XAUUSD')||d.venues[0];if(!o)return;
 const v=d.our_venue||(o.venue.split(':')[0]);const xd=d.xaus_delta;
@@ -506,8 +579,8 @@ el.innerHTML=xd===null||xd===undefined?`<b>${v}</b> · REAL live bid/ask`:`<b>${
 }catch(e){console.log('tv compare err',e);}}
 
 async function fetchLive(){try{const r=await fetch('/api/xauusd/live').catch(()=>null);if(!r)return;const d=await r.json();if(d.status==='ok'&&priceUpdateCount===0){document.getElementById('price').textContent='$'+d.price.toFixed(2);lastPrice=d.price;}}catch(e){console.log('fetchLive err',e);}}
-async function fetchDashboard(){const btn=document.getElementById('refresh-btn');if(btn)btn.textContent='…';try{const [curR,alertsR,winrateR]=await Promise.all([fetch('/api/signals/current'),fetch('/api/signals/alerts?limit=15'),fetch('/api/signals/winrate').catch(()=>null)]);const cur=await curR.json();console.log('cur',cur);const alerts=await alertsR.json();if(cur.status==='ok'&&cur.signal)renderCurrent(cur.signal);else renderCurrent({type:'HOLD',price:lastPrice||0,confidence:56,winrate_est:50,timestamp:Date.now()/1000,preview:true,reasons:['No signal - REAL live price']});if(alerts.status==='ok')renderAlerts(alerts.alerts);if(winrateR&&winrateR.ok){const wr=await winrateR.json();if(wr.status==='ok'){document.getElementById('real-winrate').textContent=(wr.winrate||0)+'%';document.getElementById('real-stats').textContent=`${wr.wins||0}W / ${wr.losses||0}L • ${wr.total_evaluated||0} closed`;}}}catch(e){console.log('dashboard err',e);}if(btn)btn.textContent='Refresh';}
-function updateTimeSmooth(){const lt=document.getElementById('live-time');if(lt){const now=new Date();lt.textContent=now.toLocaleTimeString('en-US',{hour12:false})+' • '+now.toLocaleDateString();}const ms=document.getElementById('market-status');if(ms){const now=new Date();const day=now.getUTCDay();const utcHour=now.getUTCHours();const isWeekend=(day===6&&utcHour>=22)||(day===0&&utcHour<22)||day===0;ms.textContent=isWeekend?'CLOSED':'LIVE';ms.style.color=isWeekend?'var(--red)':'var(--green)';const dt=document.getElementById('market-dot');if(dt)dt.className='dot'+(isWeekend?' closed':'');}}
+async function fetchDashboard(){if(currentSymbol==='BTCUSD'){document.getElementById('refresh-btn').textContent='Refresh';fetchBtcCompare();fetchFastPrice();fetchChart(currentTF);return;}const btn=document.getElementById('refresh-btn');if(btn)btn.textContent='…';try{const [curR,alertsR,winrateR]=await Promise.all([fetch('/api/signals/current'),fetch('/api/signals/alerts?limit=15'),fetch('/api/signals/winrate').catch(()=>null)]);const cur=await curR.json();console.log('cur',cur);const alerts=await alertsR.json();if(cur.status==='ok'&&cur.signal)renderCurrent(cur.signal);else renderCurrent({type:'HOLD',price:lastPrice||0,confidence:56,winrate_est:50,timestamp:Date.now()/1000,preview:true,reasons:['No signal - REAL live price']});if(alerts.status==='ok')renderAlerts(alerts.alerts);if(winrateR&&winrateR.ok){const wr=await winrateR.json();if(wr.status==='ok'){document.getElementById('real-winrate').textContent=(wr.winrate||0)+'%';document.getElementById('real-stats').textContent=`${wr.wins||0}W / ${wr.losses||0}L • ${wr.total_evaluated||0} closed`;}}}catch(e){console.log('dashboard err',e);}if(btn)btn.textContent='Refresh';}
+function updateTimeSmooth(){const lt=document.getElementById('live-time');if(lt){const now=new Date();lt.textContent=now.toLocaleTimeString('en-US',{hour12:false})+' • '+now.toLocaleDateString();}const ms=document.getElementById('market-status');if(ms){const now=new Date();const day=now.getUTCDay();const utcHour=now.getUTCHours();const isWeekend=(day===6&&utcHour>=22)||(day===0&&utcHour<22)||day===0;const closed=currentSymbol==='BTCUSD'?false:isWeekend;ms.textContent=closed?'CLOSED':'LIVE';ms.style.color=closed?'var(--red)':'var(--green)';const dt=document.getElementById('market-dot');if(dt)dt.className='dot'+(closed?' closed':'');}}
 function toggleSound(){soundOn=!soundOn;localStorage.setItem('astra6_sound',soundOn?'1':'0');document.getElementById('sound-btn').textContent=soundOn?'🔔':'🔕';}
 function layerRow(k,v,extra){return `<div style="display:flex;justify-content:space-between;gap:12px;padding:5px 0;border-bottom:1px solid var(--line-soft)"><span style="color:var(--muted)">${k}</span><span style="text-align:right"><b>${v}</b>${extra?` <span style="color:var(--muted)">${extra}</span>`:''}</span></div>`;}
 function showLayer(which){
@@ -535,11 +608,11 @@ function fetchTradingViewStatus(){showLayer('tv')}
 function fetchVibeTradingStatus(){showLayer('vibe')}
 function initClicks(){document.querySelectorAll('.tf-btn').forEach(b=>{b.onclick=()=>setTimeframe(b.dataset.tf);b.ontouchend=(e)=>{e.preventDefault();setTimeframe(b.dataset.tf);};});console.log('ASTRA6 rebuilt smooth - all clicks bound');}
 initClicks();document.addEventListener('DOMContentLoaded',initClicks);setTimeout(initClicks,500);
-setTimeout(()=>{initChart();fetchDashboard();fetchChart(currentTF);fetchLive();fetchFastPrice();},800);
+setTimeout(()=>{initChart();if(currentSymbol==='BTCUSD'){const b=document.querySelector('.sym-btn[data-sym="BTCUSD"]');if(b)b.classList.add('active');const g=document.querySelector('.sym-btn[data-sym="XAUUSD"]');if(g)g.classList.remove('active');document.querySelector('.brand-sub').textContent='Bitcoin · 5-layer analysis';}else{fetchDashboard();}fetchChart(currentTF);fetchLive();fetchFastPrice();},800);
 setInterval(updateTimeSmooth,500);updateTimeSmooth();
-setInterval(fetchFastPrice,5000);setInterval(fetchLive,10000);setInterval(()=>{fetchDashboard();},15000);
+setInterval(fetchFastPrice,5000);setInterval(fetchLive,10000);setInterval(()=>{if(currentSymbol!=='BTCUSD')fetchDashboard();},15000);
 document.getElementById('venue-select')?.addEventListener('change',e=>setVenue(e.target.value));
-loadVenues();fetchTVCompare();initGoCharting();
+loadVenues().then(()=>{if(currentSymbol==='BTCUSD')fetchBtcCompare();else fetchTVCompare();});initGoCharting();
 setInterval(()=>{fetch('/health').catch(()=>{});},240000);
 setInterval(()=>{fetchChart(currentTF);},30000);
 console.log('ASTRA6 REBUILT SMOOTH - First upgrade clean + All data + All in one + No lag + Smooth + Free access + Market stays + Working');

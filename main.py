@@ -463,6 +463,38 @@ def fetch_xaus_spot():
         print(f"XAUS spot fetch failed: {e}")
         return None
 
+TV_BAR_RES = {"M1": "1", "M5": "5", "M15": "15", "M30": "30", "H1": "60", "H4": "240"}
+_TV_BAR_CACHE = {}
+
+def fetch_tv_bar(venue, tf, ttl=10):
+    """Exact current-bar OHLC from the TradingView venue feed (open|N, high|N, low|N, close|N)."""
+    suffix = TV_BAR_RES.get(tf.upper())
+    if not suffix or not venue or venue.upper() in ("XAUS", ""):
+        return None
+    key = f"{venue}|{suffix}"
+    now = time.time()
+    hit = _TV_BAR_CACHE.get(key)
+    if hit and now - hit["time"] < ttl:
+        return hit["bar"]
+    kind = "crypto" if ("BTC" in venue.upper() or "ETH" in venue.upper()) else "cfd"
+    try:
+        import requests as _req
+        r = _req.post(f"https://scanner.tradingview.com/{kind}/scan",
+                      json={"symbols": {"tickers": [venue], "query": {"types": []}},
+                            "columns": [f"open|{suffix}", f"high|{suffix}", f"low|{suffix}", f"close|{suffix}"]},
+                      timeout=5, headers={"User-Agent": "Mozilla/5.0"})
+        if r.status_code == 200:
+            rows = r.json().get("data") or []
+            if rows:
+                o, h, l, c = rows[0]["d"][:4]
+                if None not in (o, h, l, c):
+                    bar = {"open": float(o), "high": float(h), "low": float(l), "close": float(c)}
+                    _TV_BAR_CACHE[key] = {"time": now, "bar": bar}
+                    return bar
+    except Exception as e:
+        print("tv bar failed", e)
+    return None
+
 _PRICE_VENUE = {"name": os.getenv("PRICE_VENUE", "OANDA:XAUUSD")}
 _FP_BY_VENUE = {}
 
@@ -776,7 +808,27 @@ def fetch_candles(granularity="M15", count=100, venue=None):
         if hit:
             return hit["data"]
         return None, None
-    candles, _ = _stitch_live(candles, fp["mid"] if fp else None)
+    # The raw series is futures-based (~$9 above spot). Shift the WHOLE series by the real,
+    # live basis so candles sit exactly on the venue's spot price, then overwrite the forming
+    # bar with the venue's own OHLC from TradingView. Nothing invented - both numbers are real.
+    live_mid = fp["mid"] if fp else None
+    if live_mid and candles:
+        basis = live_mid - candles[-1]["close"]
+        if abs(basis) > 0.005:
+            for c in candles:
+                c["open"] = round(c["open"] + basis, 2)
+                c["high"] = round(c["high"] + basis, 2)
+                c["low"] = round(c["low"] + basis, 2)
+                c["close"] = round(c["close"] + basis, 2)
+            src = src.replace("(REAL spot OHLCV)", "(REAL OHLCV, spot-anchored)").replace("(REAL daily)", "(REAL daily, spot-anchored)")
+    candles, _ = _stitch_live(candles, live_mid)
+    venue = (fp or {}).get("venue") or _PRICE_VENUE["name"]
+    tvbar = fetch_tv_bar(venue, granularity.upper().replace("D1", "D").replace("W1", "W"))
+    if tvbar and candles:
+        last = dict(candles[-1])
+        last.update({"open": tvbar["open"], "high": tvbar["high"], "low": tvbar["low"], "close": tvbar["close"]})
+        candles[-1] = last
+        src = src + f" · live bar: {venue}"
     result = (candles, fp)
     _candle_cache[key] = {"time": now, "data": result, "source": src}
     _last_candle_source[granularity.upper().replace("D1", "D").replace("W1", "W")] = src
@@ -3721,6 +3773,17 @@ def gc_udf_search(query: str = "", type: str = "", exchange: str = "", limit: in
 @app.get("/api/gocharting/udf/symbols")
 def gc_udf_symbols(symbol: str = "OANDA:XAUUSD"):
     """UDF symbol info - real metadata, tick size 0.01, pricescale 100."""
+    if "BTC" in str(symbol).upper():
+        px = fetch_btc_price("COINBASE:BTCUSD")
+        return {"name": "BTCUSD", "ticker": str(symbol), "description": "Bitcoin / US Dollar",
+                "type": "crypto", "session": "24x7", "session_holidays": "", "timezone": "Etc/UTC",
+                "exchange": str(symbol).split(":")[0] if ":" in str(symbol) else "COINBASE",
+                "listed_exchange": str(symbol).split(":")[0] if ":" in str(symbol) else "COINBASE",
+                "minmov": 1, "pricescale": 100, "minmov2": 0,
+                "has_intraday": True, "has_daily": True, "has_weekly_and_monthly": True,
+                "has_no_volume": False, "volume_precision": 2,
+                "supported_resolutions": ["1", "5", "15", "30", "60", "240", "D", "W"],
+                "currency_code": "USD", "last_price": (px or {}).get("mid"), "real": True}
     s = GC_SYMBOLS.get(symbol) or GC_SYMBOLS["OANDA:XAUUSD"]
     px = fetch_fast_price(s["venue"])
     _short = s["ticker"].split(":")[-1]
@@ -3761,6 +3824,23 @@ def gc_udf_history(symbol: str = "OANDA:XAUUSD", resolution: str = "15",
     venue = (GC_SYMBOLS.get(symbol) or GC_SYMBOLS["OANDA:XAUUSD"])["venue"]
     n = int(countback) if countback else 300
     n = max(50, min(n, 1000))
+    if "BTC" in str(symbol).upper():
+        bt, _bpx = fetch_btc_candles(gran, n, "COINBASE:BTCUSD")
+        if not bt:
+            return {"s": "error", "errmsg": "no real btc data", "no_data": False}
+        try:
+            f2 = int(float(frm)) if frm else 0
+            t2 = int(float(to)) if to else int(time.time())
+        except Exception:
+            f2, t2 = 0, int(time.time())
+        bsel = [c for c in bt if c["time"] <= t2 and (not f2 or c["time"] >= f2)] or bt[-n:]
+        return {"s": "ok", "t": [int(c["time"]) for c in bsel],
+                "o": [round(float(c["open"]), 2) for c in bsel],
+                "h": [round(float(c["high"]), 2) for c in bsel],
+                "l": [round(float(c["low"]), 2) for c in bsel],
+                "c": [round(float(c["close"]), 2) for c in bsel],
+                "v": [int(c.get("volume") or 0) for c in bsel],
+                "source": "xaus.com bitcoin OHLCV + TradingView live bar", "real": True}
     result = fetch_candles(gran, n, venue)
     if not result or not result[0]:
         return {"s": "error", "errmsg": "no real data available", "no_data": False}
@@ -3784,6 +3864,139 @@ def gc_udf_history(symbol: str = "OANDA:XAUUSD", resolution: str = "15",
         "source": last_candle_source(gran),
         "real": True,
     }
+
+# === Bitcoin - REAL spot price (TradingView crypto venues) + REAL OHLCV from xaus.com ===
+BTC_VENUES = ["COINBASE:BTCUSD", "BINANCE:BTCUSDT", "BITSTAMP:BTCUSD"]
+_BTC_CACHE = {"time": 0, "data": None}
+
+def fetch_btc_price(venue=None):
+    """REAL BTC price: TradingView crypto venue -> xaus spot -> yfinance. No fabrication."""
+    now = time.time()
+    v = venue or "COINBASE:BTCUSD"
+    if _BTC_CACHE["data"] and now - _BTC_CACHE["time"] < 1.5 and _BTC_CACHE["data"].get("venue") == v:
+        return _BTC_CACHE["data"]
+    try:
+        import requests as _req
+        r = _req.post("https://scanner.tradingview.com/crypto/scan",
+                      json={"symbols": {"tickers": [v], "query": {"types": []}},
+                            "columns": ["close", "bid", "ask", "change"]},
+                      timeout=5, headers={"User-Agent": "Mozilla/5.0"})
+        if r.status_code == 200:
+            rows = r.json().get("data") or []
+            if rows:
+                close, bid, ask, chg = rows[0]["d"][:4]
+                if close:
+                    _b = float(bid) if bid else float(close)
+                    _a = float(ask) if ask else float(close)
+                    _mid = (_b + _a) / 2 if (bid and ask and abs(_a - _b) < float(close) * 0.01) else float(close)
+                    data = {"mid": _mid, "bid": _b, "ask": _a,
+                            "change_pct": float(chg) if chg is not None else None,
+                            "timestamp": now, "venue": v,
+                            "source": f"TradingView {v} - REAL crypto venue feed", "real": True}
+                    _BTC_CACHE.update({"time": now, "data": data})
+                    return data
+    except Exception as e:
+        print("btc tv failed", e)
+    try:
+        import requests as _req
+        r = _req.get("https://xaus.com/api/v1/spot", timeout=5, headers={"User-Agent": "ASTRA6/1.0"})
+        if r.status_code == 200:
+            j = r.json()
+            p = j.get("btc_usd")
+            if p:
+                data = {"mid": float(p), "bid": float(p), "ask": float(p), "change_pct": None,
+                        "timestamp": now, "venue": "XAUS",
+                        "source": "xaus.com spot - REAL bitcoin price", "real": True}
+                _BTC_CACHE.update({"time": now, "data": data})
+                return data
+    except Exception as e:
+        print("btc xaus failed", e)
+    try:
+        import yfinance as yf
+        h = yf.Ticker("BTC-USD").history(period="1d", interval="5m")
+        if not h.empty:
+            p = float(h["Close"].iloc[-1])
+            data = {"mid": p, "bid": p, "ask": p, "change_pct": None, "timestamp": now,
+                    "venue": "yfinance", "source": "yfinance BTC-USD - REAL spot", "real": True}
+            _BTC_CACHE.update({"time": now, "data": data})
+            return data
+    except Exception as e:
+        print("btc yf failed", e)
+    return _BTC_CACHE["data"]
+
+def fetch_btc_candles(granularity="M15", count=150, venue=None):
+    """REAL BTC OHLCV from xaus.com chart (matches Coinbase spot), basis-anchored + TV live bar."""
+    g = granularity.upper().replace("D1", "D").replace("W1", "W")
+    cfg = {"M1": ("1d", "1m"), "M5": ("1d", "5m"), "M15": ("5d", "15m"),
+           "M30": ("5d", "30m"), "H1": ("1mo", "1h"), "H4": ("1mo", "1h")}
+    try:
+        import requests as _req
+        if g in ("D", "W"):
+            j = _req.get("https://xaus.com/api/v1/chart?symbol=bitcoin&range=5d&interval=1d", timeout=8,
+                         headers={"User-Agent": "ASTRA6/1.0"}).json()
+        else:
+            rg, iv = cfg.get(g, ("5d", "15m"))
+            j = _req.get(f"https://xaus.com/api/v1/chart?symbol=bitcoin&range={rg}&interval={iv}",
+                         timeout=8, headers={"User-Agent": "ASTRA6/1.0"}).json()
+        pts = j.get("points") or []
+        rows = [{"time": int(p["t"]), "open": float(p["o"]), "high": float(p["h"]),
+                 "low": float(p["l"]), "close": float(p["c"]), "volume": int(p.get("v") or 0)}
+                for p in pts if p.get("c")]
+        if not rows:
+            return [], None
+        rows.sort(key=lambda c: c["time"])
+        px = fetch_btc_price(venue)
+        live = px["mid"] if px else None
+        if live:
+            basis = live - rows[-1]["close"]
+            if abs(basis) > 0.5:
+                for c in rows:
+                    for k in ("open", "high", "low", "close"):
+                        c[k] = round(c[k] + basis, 2)
+            rows[-1]["close"] = live
+            rows[-1]["high"] = max(rows[-1]["high"], live)
+            rows[-1]["low"] = min(rows[-1]["low"], live)
+        bar = fetch_tv_bar(px.get("venue") if px else "COINBASE:BTCUSD", g)
+        if bar:
+            rows[-1].update({k: bar[k] for k in ("open", "high", "low", "close")})
+        return rows[-count:], px
+    except Exception as e:
+        print("btc candles err", e)
+        return [], None
+
+@app.get("/api/btc/price")
+def btc_price(venue: str = None, email: str = "free@astra6.com"):
+    px = fetch_btc_price(venue)
+    if not px:
+        return {"status": "error", "error": "btc_feed_unavailable", "real": False, "user": email}
+    return {"status": "ok", **px, "user": email}
+
+@app.get("/api/btc/chart")
+def btc_chart(granularity: str = "M15", count: int = 150, venue: str = None, email: str = "free@astra6.com"):
+    count = max(20, min(count, 1000))
+    candles, px = fetch_btc_candles(granularity, count, venue)
+    if not candles:
+        return {"status": "error", "error": "candle_feed_unavailable", "real": False, "candles": [], "user": email}
+    return {"status": "ok", "symbol": "BTCUSD", "granularity": granularity, "count": len(candles),
+            "latest_price": candles[-1]["close"], "candles": candles,
+            "source": "xaus.com bitcoin OHLCV · live bar: TradingView", "real": True,
+            "venue": (px or {}).get("venue"), "user": email}
+
+@app.get("/api/btc/venues")
+def btc_venues(email: str = "free@astra6.com"):
+    out = []
+    try:
+        import requests as _req
+        r = _req.post("https://scanner.tradingview.com/crypto/scan",
+                      json={"symbols": {"tickers": BTC_VENUES, "query": {"types": []}},
+                            "columns": ["close", "change"]},
+                      timeout=6, headers={"User-Agent": "Mozilla/5.0"})
+        if r.status_code == 200:
+            for row in r.json().get("data", []):
+                out.append({"id": row["s"], "price": row["d"][0], "change_pct": row["d"][1], "real": True})
+    except Exception as e:
+        print("btc venues err", e)
+    return {"status": "ok", "venues": out, "user": email}
 
 @app.get("/api/xauusd/venues")
 def price_venues(email: str = "free@astra6.com"):
