@@ -1262,7 +1262,7 @@ def elite_gold_sniper(m15_candles, h1_candles, live_price=None):
         confluence = max(buy_score, sell_score)
         confidence = 50 + confluence*2
         confidence = max(45, min(65, confidence))
-        final_reasons = [f"No human setup - need trend+level+pattern (Buy {buy_score:.1f}/{filters_buy} sup:{at_support} pat:{has_pattern_buy} trend:{market_trend} Sell {sell_score:.1f}/{filters_sell} res:{at_resistance} pat:{has_pattern_sell})"]
+        final_reasons = [f"No clean setup right now - waiting for trend, level and pattern to align (trend {market_trend} · buy {buy_score:.1f}/{filters_buy} · sell {sell_score:.1f}/{filters_sell})"]
     # SL/TP human style: SL below support / above resistance, TP 1:1.5
     # Use swing levels for SL, not ATR (pure price action)
     if signal_type == "BUY":
