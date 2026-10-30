@@ -47,10 +47,15 @@ button,select{font-family:inherit}
 
 .price-block{display:flex;flex-direction:column;align-items:center;gap:0;line-height:1.15;white-space:nowrap}
 .price-kicker{font-size:9px;font-weight:750;letter-spacing:1.2px;color:var(--muted);text-transform:uppercase;margin-bottom:3px}
-.sym-switch{display:inline-flex;gap:2px;padding:2px;background:var(--surface-2,#f3f4f6);border:1px solid var(--line);border-radius:999px;margin-bottom:5px}
-.sym-btn{font:inherit;font-size:9.5px;font-weight:800;letter-spacing:.7px;padding:3px 9px;border:0;border-radius:999px;background:transparent;color:var(--muted);cursor:pointer;transition:.16s}
-.sym-btn:hover{color:var(--ink)}
-.sym-btn.active{background:var(--ink,#111827);color:#fff}
+.sym-switch{display:inline-flex;gap:3px;padding:3px;background:#eef1f5;border:1px solid var(--line);border-radius:12px;margin-bottom:7px}
+.sym-btn{font:inherit;display:flex;flex-direction:column;align-items:flex-start;gap:1px;padding:5px 12px;border:0;border-radius:9px;background:transparent;color:var(--muted);cursor:pointer;transition:.16s;line-height:1.15}
+.sym-btn:hover{background:#e3e8ef}
+.sym-btn .sym-tag{font-size:8.5px;font-weight:800;letter-spacing:.75px}
+.sym-btn .sym-px{font-size:11.5px;font-weight:750;font-variant-numeric:tabular-nums}
+.sym-btn.active{background:var(--ink,#111827);box-shadow:0 1px 3px rgba(16,24,40,.28)}
+.sym-btn.active .sym-tag{color:#9aa4b2}
+.sym-btn.active .sym-px{color:#fff}
+@media(max-width:620px){.sym-btn{padding:4px 9px}.sym-btn .sym-px{font-size:11px}}
 .price-value{font-size:28px;font-weight:800;letter-spacing:-1px;line-height:1;color:var(--ink)}
 .price-meta{font-size:10.5px;color:var(--muted);margin-top:5px;letter-spacing:.1px}
 
@@ -154,7 +159,6 @@ button,select{font-family:inherit}
 /* ---------- charts ---------- */
 #oanda_chart{width:100%;height:420px;border-radius:10px;background:#fbfcfd;border:1px solid var(--line-soft);overflow:hidden;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px}
 .gc-shell{border-radius:10px;overflow:hidden;border:1px solid var(--line-soft)}
-#gc-chart{width:100%;height:470px;background:#0b1220;display:flex;align-items:center;justify-content:center;color:#cbd5e1;font-size:12px;text-align:center;padding:18px;line-height:1.65}
 .meta-row{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;font-size:10.5px;color:var(--muted);padding-top:11px;margin-top:11px;border-top:1px solid var(--line-soft)}
 .meta-row .ok{color:var(--up);font-weight:650}
 
@@ -225,7 +229,6 @@ button,select{font-family:inherit}
   #oanda_chart{height:330px}
   .signal-foot{display:none}
   .gc-embed{display:none}
-  .gc-mobile{display:flex !important}
 }
 @media(max-width:620px){
   .brand-sub{display:none}
@@ -265,9 +268,13 @@ button,select{font-family:inherit}
     </div>
 
     <div class="price-block">
-      <div class="sym-switch" role="group" aria-label="Symbol">
-        <button class="sym-btn active" data-sym="XAUUSD" onclick="setSymbol('XAUUSD')">XAUUSD</button>
-        <button class="sym-btn" data-sym="BTCUSD" onclick="setSymbol('BTCUSD')">BTCUSD</button>
+      <div class="sym-switch" role="group" aria-label="Market">
+        <button class="sym-btn active" data-sym="XAUUSD" onclick="setSymbol('XAUUSD')">
+          <span class="sym-tag">GOLD · XAUUSD</span><span class="sym-px mono" id="px-XAUUSD">—</span>
+        </button>
+        <button class="sym-btn" data-sym="BTCUSD" onclick="setSymbol('BTCUSD')">
+          <span class="sym-tag">BITCOIN · BTCUSD</span><span class="sym-px mono" id="px-BTCUSD">—</span>
+        </button>
       </div>
       <span class="price-value mono" id="price">$--.--</span>
       <span class="price-meta mono" id="bidask">BID -- / ASK --</span>
@@ -359,29 +366,6 @@ button,select{font-family:inherit}
     </div>
   </section>
 
-  <section class="card">
-    <div class="card-hd">
-      <div>
-        <div class="card-title">GoCharting terminal</div>
-        <div class="card-note">Full toolset · indicators, drawing, bar replay</div>
-      </div>
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        <span class="card-note mono" id="gc-status">checking…</span>
-        <a id="gc-open" class="btn btn-sm" href="https://gocharting.com/terminal?symbol=OANDA:XAUUSD" target="_blank" rel="noopener">Open in GoCharting ↗</a>
-      </div>
-    </div>
-    <div class="gc-shell gc-embed">
-      <div id="gc-chart">GoCharting chart loads here.</div>
-    </div>
-    <a class="gc-mobile" href="https://gocharting.com/terminal?symbol=OANDA:XAUUSD" target="_blank" rel="noopener"
-       style="display:none;align-items:center;justify-content:center;gap:8px;height:46px;border-radius:10px;background:#0b1220;color:#e8edf6;font-size:13px;font-weight:700;text-decoration:none">
-      Open live chart in GoCharting ↗
-    </a>
-    <div class="meta-row">
-      <span id="gc-note">Real candles served to GoCharting in UDF format.</span>
-      <span class="mono" id="gc-symbol">OANDA:XAUUSD</span>
-    </div>
-  </section>
 
   <section class="grid-two">
     <article class="card">
@@ -445,11 +429,25 @@ function renderAlerts(alerts){const el=document.getElementById('alerts-list');co
 function initChart(){try{const c=document.getElementById('oanda_chart');if(!c)return;if(typeof LightweightCharts==='undefined'){c.innerHTML='<div style="padding:20px;text-align:center">Chart lib loading...<br><span style="font-size:10px">Data works in Dashboard • Rebuilt</span></div>';const s=document.createElement('script');s.src='/static/vendor/lightweight-charts.js';s.onload=()=>{createChart();fetchChart(currentTF);};s.onerror=()=>{c.innerHTML='<div style="padding:20px;text-align:center">Chart CDN blocked in preview (normal)<br>Data works in Dashboard<br>Chart feed reconnecting • price above is LIVE</div>';};document.head.appendChild(s);return;}createChart();fetchChart(currentTF);}catch(e){console.log('initChart err',e);}}
 function createChart(){try{const c=document.getElementById('oanda_chart');if(!c||typeof LightweightCharts==='undefined')return;if(chart)return;c.innerHTML='';chart=LightweightCharts.createChart(c,{layout:{background:{color:'#ffffff'},textColor:'#6b7280'},grid:{vertLines:{color:'#e5e7eb'},horzLines:{color:'#e5e7eb'}},width:c.clientWidth,height:400,timeScale:{timeVisible:true},rightPriceScale:{borderColor:'#e5e7eb'}});candleSeries=chart.addCandlestickSeries({upColor:'#10b981',downColor:'#ef4444',borderVisible:false,wickUpColor:'#10b981',wickDownColor:'#ef4444'});new ResizeObserver(()=>{if(chart)chart.applyOptions({width:c.clientWidth})}).observe(c);console.log('chart created rebuilt');}catch(e){console.log('createChart err',e);}}
 function setTimeframe(tf){currentTF=tf;localStorage.setItem('astra6_tf',tf);document.querySelectorAll('.tf-btn').forEach(b=>b.classList.toggle('active',b.dataset.tf===tf));document.getElementById('chart-tf-label').textContent=tf;document.getElementById('chart-info-tf').textContent=tf;fetchChart(tf);}
+
+function updateSymTabs(){
+  document.querySelectorAll('.sym-btn').forEach(b=>b.classList.toggle('active',b.dataset.sym===currentSymbol));
+  const chartTitle=document.querySelector('.card-title');
+  if(chartTitle&&/Price chart/i.test(chartTitle.textContent))chartTitle.textContent='Price chart · '+currentSymbol;
+}
+function setTabPrice(sym,price){const el=document.getElementById('px-'+sym);if(el&&price)el.textContent=fmtPx(price);}
+async function fetchOtherPrice(){
+  const other=currentSymbol==='BTCUSD'?'XAUUSD':'BTCUSD';
+  try{
+    if(other==='BTCUSD'){const r=await fetch('/api/btc/price');const d=await r.json();if(d.status==='ok')setTabPrice('BTCUSD',d.mid);}
+    else{const r=await fetch('/api/xauusd/fast-price?venue=OANDA:XAUUSD');const d=await r.json();if(d.status==='ok')setTabPrice('XAUUSD',d.price);}
+  }catch(e){}
+}
 function symConf(){return currentSymbol==='BTCUSD'?{price:'/api/btc/price',chart:'/api/btc/chart',venues:'/api/btc/venues',gc:'COINBASE:BTCUSD',dec:2,unit:'BTC'}:{price:'/api/xauusd/fast-price',chart:'/api/xauusd/history',venues:'/api/xauusd/venues',gc:currentVenue,dec:2,unit:'XAU'};}
 function fmtPx(v){const d=symConf().dec;return '$'+(Number(v)||0).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});}
 async function fetchChart(tf){tf=tf||currentTF;tf=tf.replace('D1','D').replace('W1','W');const count=(tf==='D'||tf==='W')?200:150;const cfg=symConf();try{const url=currentSymbol==='BTCUSD'?`${cfg.chart}?granularity=${tf}&count=${count}&venue=${encodeURIComponent(currentVenue)}`:`${cfg.chart}?granularity=${tf}&count=${count}&venue=${encodeURIComponent(currentVenue)}`;const r=await fetch(url);const d=await r.json();const srcEl=document.getElementById('chart-source');if(d.status==='ok'&&d.candles&&d.candles.length&&candleSeries){const data=d.candles.map(c=>{let t=typeof c.time==='number'?Math.floor(c.time):Math.floor(new Date(c.time).getTime()/1000);if(t>1e12)t=Math.floor(t/1000);return {time:t,open:c.open,high:c.high,low:c.low,close:c.close};}).filter(c=>c.time>0).sort((a,b)=>a.time-b.time);const seen=new Set();const clean=data.filter(c=>{if(seen.has(c.time))return false;seen.add(c.time);return true;});try{candleSeries.setData(clean);lastCandles=clean;}catch(e){console.log('chart data err',e);}document.getElementById('chart-candle-count').textContent=`${clean.length} candles`;if(srcEl)srcEl.textContent=(d.source||'REAL OHLCV').replace('xaus.com /api/v1/chart XAU/USD (REAL OHLCV, spot-anchored)','XAUS spot · TradingView bar').replace('xaus.com /api/v1/chart XAU/USD (REAL spot OHLCV)','XAUS REAL spot').replace('yfinance GC=F (REAL futures OHLCV)','yfinance GC=F REAL');if(clean.length){const last=clean[clean.length-1];if(lastPrice===0){lastPrice=last.close;const p=document.getElementById('price');if(p&&p.textContent==='$--.--')p.textContent=fmtPx(last.close);}}let fb=document.getElementById('chart-price-fallback');if(fb&&lastPrice)fb.textContent=fmtPx(lastPrice);if(currentSymbol==='BTCUSD')renderBtcSignal(clean);}else if(srcEl){srcEl.textContent=(!candleSeries?'chart library loading…':'feed reconnecting (no fake data)');}}catch(e){console.log('chart fetch err',e);const s=document.getElementById('chart-source');if(s)s.textContent='feed reconnecting…';}}
 
-async function fetchFastPrice(){const cfg=symConf();try{const r=await fetch(cfg.price+'?venue='+encodeURIComponent(currentVenue)).catch(()=>null);if(!r)return;const d=await r.json();if(d.status==='ok'){const priceEl=document.getElementById('price');const newPrice=currentSymbol==='BTCUSD'?d.mid:d.price;if(priceEl){if(lastPrice!==0&&Math.abs(newPrice-lastPrice)>0.01){priceEl.style.color=newPrice>lastPrice?'#10b981':'#ef4444';setTimeout(()=>{priceEl.style.color='var(--ink)';},400);}priceEl.textContent=fmtPx(newPrice);}const sigPrice=document.getElementById('sig-price');if(sigPrice&&sigPrice.textContent==='$--')sigPrice.textContent=fmtPx(newPrice);lastPrice=newPrice;priceUpdateCount++;const bid=currentSymbol==='BTCUSD'?d.bid:(d.live_price?d.live_price.bid:d.bid),ask=currentSymbol==='BTCUSD'?d.ask:(d.live_price?d.live_price.ask:d.ask);if(bid&&ask){const ba=document.getElementById('bidask');if(ba){const spread=(ask-bid).toFixed(2);const chg=d.change_pct!=null?` • ${d.change_pct>=0?'+':''}${Number(d.change_pct).toFixed(2)}%`:'';ba.textContent=`BID ${Number(bid).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})} / ASK ${Number(ask).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}${chg}`;}}const fb=document.getElementById('chart-price-fallback');if(fb)fb.textContent=fmtPx(newPrice);if(candleSeries&&lastCandles.length){const lc=lastCandles[lastCandles.length-1];const upd={time:lc.time,open:lc.open,high:Math.max(lc.high,newPrice),low:Math.min(lc.low,newPrice),close:newPrice};lastCandles[lastCandles.length-1]=upd;try{candleSeries.update(upd);}catch(e){}}}if(priceUpdateCount%15===0){if(currentSymbol==='BTCUSD')fetchBtcCompare();else fetchTVCompare();}}catch(e){console.log('fast price err',e);}}
+async function fetchFastPrice(){const cfg=symConf();try{const r=await fetch(cfg.price+'?venue='+encodeURIComponent(currentVenue)).catch(()=>null);if(!r)return;const d=await r.json();if(d.status==='ok'){const priceEl=document.getElementById('price');const newPrice=currentSymbol==='BTCUSD'?d.mid:d.price;if(priceEl){if(lastPrice!==0&&Math.abs(newPrice-lastPrice)>0.01){priceEl.style.color=newPrice>lastPrice?'#10b981':'#ef4444';setTimeout(()=>{priceEl.style.color='var(--ink)';},400);}priceEl.textContent=fmtPx(newPrice);}setTabPrice(currentSymbol,newPrice);const sigPrice=document.getElementById('sig-price');if(sigPrice&&sigPrice.textContent==='$--')sigPrice.textContent=fmtPx(newPrice);lastPrice=newPrice;priceUpdateCount++;const bid=currentSymbol==='BTCUSD'?d.bid:(d.live_price?d.live_price.bid:d.bid),ask=currentSymbol==='BTCUSD'?d.ask:(d.live_price?d.live_price.ask:d.ask);if(bid&&ask){const ba=document.getElementById('bidask');if(ba){const spread=(ask-bid).toFixed(2);const chg=d.change_pct!=null?` • ${d.change_pct>=0?'+':''}${Number(d.change_pct).toFixed(2)}%`:'';ba.textContent=`BID ${Number(bid).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})} / ASK ${Number(ask).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}${chg}`;}}const fb=document.getElementById('chart-price-fallback');if(fb)fb.textContent=fmtPx(newPrice);if(candleSeries&&lastCandles.length){const lc=lastCandles[lastCandles.length-1];const upd={time:lc.time,open:lc.open,high:Math.max(lc.high,newPrice),low:Math.min(lc.low,newPrice),close:newPrice};lastCandles[lastCandles.length-1]=upd;try{candleSeries.update(upd);}catch(e){}}}if(priceUpdateCount%15===0){if(currentSymbol==='BTCUSD')fetchBtcCompare();else fetchTVCompare();}}catch(e){console.log('fast price err',e);}}
 async function loadVenues(){try{const cfg=symConf();const r=await fetch(cfg.venues);const d=await r.json();const sel=document.getElementById('venue-select');if(!sel||d.status!=='ok')return;let opts;if(currentSymbol==='BTCUSD'){opts=(d.venues||[]).filter(v=>v.price).map(v=>`<option value="${v.id}">${v.id.replace(':BTCUSD','').replace(':BTCUSDT','')}</option>`).join('');}else{opts=(d.venues||[]).filter(v=>v.price).map(v=>`<option value="${v.id}">${v.id==='XAUS'?'xaus.com spot':'TradingView · '+v.label}</option>`).join('');}if(opts){sel.innerHTML=opts;const def=currentSymbol==='BTCUSD'?'COINBASE:BTCUSD':(d.primary||'OANDA:XAUUSD');const has=[...sel.options].some(o=>o.value===currentVenue);sel.value=has?currentVenue:def;currentVenue=sel.value;}}catch(e){console.log('venues err',e);}}
 function setVenue(v){currentVenue=v;localStorage.setItem('astra6_venue',v);lastPrice=0;lastCandles=[];fetchFastPrice();fetchChart(currentTF);if(currentSymbol==='BTCUSD')fetchBtcCompare();else fetchTVCompare();}
 function setSymbol(sym){if(sym===currentSymbol)return;currentSymbol=sym;localStorage.setItem('astra6_symbol',sym);const isBtc=sym==='BTCUSD';
@@ -457,20 +455,11 @@ function setSymbol(sym){if(sym===currentSymbol)return;currentSymbol=sym;localSto
   if(!isBtc)localStorage.setItem('astra6_venue_gold',currentVenue);
   document.querySelectorAll('.sym-btn').forEach(b=>b.classList.toggle('active',b.dataset.sym===sym));
   document.querySelector('.brand-sub').textContent=isBtc?'Bitcoin · 5-layer analysis':'Gold · 5-layer analysis';
-  document.getElementById('gc-symbol').textContent=isBtc?'COINBASE:BTCUSD':currentVenue;
-  const go=document.getElementById('gc-open');if(go)go.href='https://gocharting.com/terminal?symbol='+encodeURIComponent(isBtc?'COINBASE:BTCUSD':currentVenue);
-  const gm=document.querySelector('.gc-mobile');if(gm)gm.href='https://gocharting.com/terminal?symbol='+encodeURIComponent(isBtc?'COINBASE:BTCUSD':currentVenue);
-  lastPrice=0;lastCandles=[];priceUpdateCount=0;
+  updateSymTabs();fetchOtherPrice();lastPrice=0;lastCandles=[];priceUpdateCount=0;
   document.getElementById('price').textContent='$--.--';
   document.getElementById('bidask').textContent='BID -- / ASK --';
   loadVenues().then(()=>{fetchFastPrice();fetchChart(currentTF);});
   if(isBtc)fetchBtcCompare();else fetchTVCompare();
-  if(gcChart&&typeof gcChart.setSymbol==='function'){
-    try{Promise.resolve(gcChart.setSymbol(isBtc?'COINBASE:BTCUSD':currentVenue)).catch(()=>{});}
-    catch(e){console.log('gc setSymbol',e);}
-    const note=document.getElementById('gc-note');
-    if(note)note.textContent=(isBtc?'GoCharting SDK · BTCUSD':'GoCharting SDK · XAUUSD')+' · candles from /api/gocharting/udf (REAL series)';
-  }
   if(!isBtc){
     const k1=document.getElementById('stat-k-1'),k2=document.getElementById('stat-k-2'),k3=document.getElementById('stat-k-3');
     if(k1)k1.textContent='Total alerts'; if(k2)k2.textContent='Buy / Sell'; if(k3)k3.textContent='Verified winrate';
@@ -478,60 +467,6 @@ function setSymbol(sym){if(sym===currentSymbol)return;currentSymbol=sym;localSto
     fetchDashboard();
   }
 }
-
-let gcChart=null, gcLoading=false;
-function gcInterval(tf){const m={'M1':'1m','M5':'5m','M15':'15m','M30':'30m','H1':'1h','H4':'4h','D':'1D','W':'1W','D1':'1D','W1':'1W'};return m[(tf||currentTF||'M15').toUpperCase()]||'15m';}
-async function initGoCharting(){
-  const box=document.getElementById('gc-chart'), st=document.getElementById('gc-status'),
-        note=document.getElementById('gc-note'), open=document.getElementById('gc-open');
-  if(gcLoading) return;
-  const sym=currentSymbol==='BTCUSD'?'COINBASE:BTCUSD':(localStorage.getItem('astra6_venue')||'OANDA:XAUUSD');
-  if(open)open.href='https://gocharting.com/terminal?symbol='+encodeURIComponent(sym);
-  document.getElementById('gc-symbol').textContent=sym;
-  try{
-    const cfg=await (await fetch('/api/gocharting/config')).json();
-    if(gcChart){if(st)st.textContent='live · real candles';return;}
-    if(!cfg.sdk_url){
-      // SDK not configured - show honest state, keep deep-link
-      if(st)st.textContent='add SDK bundle';
-      if(box)box.innerHTML=`<div style="max-width:430px">
-        <div style="font-size:24px;font-weight:900;margin-bottom:8px">GoCharting SDK</div>
-        <div style="color:#9ca3af;font-size:12px;margin-bottom:10px">The SDK is installed but the bundle path isn't set on this deploy.</div>
-        <div style="color:#fbbf24;font-size:12px;font-weight:700">Set GOCHARTING_SDK_URL=/static/gocharting/index.umd.js</div></div>`;
-      return;
-    }
-    gcLoading=true;
-    if(st)st.textContent='loading SDK…';
-    await new Promise((res,rej)=>{const s=document.createElement('script');s.src=cfg.sdk_url;
-      s.onload=res;s.onerror=()=>rej(new Error('sdk load failed'));document.head.appendChild(s);});
-    const SDK=window.GoChartingSDK;
-    if(!SDK||typeof SDK.createChart!=='function'){
-      throw new Error('GoChartingSDK.createChart not found after load');
-    }
-    if(gcChart&&gcChart.destroy){try{gcChart.destroy();}catch(e){}}
-    if(box)box.innerHTML='';
-    // UDFCompatibleDatafeed reads our REAL endpoints: /config /symbols /history /time /search
-    const datafeed=new SDK.UDFCompatibleDatafeed('/api/gocharting/udf',{updateFrequency:2000});
-    gcChart=SDK.createChart('#gc-chart',{
-      symbol:sym,
-      interval:gcInterval(currentTF),
-      datafeed:datafeed,
-      licenseKey:cfg.licence_key||'demo-550e8400-e29b-41d4-a716-446655440000',
-      theme:'dark'
-    });
-    if(st)st.textContent='live · real candles';
-    if(note)note.textContent=(currentSymbol==='BTCUSD'?'GoCharting SDK · BTCUSD':'GoCharting SDK · XAUUSD')+' · candles from /api/gocharting/udf (REAL series)';
-    gcLoading=false;
-  }catch(e){
-    gcLoading=false;
-    console.log('gocharting init err',e);
-    if(st)st.textContent='unavailable';
-    if(box)box.innerHTML=`<div style="max-width:420px;color:#fbbf24;font-size:12px">
-      GoCharting SDK could not start: ${String(e.message||e)}<br><br>
-      <a href="https://gocharting.com/terminal?symbol=${encodeURIComponent(sym)}" target="_blank" rel="noopener" style="color:#6ee7b7">Open XAUUSD in GoCharting instead ↗</a></div>`;
-  }
-}
-
 
 function ema(arr,n){const k=2/(n+1);let e=arr[0];for(let i=1;i<arr.length;i++)e=arr[i]*k+e*(1-k);return e;}
 function rsi(arr,n){n=n||14;if(arr.length<n+1)return 50;let g=0,l=0;for(let i=1;i<=n;i++){const d=arr[i]-arr[i-1];if(d>=0)g+=d;else l-=d;}g/=n;l/=n;for(let i=n+1;i<arr.length;i++){const d=arr[i]-arr[i-1];g=(g*(n-1)+(d>0?d:0))/n;l=(l*(n-1)+(d<0?-d:0))/n;}if(l===0)return 100;const rs=g/l;return 100-100/(1+rs);}
@@ -610,9 +545,9 @@ function initClicks(){document.querySelectorAll('.tf-btn').forEach(b=>{b.onclick
 initClicks();document.addEventListener('DOMContentLoaded',initClicks);setTimeout(initClicks,500);
 setTimeout(()=>{initChart();if(currentSymbol==='BTCUSD'){const b=document.querySelector('.sym-btn[data-sym="BTCUSD"]');if(b)b.classList.add('active');const g=document.querySelector('.sym-btn[data-sym="XAUUSD"]');if(g)g.classList.remove('active');document.querySelector('.brand-sub').textContent='Bitcoin · 5-layer analysis';}else{fetchDashboard();}fetchChart(currentTF);fetchLive();fetchFastPrice();},800);
 setInterval(updateTimeSmooth,500);updateTimeSmooth();
-setInterval(fetchFastPrice,5000);setInterval(fetchLive,10000);setInterval(()=>{if(currentSymbol!=='BTCUSD')fetchDashboard();},15000);
+setInterval(fetchFastPrice,5000);setInterval(fetchOtherPrice,12000);setInterval(fetchLive,10000);setInterval(()=>{if(currentSymbol!=='BTCUSD')fetchDashboard();},15000);
 document.getElementById('venue-select')?.addEventListener('change',e=>setVenue(e.target.value));
-loadVenues().then(()=>{if(currentSymbol==='BTCUSD')fetchBtcCompare();else fetchTVCompare();});initGoCharting();
+loadVenues().then(()=>{if(currentSymbol==='BTCUSD')fetchBtcCompare();else fetchTVCompare();});updateSymTabs();fetchOtherPrice();
 setInterval(()=>{fetch('/health').catch(()=>{});},240000);
 setInterval(()=>{fetchChart(currentTF);},30000);
 console.log('ASTRA6 REBUILT SMOOTH - First upgrade clean + All data + All in one + No lag + Smooth + Free access + Market stays + Working');

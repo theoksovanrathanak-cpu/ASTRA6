@@ -2883,7 +2883,11 @@ def health():
     return {"status": "ok", "name": "ASTRA6", "uptime": "24/7", "timestamp": time.time(), "message": "Elite 85%+ 5-layer AI+Finance+TradingView+Vibe v1.3","ai":"pythonidae+financedb+tradingview+vibe","version":"ai-5layer-1.3"}
 
 @app.get("/", response_class=HTMLResponse)
-def home(): return open("index.html").read()
+def home():
+    # always serve the freshest build - a cached page is why a new feature can look "missing"
+    return HTMLResponse(content=open("index.html", encoding="utf-8").read(),
+                        headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+                                 "Pragma": "no-cache", "Expires": "0"})
 
 @app.get("/login.html", response_class=HTMLResponse)
 def login_page():
