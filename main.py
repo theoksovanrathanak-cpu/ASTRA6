@@ -36,6 +36,7 @@ except Exception as e:
     VIBE_TRADING_AVAILABLE = False
 
 from fastapi import FastAPI, Header, HTTPException, Depends, Request, Query
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, FileResponse
 from pydantic import BaseModel
@@ -46,6 +47,20 @@ from pathlib import Path
 load_dotenv()
 
 app = FastAPI(title="ASTRA6 Elite")
+
+# GoCharting SDK served from our own origin (SDK lazy-loads ./vendor/* chunks)
+try:
+    import os as _os
+    _gc_dir = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "static")
+    if _os.path.isdir(_gc_dir):
+        app.mount("/static", StaticFiles(directory=_gc_dir), name="static")
+        # the SDK requests /ibm-plex-mono/* from the web root
+        _font_src = _os.path.join(_gc_dir, "ibm-plex-mono")
+        if _os.path.isdir(_font_src):
+            app.mount("/ibm-plex-mono", StaticFiles(directory=_font_src), name="fonts")
+        print("✅ GoCharting SDK served at /static/gocharting/index.umd.js")
+except Exception as _e:
+    print("static mount skipped:", _e)
 
 # Keepalive for free plan 24/7 hosting - prevents sleep after 15 min
 import threading
@@ -3652,7 +3667,8 @@ def gocharting_config(email: str = "free@astra6.com"):
         "free_tier": "Free with attribution - request a licence credential from GoCharting (no credit card)",
         "white_label": "Paid - removes GoCharting attribution",
         "licence_configured": bool(key),
-        "sdk_url": _os.getenv("GOCHARTING_SDK_URL", ""),
+        "sdk_url": _os.getenv("GOCHARTING_SDK_URL", "/static/gocharting/index.umd.js"),
+        "licence_key": key or _os.getenv("GOCHARTING_DEMO_KEY", "demo-550e8400-e29b-41d4-a716-446655440000"),
         "default_symbol": _os.getenv("GOCHARTING_SYMBOL", "OANDA:XAUUSD"),
         "symbols": list(GC_SYMBOLS.keys()),
         "supported_resolutions": ["1", "5", "15", "30", "60", "240", "D", "W"],
@@ -3689,14 +3705,28 @@ def gc_udf_config():
         "symbols_types": [{"value": "", "name": "All"}, {"value": "commodity", "name": "Commodity"}],
     }
 
+@app.get("/api/gocharting/udf/search")
+def gc_udf_search(query: str = "", type: str = "", exchange: str = "", limit: int = 30):
+    """UDF symbol search - our five REAL venues."""
+    q = (query or "").upper()
+    out = []
+    for ticker, meta in GC_SYMBOLS.items():
+        if q and q not in ticker.upper() and q not in meta["name"].upper():
+            continue
+        out.append({"symbol": ticker, "full_name": ticker, "description": meta["name"],
+                    "exchange": ticker.split(":")[0] if ":" in ticker else "XAUS",
+                    "type": "commodity", "key": ticker})
+    return out[:limit]
+
 @app.get("/api/gocharting/udf/symbols")
 def gc_udf_symbols(symbol: str = "OANDA:XAUUSD"):
     """UDF symbol info - real metadata, tick size 0.01, pricescale 100."""
     s = GC_SYMBOLS.get(symbol) or GC_SYMBOLS["OANDA:XAUUSD"]
     px = fetch_fast_price(s["venue"])
+    _short = s["ticker"].split(":")[-1]
     price = px["mid"] if px else None
     return {
-        "name": s["ticker"],
+        "name": _short,
         "ticker": s["ticker"],
         "description": s["name"],
         "type": "commodity",
@@ -3712,6 +3742,7 @@ def gc_udf_symbols(symbol: str = "OANDA:XAUUSD"):
         "has_daily": True,
         "has_weekly_and_monthly": True,
         "has_no_volume": True,
+        "no_volume": True,
         "volume_precision": 0,
         "supported_resolutions": ["1", "5", "15", "30", "60", "240", "D", "W"],
         "currency_code": "USD",

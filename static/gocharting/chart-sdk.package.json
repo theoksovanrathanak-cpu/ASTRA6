@@ -1,0 +1,69 @@
+{
+  "name": "@gocharting/chart-sdk",
+  "version": "1.0.71",
+  "description": "Professional charting SDK with real-time trading capabilities",
+  "main": "index.umd.js",
+  "module": "index.esm.js",
+  "types": "index.d.ts",
+  "files": [
+    "*",
+    "!*.map",
+    "!stats.html"
+  ],
+  "keywords": [
+    "charting",
+    "trading",
+    "financial",
+    "charts",
+    "candlestick",
+    "technical-analysis",
+    "real-time",
+    "sdk"
+  ],
+  "author": "Your Company",
+  "license": "Commercial",
+  "peerDependencies": {
+    "react": ">=16.8.0",
+    "react-dom": ">=16.8.0"
+  },
+  "overrides": {
+    "d3-selection": "^3.0.0"
+  },
+  "dependencies": {
+    "@emotion/babel-plugin": "^11.13.5",
+    "@emotion/core": "^11.0.0",
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "caniuse-lite": "^1.0.30001753",
+    "core-js": "^3.33.0",
+    "d3": "^7.9.0",
+    "d3-array": "^3.2.4",
+    "d3-collection": "^1.0.7",
+    "d3-color": "^3.1.0",
+    "d3-ease": "^3.0.1",
+    "d3-format": "^3.1.0",
+    "d3-interpolate": "^3.0.1",
+    "d3-path": "^3.1.0",
+    "d3-scale": "^4.0.2",
+    "d3-scale-chromatic": "^3.0.0",
+    "d3-selection": "^3.0.0",
+    "d3-shape": "^3.2.0",
+    "d3-time": "^3.1.0",
+    "d3-time-format": "^4.1.0",
+    "d3-timer": "^3.0.1",
+    "emotion-theming": "^11.0.0",
+    "html2canvas": "^1.4.1",
+    "luxon": "^3.4.4",
+    "react-intl-universal": "^2.6.11",
+    "redux": "^4.2.1",
+    "resize-observer-polyfill": "^1.5.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourcompany/gocharting-sdk.git"
+  },
+  "homepage": "https://github.com/yourcompany/gocharting-sdk#readme",
+  "bugs": {
+    "url": "https://github.com/yourcompany/gocharting-sdk/issues"
+  }
+}

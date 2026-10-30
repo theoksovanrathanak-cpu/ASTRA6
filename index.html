@@ -55,6 +55,7 @@ body{font-family:system-ui,-apple-system,Inter,sans-serif;background:var(--bg);c
 .hidden{display:none !important}
 </style>
 <script src="https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js"></script>
+<link rel="stylesheet" href="/static/ibm-plex-mono/fonts.css">
 </head>
 <body>
 <div class="topbar">
@@ -160,7 +161,7 @@ function renderCurrent(s){if(!s)return;const typeEl=document.getElementById('sig
 function renderAlerts(alerts){const el=document.getElementById('alerts-list');const statTotal=document.getElementById('stat-total');const statBS=document.getElementById('stat-bs');if(!el)return;if(!alerts||alerts.length===0){el.innerHTML='<div style="padding:20px;text-align:center;color:var(--muted);font-size:12px">No alerts yet — only BUY/SELL<br>Easy & clean • All devices • Rebuilt</div>';return;}const buys=alerts.filter(a=>a.type==='BUY').length;const sells=alerts.filter(a=>a.type==='SELL').length;if(statTotal)statTotal.textContent=alerts.length;if(statBS)statBS.textContent=buys+' / '+sells;el.innerHTML=alerts.map(a=>`<div class="alert-item"><div class="alert-badge ${a.type.toLowerCase()}">${a.type}</div><div style="flex:1;min-width:0"><div style="display:flex;gap:8px;align-items:center"><span class="mono" style="font-weight:800">$${a.price.toFixed(2)}</span><span class="mono" style="font-size:10px;color:var(--gold)">${a.confidence}% • ${a.winrate_est}%</span></div><div class="mono" style="font-size:9px;color:var(--muted);margin-top:2px">${new Date(a.timestamp*1000).toLocaleString()} • SL $${a.sl||'--'} TP $${a.tp1||'--'}</div></div></div>`).join('');}
 function initChart(){try{const c=document.getElementById('oanda_chart');if(!c)return;if(typeof LightweightCharts==='undefined'){c.innerHTML='<div style="padding:20px;text-align:center">Chart lib loading...<br><span style="font-size:10px">Data works in Dashboard • Rebuilt</span></div>';const s=document.createElement('script');s.src='https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js';s.onload=()=>{createChart();fetchChart(currentTF);};s.onerror=()=>{c.innerHTML='<div style="padding:20px;text-align:center">Chart CDN blocked in preview (normal)<br>Data works in Dashboard<br>Chart feed reconnecting • price above is LIVE</div>';};document.head.appendChild(s);return;}createChart();}catch(e){console.log('initChart err',e);}}
 function createChart(){try{const c=document.getElementById('oanda_chart');if(!c||typeof LightweightCharts==='undefined')return;if(chart)return;c.innerHTML='';chart=LightweightCharts.createChart(c,{layout:{background:{color:'#ffffff'},textColor:'#6b7280'},grid:{vertLines:{color:'#e5e7eb'},horzLines:{color:'#e5e7eb'}},width:c.clientWidth,height:400,timeScale:{timeVisible:true},rightPriceScale:{borderColor:'#e5e7eb'}});candleSeries=chart.addCandlestickSeries({upColor:'#10b981',downColor:'#ef4444',borderVisible:false,wickUpColor:'#10b981',wickDownColor:'#ef4444'});new ResizeObserver(()=>{if(chart)chart.applyOptions({width:c.clientWidth})}).observe(c);console.log('chart created rebuilt');}catch(e){console.log('createChart err',e);}}
-function setTimeframe(tf){currentTF=tf;localStorage.setItem('astra6_tf',tf);document.querySelectorAll('.tf-btn').forEach(b=>b.classList.toggle('active',b.dataset.tf===tf));document.getElementById('chart-tf-label').textContent=tf+' • Live';document.getElementById('chart-info-tf').textContent=tf;fetchChart(tf);}
+function setTimeframe(tf){currentTF=tf;if(window.GoChartingSDK&&gcChart)initGoCharting();localStorage.setItem('astra6_tf',tf);document.querySelectorAll('.tf-btn').forEach(b=>b.classList.toggle('active',b.dataset.tf===tf));document.getElementById('chart-tf-label').textContent=tf+' • Live';document.getElementById('chart-info-tf').textContent=tf;fetchChart(tf);}
 async function fetchChart(tf){tf=tf||currentTF;tf=tf.replace('D1','D').replace('W1','W');const count=(tf==='D'||tf==='W')?200:150;try{const r=await fetch(`/api/xauusd/history?granularity=${tf}&count=${count}&venue=${encodeURIComponent(currentVenue)}`);const d=await r.json();const srcEl=document.getElementById('chart-source');if(d.status==='ok'&&d.candles&&d.candles.length&&candleSeries){const data=d.candles.map(c=>{let t=typeof c.time==='number'?Math.floor(c.time):Math.floor(new Date(c.time).getTime()/1000);if(t>1e12)t=Math.floor(t/1000);return {time:t,open:c.open,high:c.high,low:c.low,close:c.close};}).filter(c=>c.time>0).sort((a,b)=>a.time-b.time);const seen=new Set();const clean=data.filter(c=>{if(seen.has(c.time))return false;seen.add(c.time);return true;});try{candleSeries.setData(clean);lastCandles=clean;}catch(e){console.log('chart data err',e);}document.getElementById('chart-candle-count').textContent=`${clean.length} candles`;if(srcEl)srcEl.textContent=(d.source||'REAL OHLCV').replace('xaus.com /api/v1/chart XAU/USD (REAL spot OHLCV)','XAUS REAL spot').replace('yfinance GC=F (REAL futures OHLCV)','yfinance GC=F REAL');if(clean.length){const last=clean[clean.length-1];if(lastPrice===0){lastPrice=last.close;const p=document.getElementById('price');if(p&&p.textContent==='$--.--')p.textContent='$'+last.close.toFixed(2);}}let fb=document.getElementById('chart-price-fallback');if(fb&&lastPrice)fb.textContent='$'+lastPrice.toFixed(2);}else if(srcEl){srcEl.textContent='feed reconnecting (no fake data)';}}catch(e){console.log('chart fetch err',e);const s=document.getElementById('chart-source');if(s)s.textContent='feed reconnecting…';}}
 
 async function fetchFastPrice(){try{const r=await fetch('/api/xauusd/fast-price?venue='+encodeURIComponent(currentVenue)).catch(()=>null);if(!r)return;const d=await r.json();if(d.status==='ok'){const priceEl=document.getElementById('price');const newPrice=d.price;if(priceEl){if(lastPrice!==0&&Math.abs(newPrice-lastPrice)>0.01){priceEl.style.color=newPrice>lastPrice?'#10b981':'#ef4444';setTimeout(()=>{priceEl.style.color='#111827';},400);}priceEl.textContent='$'+newPrice.toFixed(2);}const sigPrice=document.getElementById('sig-price');if(sigPrice&&sigPrice.textContent==='$--')sigPrice.textContent='$'+newPrice.toFixed(2);lastPrice=newPrice;priceUpdateCount++;if(d.live_price){const ba=document.getElementById('bidask');if(ba){const spread=(d.live_price.ask-d.live_price.bid).toFixed(2);ba.textContent=`BID ${d.live_price.bid.toFixed(2)} / ASK ${d.live_price.ask.toFixed(2)} • Spread ${spread} • #${priceUpdateCount}`;}const fb=document.getElementById('chart-price-fallback');if(fb)fb.textContent='$'+newPrice.toFixed(2);}if(candleSeries&&lastCandles.length){const lc=lastCandles[lastCandles.length-1];const upd={time:lc.time,open:lc.open,high:Math.max(lc.high,newPrice),low:Math.min(lc.low,newPrice),close:newPrice};lastCandles[lastCandles.length-1]=upd;try{candleSeries.update(upd);}catch(e){}}}if(priceUpdateCount%15===0)fetchTVCompare();}catch(e){console.log('fast price err',e);}}
@@ -168,59 +169,58 @@ async function loadVenues(){try{const r=await fetch('/api/xauusd/venues');const 
 const opts=(d.venues||[]).filter(v=>v.price).map(v=>`<option value="${v.id}">${v.id==='XAUS'?'xaus.com spot':'TradingView · '+v.label}</option>`).join('');
 if(opts){sel.innerHTML=opts;const has=[...sel.options].some(o=>o.value===currentVenue);sel.value=has?currentVenue:(d.primary||'OANDA:XAUUSD');currentVenue=sel.value;}
 }catch(e){console.log('venues err',e);}}
-function setVenue(v){currentVenue=v;localStorage.setItem('astra6_venue',v);lastPrice=0;lastCandles=[];fetchFastPrice();fetchChart(currentTF);fetchTVCompare();}
+function setVenue(v){currentVenue=v;localStorage.setItem('astra6_venue',v);lastPrice=0;lastCandles=[];fetchFastPrice();fetchChart(currentTF);fetchTVCompare();initGoCharting();}
 
+let gcChart=null, gcLoading=false;
+function gcInterval(tf){const m={'M1':'1m','M5':'5m','M15':'15m','M30':'30m','H1':'1h','H4':'4h','D':'1D','W':'1W','D1':'1D','W1':'1W'};return m[(tf||currentTF||'M15').toUpperCase()]||'15m';}
 async function initGoCharting(){
-  const box=document.getElementById('gc-chart'); const st=document.getElementById('gc-status'); const note=document.getElementById('gc-note');
-  const open=document.getElementById('gc-open');
+  const box=document.getElementById('gc-chart'), st=document.getElementById('gc-status'),
+        note=document.getElementById('gc-note'), open=document.getElementById('gc-open');
+  if(gcLoading) return;
+  const sym=localStorage.getItem('astra6_venue')||'OANDA:XAUUSD';
+  if(open)open.href='https://gocharting.com/terminal?symbol='+encodeURIComponent(sym);
+  document.getElementById('gc-symbol').textContent=sym;
   try{
     const cfg=await (await fetch('/api/gocharting/config')).json();
-    const sym=(localStorage.getItem('astra6_venue')||cfg.default_symbol||'OANDA:XAUUSD');
-    document.getElementById('gc-symbol').textContent=sym;
-    if(open)open.href='https://gocharting.com/terminal?symbol='+encodeURIComponent(sym);
-    if(!cfg.licence_configured||!cfg.sdk_url){
-      if(st)st.textContent='licence needed';
-      if(box)box.innerHTML=`<div style="max-width:420px">
-        <div style="font-size:26px;font-weight:900;letter-spacing:-.5px;margin-bottom:8px">GoCharting</div>
-        <div style="color:#9ca3af;font-size:12px;margin-bottom:12px">Connected &amp; ready — real candles already served in GoCharting's UDF format at
-          <span class="mono" style="color:#6ee7b7">/api/gocharting/udf/history</span>.</div>
-        <div style="color:#fbbf24;font-size:12px;font-weight:700;margin-bottom:10px">Waiting for a GoCharting licence credential (free tier, attribution only)</div>
-        <a href="https://gocharting.com/sdk/docs" target="_blank" rel="noopener" style="display:inline-block;background:#10b981;color:#052e1b;font-weight:900;padding:9px 14px;border-radius:8px;text-decoration:none;font-size:12px">Get the free licence ↗</a>
-      </div>`;
-      if(note)note.textContent='No credential yet — button opens the real GoCharting terminal with XAUUSD. Chart activates the moment the key is set.';
+    if(!cfg.sdk_url){
+      // SDK not configured - show honest state, keep deep-link
+      if(st)st.textContent='add SDK bundle';
+      if(box)box.innerHTML=`<div style="max-width:430px">
+        <div style="font-size:24px;font-weight:900;margin-bottom:8px">GoCharting SDK</div>
+        <div style="color:#9ca3af;font-size:12px;margin-bottom:10px">The SDK is installed but the bundle path isn't set on this deploy.</div>
+        <div style="color:#fbbf24;font-size:12px;font-weight:700">Set GOCHARTING_SDK_URL=/static/gocharting/index.umd.js</div></div>`;
       return;
     }
-    if(st)st.textContent='loading…';
-    await new Promise((res,rej)=>{const s=document.createElement('script');s.src=cfg.sdk_url;s.onload=res;s.onerror=rej;document.head.appendChild(s);});
-    const SDK=window.GoChartingSDK||window.GoCharting||null;
-    const create=SDK&&(SDK.createChart||SDK);
-    if(typeof create!=='function'){
-      if(box)box.innerHTML='<div style="color:#fbbf24">GoCharting SDK loaded but createChart was not found.</div>';
-      return;
+    gcLoading=true;
+    if(st)st.textContent='loading SDK…';
+    await new Promise((res,rej)=>{const s=document.createElement('script');s.src=cfg.sdk_url;
+      s.onload=res;s.onerror=()=>rej(new Error('sdk load failed'));document.head.appendChild(s);});
+    const SDK=window.GoChartingSDK;
+    if(!SDK||typeof SDK.createChart!=='function'){
+      throw new Error('GoChartingSDK.createChart not found after load');
     }
+    if(gcChart&&gcChart.destroy){try{gcChart.destroy();}catch(e){}}
     if(box)box.innerHTML='';
-    const df=makeGoChartingDatafeed(sym);
-    create('#gc-chart',{symbol:sym,interval:'15',datafeed:df,licenseKey:cfg.licence_key||undefined,theme:'dark'});
-    if(st)st.textContent='live'; if(note)note.textContent='GoCharting widget · REAL XAUUSD candles via /api/gocharting/udf';
-  }catch(e){console.log('gocharting init err',e); if(st)st.textContent='unavailable';}
-}
-
-function makeGoChartingDatafeed(symbol){
-  const B='/api/gocharting/udf';
-  const q=u=>fetch(u).then(r=>r.json());
-  return {
-    onReady:cb=>cb({supported_resolutions:['1','5','15','30','60','240','D','W'],exchanges:[],symbols_types:[{name:'Commodity',value:'commodity'}]}),
-    searchSymbols:(user,cb)=>q(`${B}/symbols?symbol=${encodeURIComponent(symbol)}`).then(s=>cb([{symbol:s.ticker,full_name:s.ticker,description:s.description,exchange:s.exchange,type:'commodity'}])),
-    resolveSymbol:(sym,cb,er)=>{q(`${B}/symbols?symbol=${encodeURIComponent(sym)}`).then(s=>{if(!s||!s.ticker)return er('unknown symbol');cb({...s,ticker:s.ticker,name:s.ticker,description:s.description,session:'24x7',timezone:'Etc/UTC',minmov:1,pricescale:100,has_intraday:true,has_daily:true,has_weekly_and_monthly:true,supported_resolutions:s.supported_resolutions,volume_precision:0,data_status:'streaming'});}).catch(er);},
-    getBars:(sym,res,range,onHistory,onError)=>{const to=Math.floor((range&&range.to)||Date.now()/1000);const from=Math.floor((range&&range.from)||(to-86400*5));const cb=(range&&range.countBack)||300;
-      q(`${B}/history?symbol=${encodeURIComponent(sym)}&resolution=${encodeURIComponent(res)}&from=${from}&to=${to}&countback=${cb}`).then(d=>{
-        if(!d||d.s!=='ok'){onHistory([],{noData:true});return;}
-        const bars=d.t.map((t,i)=>({time:t*1000,open:d.o[i],high:d.h[i],low:d.l[i],close:d.c[i],volume:d.v[i]}));
-        onHistory(bars,{noData:bars.length===0});
-      }).catch(e=>onError&&onError(e));},
-    subscribeBars:(sym,res,onTick)=>{const id=setInterval(async()=>{try{const p=await (await fetch('/api/xauusd/fast-price?venue='+encodeURIComponent(sym))).json();if(p&&p.price)onTick({time:Math.floor(p.timestamp*1000),open:p.price,high:p.price,low:p.price,close:p.price,volume:0});}catch(e){}},2000);return id;},
-    unsubscribeBars:id=>clearInterval(id)
-  };
+    // UDFCompatibleDatafeed reads our REAL endpoints: /config /symbols /history /time /search
+    const datafeed=new SDK.UDFCompatibleDatafeed('/api/gocharting/udf',{updateFrequency:2000});
+    gcChart=SDK.createChart('#gc-chart',{
+      symbol:sym,
+      interval:gcInterval(currentTF),
+      datafeed:datafeed,
+      licenseKey:cfg.licence_key||'demo-550e8400-e29b-41d4-a716-446655440000',
+      theme:'dark'
+    });
+    if(st)st.textContent='live · real candles';
+    if(note)note.textContent='GoCharting SDK · candles from /api/gocharting/udf (REAL xaus.com XAU/USD series)';
+    gcLoading=false;
+  }catch(e){
+    gcLoading=false;
+    console.log('gocharting init err',e);
+    if(st)st.textContent='unavailable';
+    if(box)box.innerHTML=`<div style="max-width:420px;color:#fbbf24;font-size:12px">
+      GoCharting SDK could not start: ${String(e.message||e)}<br><br>
+      <a href="https://gocharting.com/terminal?symbol=${encodeURIComponent(sym)}" target="_blank" rel="noopener" style="color:#6ee7b7">Open XAUUSD in GoCharting instead ↗</a></div>`;
+  }
 }
 
 async function fetchTVCompare(){try{const r=await fetch('/api/xauusd/tradingview').catch(()=>null);if(!r)return;const d=await r.json();const el=document.getElementById('tv-compare');if(!el||d.status!=='ok')return;
