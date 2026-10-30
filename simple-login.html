@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simple Login - ASTRA6 - Works All Devices</title>
+<style>
+body{font-family:system-ui,sans-serif;background:#fff;padding:20px;max-width:400px;margin:0 auto}
+.card{border:2px solid #000;border-radius:12px;padding:20px}
+.input{width:100%;padding:12px;border:2px solid #000;border-radius:8px;margin-bottom:10px;font-size:16px}
+.btn{width:100%;padding:14px;background:#000;color:#fff;border:none;border-radius:8px;font-weight:900;font-size:16px;cursor:pointer}
+.btn-gold{background:#f59e0b;color:#fff}
+.status{margin-top:12px;padding:12px;border-radius:8px;font-size:14px;word-break:break-all}
+</style>
+</head>
+<body>
+<div class="card">
+<h2>🔐 Simple Login - Guaranteed Works</h2>
+<p style="font-size:12px;color:#666;margin:10px 0">If Flutter login fails, use this ultra-simple version. No animations, no fancy JS, just works.</p>
+<input class="input" id="email" type="email" placeholder="Email" value="astra6render@gmail.com">
+<input class="input" id="password" type="password" placeholder="Password" value="admin123">
+<button class="btn btn-gold" onclick="login()">🔐 Sign In</button>
+<div id="status" class="status" style="display:none"></div>
+<p style="margin-top:15px;font-size:12px">
+<a href="/login.html">→ Flutter Login (fancy)</a> | <a href="/">→ Main Site</a><br>
+<b>Admin:</b> astra6render@gmail.com / admin123<br>
+<b>API:</b> POST /api/auth/signin
+</p>
+</div>
+<script>
+async function login(){
+  const email=document.getElementById('email').value.trim();
+  const pass=document.getElementById('password').value;
+  const s=document.getElementById('status');
+  s.style.display='block';
+  s.style.background='#e0f2fe';
+  s.textContent='⏳ Signing in... Status: '+navigator.userAgent.substring(0,50);
+  try{
+    console.log('Attempting login',email);
+    const r=await fetch('/api/auth/signin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password:pass})});
+    console.log('Response status',r.status);
+    const txt=await r.text();
+    console.log('Response text',txt.substring(0,500));
+    let d;
+    try{ d=JSON.parse(txt); }catch(e){
+      s.style.background='#fee2e2';
+      s.innerHTML='❌ Non-JSON response (Cloudflare?):<br><pre>'+txt.substring(0,500)+'</pre>';
+      return;
+    }
+    if(!r.ok) throw new Error(d.detail||'Failed');
+    // Save token - try all storages
+    try{ localStorage.setItem('astra6_token',d.token); }catch(e){ console.log('localStorage fail',e); }
+    try{ localStorage.setItem('astra6_email',d.email); }catch(e){}
+    try{ sessionStorage.setItem('astra6_token',d.token); }catch(e){}
+    window.token=d.token;
+    s.style.background='#d1fae5';
+    s.innerHTML='✅ Signed in as <b>'+d.email+'</b><br>Token: '+d.token.substring(0,30)+'...<br><br><a href="/" style="font-weight:900;font-size:16px">→ Go to Dashboard</a><br><br>Token saved. If redirect fails, manually go to <a href="/">main site</a>. Your token is valid for 30 days.';
+    setTimeout(()=>{ window.location.href='/'; }, 1000);
+  }catch(e){
+    console.error(e);
+    s.style.background='#fee2e2';
+    s.textContent='❌ '+e.message;
+  }
+}
+</script>
+</body>
+</html>

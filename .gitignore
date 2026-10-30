@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.env
+.venv/
+venv/
+signals.json
+contacts.json
+users.json
+tokens.json
+broker_accounts.json
+broker_trades.json
+mt5_trades.json
+*.log
+.DS_Store

@@ -1,0 +1,20 @@
+name: Keep ASTRA6 Alive 24/7 (Free Plan)
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'  # Every 10 minutes
+  workflow_dispatch:  # Manual trigger
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping health endpoint
+        run: |
+          curl -s -m 10 https://astra6.onrender.com/health || echo "health fail"
+          curl -s -m 10 https://astra6.onrender.com/api/status || echo "status fail"
+          curl -s -m 10 https://astra6.onrender.com/api/keepalive || echo "keepalive fail"
+          echo "Pinged at $(date)"
+      - name: Ping Telegram webhook
+        run: |
+          curl -s -m 10 https://astra6.onrender.com/api/telegram/webhook || echo "webhook check"

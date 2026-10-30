@@ -1,0 +1,31 @@
+# REAL Exness MT5 via Wine + MT5 terminal for true real trading on Render free
+# Based on xm-exness-mt5-linux idea: Docker with Wine MT5 + REST API
+FROM python:3.11-slim
+
+# Install Wine and dependencies for MT5
+RUN dpkg --add-architecture i386 && \
+    apt-get update && \
+    apt-get install -y \
+    wget \
+    xvfb \
+    wine64 \
+    wine32 \
+    winbind \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python deps
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+# Try to install MetaTrader5 if on Windows, but on Linux we use mt5linux alternative
+RUN pip install --no-cache-dir mt5linux || echo "mt5linux optional"
+
+# Copy app
+COPY . .
+
+# For Render free, we can't run MT5 terminal easily, so we use Deriv real via WebSocket
+# For true real Exness, user should deploy this Dockerfile on a VPS with Wine
+# Or use xm-exness-mt5-linux: https://github.com/essamamdani/xm-exness-mt5-linux
+
+EXPOSE 10000
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "10000"]

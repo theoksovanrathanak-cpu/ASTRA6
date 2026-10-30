@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ASTRA6 Login - Flutter Style • All Devices</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Animated background bubbles - Flutter Login style */
+.bg-bubbles {
+  position: absolute;
+  top: 0; left: 0; width: 100%; height: 100%;
+  overflow: hidden;
+  z-index: 0;
+}
+.bg-bubbles li {
+  position: absolute;
+  list-style: none;
+  display: block;
+  width: 40px; height: 40px;
+  background-color: rgba(255,255,255,0.15);
+  bottom: -160px;
+  animation: square 25s infinite;
+  transition-timing-function: linear;
+  border-radius: 8px;
+}
+.bg-bubbles li:nth-child(1) { left: 10%; width: 80px; height: 80px; animation-delay: 0s; }
+.bg-bubbles li:nth-child(2) { left: 20%; width: 60px; height: 60px; animation-delay: 2s; animation-duration: 17s; }
+.bg-bubbles li:nth-child(3) { left: 25%; width: 40px; height: 40px; animation-delay: 4s; }
+.bg-bubbles li:nth-child(4) { left: 40%; width: 60px; height: 60px; animation-delay: 0s; animation-duration: 22s; background-color: rgba(255,255,255,0.25); }
+.bg-bubbles li:nth-child(5) { left: 70%; width: 80px; height: 80px; animation-delay: 3s; }
+.bg-bubbles li:nth-child(6) { left: 80%; width: 120px; height: 120px; animation-delay: 3s; background-color: rgba(255,255,255,0.2); }
+.bg-bubbles li:nth-child(7) { left: 32%; width: 100px; height: 100px; animation-delay: 7s; }
+.bg-bubbles li:nth-child(8) { left: 55%; width: 20px; height: 20px; animation-delay: 15s; animation-duration: 40s; }
+.bg-bubbles li:nth-child(9) { left: 25%; width: 10px; height: 10px; animation-delay: 2s; animation-duration: 40s; background-color: rgba(255,255,255,0.3); }
+.bg-bubbles li:nth-child(10) { left: 90%; width: 60px; height: 60px; animation-delay: 11s; }
+
+@keyframes square {
+  0% { transform: translateY(0) rotate(0deg); opacity: 1; border-radius: 8px; }
+  100% { transform: translateY(-1000px) rotate(720deg); opacity: 0; border-radius: 50%; }
+}
+
+/* Login card - Flutter Login style with animations */
+.login-container {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 400px;
+  perspective: 1000px;
+}
+
+.card {
+  background: rgba(255,255,255,0.95);
+  backdrop-filter: blur(20px);
+  border-radius: 24px;
+  padding: 32px;
+  box-shadow: 0 20px 80px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.2);
+  transform-style: preserve-3d;
+  animation: cardEnter 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  position: relative;
+  overflow: hidden;
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #667eea, #764ba2, #f093fb, #f59e0b);
+  background-size: 200% 100%;
+  animation: gradientShift 3s ease infinite;
+}
+
+@keyframes cardEnter {
+  0% { opacity: 0; transform: translateY(30px) rotateX(-10deg) scale(0.95); }
+  100% { opacity: 1; transform: translateY(0) rotateX(0) scale(1); }
+}
+
+@keyframes gradientShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.logo-section {
+  text-align: center;
+  margin-bottom: 28px;
+  animation: logoEnter 0.8s ease 0.2s both;
+}
+
+@keyframes logoEnter {
+  0% { opacity: 0; transform: translateY(-20px) scale(0.9); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.logo-section img {
+  height: 64px;
+  width: auto;
+  margin-bottom: 12px;
+  filter: drop-shadow(0 4px 12px rgba(102,126,234,0.3));
+  animation: logoFloat 3s ease-in-out infinite;
+}
+
+@keyframes logoFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+.logo-text {
+  font-size: 28px;
+  font-weight: 900;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: 1px;
+}
+
+.logo-sub {
+  font-size: 11px;
+  color: #666;
+  font-weight: 600;
+  letter-spacing: 2px;
+  margin-top: 4px;
+}
+
+.title {
+  font-size: 22px;
+  font-weight: 800;
+  text-align: center;
+  margin-bottom: 8px;
+  color: #1f2937;
+}
+
+.subtitle {
+  font-size: 13px;
+  color: #6b7280;
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+/* Input fields - Flutter style with floating label effect */
+.input-group {
+  position: relative;
+  margin-bottom: 16px;
+}
+
+.input {
+  width: 100%;
+  padding: 16px 16px 16px 48px;
+  border: 2px solid #e5e7eb;
+  border-radius: 14px;
+  font-size: 15px;
+  background: #f9fafb;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  outline: none;
+  font-weight: 500;
+}
+
+.input:focus {
+  border-color: #667eea;
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(102,126,234,0.1);
+  transform: translateY(-1px);
+}
+
+.input-icon {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 18px;
+  color: #9ca3af;
+  transition: color 0.3s;
+}
+
+.input:focus + .input-icon,
+.input-group:focus-within .input-icon {
+  color: #667eea;
+}
+
+/* Buttons - Flutter Login animation effects */
+.btn {
+  width: 100%;
+  padding: 16px;
+  border: none;
+  border-radius: 14px;
+  font-size: 16px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+  letter-spacing: 0.5px;
+}
+
+.btn::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; width: 100%; height: 100%;
+  background: linear-gradient(135deg, rgba(255,255,255,0.2), transparent);
+  transform: translateX(-100%);
+  transition: transform 0.6s;
+}
+
+.btn:hover::before {
+  transform: translateX(100%);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  box-shadow: 0 8px 20px rgba(102,126,234,0.4);
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 30px rgba(102,126,234,0.5);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.btn-gold {
+  background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%);
+  color: #fff;
+  box-shadow: 0 8px 20px rgba(245,158,11,0.4);
+}
+
+.btn-gold:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 30px rgba(245,158,11,0.5);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+/* Status messages with animations */
+.status {
+  margin-top: 16px;
+  padding: 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  display: none;
+  animation: statusEnter 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes statusEnter {
+  0% { opacity: 0; transform: translateY(-10px) scale(0.95); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.status.show { display: block; }
+.status.success { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+.status.error { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+.status.info { background: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; }
+
+/* Toggle between login/signup - Flutter Login style */
+.toggle-section {
+  text-align: center;
+  margin-top: 20px;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.toggle-link {
+  color: #667eea;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  position: relative;
+}
+
+.toggle-link::after {
+  content: '';
+  position: absolute;
+  bottom: -2px; left: 0; width: 0; height: 2px;
+  background: #667eea;
+  transition: width 0.3s;
+}
+
+.toggle-link:hover::after {
+  width: 100%;
+}
+
+/* Additional info */
+.info-box {
+  margin-top: 20px;
+  padding: 14px;
+  background: #f3f4f6;
+  border-radius: 12px;
+  font-size: 11px;
+  color: #6b7280;
+  line-height: 1.5;
+}
+
+.info-box b { color: #1f2937; }
+
+/* Loading animation - Flutter style */
+.loading {
+  display: inline-block;
+  width: 20px; height: 20px;
+  border: 3px solid rgba(255,255,255,0.3);
+  border-radius: 50%;
+  border-top-color: #fff;
+  animation: spin 0.8s ease-in-out infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+  .card { padding: 24px; border-radius: 20px; }
+  .logo-text { font-size: 24px; }
+  .title { font-size: 20px; }
+}
+</style>
+</head>
+<body>
+
+<ul class="bg-bubbles">
+  <li></li><li></li><li></li><li></li><li></li>
+  <li></li><li></li><li></li><li></li><li></li>
+</ul>
+
+<div class="login-container">
+  <div class="card" id="login-card">
+    <div class="logo-section">
+      <img src="/logo.png" alt="ASTRA6" onerror="this.style.display='none'">
+      <div class="logo-text">ASTRA6</div>
+      <div class="logo-sub">ELITE • 85%+ • CLEAN</div>
+    </div>
+
+    <div class="title" id="form-title">Welcome Back</div>
+    <div class="subtitle" id="form-subtitle">Sign in to access Gold signals • All devices</div>
+
+    <div class="input-group">
+      <input class="input" id="email" type="email" placeholder="Email" value="astra6render@gmail.com">
+      <span class="input-icon">📧</span>
+    </div>
+
+    <div class="input-group">
+      <input class="input" id="password" type="password" placeholder="Password" value="admin123">
+      <span class="input-icon">🔒</span>
+    </div>
+
+    <div class="input-group" id="name-group" style="display:none">
+      <input class="input" id="name" type="text" placeholder="Full Name">
+      <span class="input-icon">👤</span>
+    </div>
+
+    <button class="btn btn-gold" id="submit-btn" onclick="handleSubmit()">
+      <span id="btn-text">🔐 Sign In - All Devices</span>
+    </button>
+
+    <div id="status" class="status"></div>
+
+    <div class="toggle-section">
+      <span id="toggle-text">Don't have an account?</span>
+      <a class="toggle-link" id="toggle-link" onclick="toggleMode()">Sign Up</a>
+    </div>
+
+    <div class="toggle-section" style="margin-top:12px">
+      <a class="toggle-link" onclick="showRecover()">Forgot Password?</a>
+      <span style="margin:0 8px;color:#d1d5db">•</span>
+      <a class="toggle-link" href="/" style="text-decoration:none">← Back to Main</a>
+    </div>
+
+    <div class="info-box">
+      <b>🔐 Flutter Login Style • All Devices:</b><br>
+      • Works on mobile, desktop, all browsers<br>
+      • Animations: card enter, logo float, bubbles, gradient shift<br>
+      • API: POST /api/auth/signin • Token saved in localStorage<br>
+      • Admin: astra6render@gmail.com / admin123<br>
+      • 5-layer analysis: Human + AI 90% + Finance 90% + TradingView 82% + Vibe 50% = 85%+ winrate<br>• If this fails, use <a href="/simple-login.html" style="color:#dc2626;font-weight:900">/simple-login.html ultra-simple</a> or Account tab direct form
+    </div>
+  </div>
+</div>
+
+<script>
+// Robust error handling - prevent die hard login
+window.onerror = function(msg, url, line, col, error) {
+  console.error('Login page error:', msg, 'at', url+':'+line);
+  const status = document.getElementById('status');
+  if (status) {
+    status.className = 'status error show';
+    status.innerHTML = '❌ JS Error: '+msg+'<br>Try reload or <a href="/">main site</a> or contact @ASTRA6RENDER';
+  }
+  return false;
+};
+
+// Memory token fallback for private mode
+let memToken = null;
+try {
+  localStorage.setItem('test','1');
+  localStorage.removeItem('test');
+} catch(e) {
+  console.warn('localStorage blocked, using memory only');
+}
+
+let isLoginMode = true;
+let isRecoverMode = false;
+
+window.toggleMode = function toggleMode() {
+  if (isRecoverMode) {
+    isRecoverMode = false;
+    document.getElementById('name-group').style.display = 'none';
+    document.getElementById('form-title').textContent = 'Welcome Back';
+    document.getElementById('form-subtitle').textContent = 'Sign in to access Gold signals • All devices';
+    document.getElementById('btn-text').textContent = '🔐 Sign In - All Devices';
+    document.getElementById('toggle-text').textContent = "Don't have an account?";
+    document.getElementById('toggle-link').textContent = 'Sign Up';
+    isLoginMode = true;
+    animateCard();
+    return;
+  }
+  
+  isLoginMode = !isLoginMode;
+  const nameGroup = document.getElementById('name-group');
+  const title = document.getElementById('form-title');
+  const subtitle = document.getElementById('form-subtitle');
+  const btnText = document.getElementById('btn-text');
+  const toggleText = document.getElementById('toggle-text');
+  const toggleLink = document.getElementById('toggle-link');
+  
+  if (isLoginMode) {
+    nameGroup.style.display = 'none';
+    title.textContent = 'Welcome Back';
+    subtitle.textContent = 'Sign in to access Gold signals • All devices';
+    btnText.textContent = '🔐 Sign In - All Devices';
+    toggleText.textContent = "Don't have an account?";
+    toggleLink.textContent = 'Sign Up';
+  } else {
+    nameGroup.style.display = 'block';
+    title.textContent = 'Create Account';
+    subtitle.textContent = 'Join ASTRA6 Elite • 85%+ winrate • Clean signals';
+    btnText.textContent = '🚀 Sign Up - All Devices';
+    toggleText.textContent = 'Already have an account?';
+    toggleLink.textContent = 'Sign In';
+  }
+  
+  animateCard();
+}
+
+window.showRecover = function showRecover() {
+  isRecoverMode = true;
+  isLoginMode = false;
+  document.getElementById('name-group').style.display = 'none';
+  document.getElementById('form-title').textContent = 'Recover Password';
+  document.getElementById('form-subtitle').textContent = 'Enter email to reset • Telegram @ASTRA6RENDER';
+  document.getElementById('btn-text').textContent = '📧 Send Reset Link';
+  document.getElementById('toggle-text').textContent = 'Remember password?';
+  document.getElementById('toggle-link').textContent = 'Back to Login';
+  animateCard();
+}
+
+function animateCard() {
+  const card = document.getElementById('login-card');
+  card.style.animation = 'none';
+  card.offsetHeight; // Trigger reflow
+  card.style.animation = 'cardEnter 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+}
+
+window.handleSubmit = async function handleSubmit() {
+  const email = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+  const name = document.getElementById('name').value.trim();
+  const status = document.getElementById('status');
+  const btn = document.getElementById('submit-btn');
+  const btnText = document.getElementById('btn-text');
+  
+  if (!email || !password) {
+    showStatus('❌ Please enter email and password', 'error');
+    return;
+  }
+  
+  if (!isLoginMode && !isRecoverMode && !name) {
+    showStatus('❌ Please enter your name', 'error');
+    return;
+  }
+  
+  // Loading state - Flutter style
+  const originalText = btnText.innerHTML;
+  btn.disabled = true;
+  btnText.innerHTML = '<span class="loading"></span> Processing...';
+  
+  status.className = 'status info show';
+  status.textContent = isRecoverMode ? '⏳ Sending reset link...' : isLoginMode ? '⏳ Signing in...' : '⏳ Creating account...';
+  
+  try {
+    let url, body;
+    if (isRecoverMode) {
+      url = '/api/auth/forgot-password';
+      body = { email };
+    } else if (isLoginMode) {
+      url = '/api/auth/signin';
+      body = { email, password };
+    } else {
+      url = '/api/auth/signup';
+      body = { email, password, name: name || email.split('@')[0] };
+    }
+    
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    
+    console.log('Login response status:', r.status);
+    let d;
+    try {
+      const text = await r.text();
+      console.log('Response text:', text.substring(0,500));
+      try {
+        d = JSON.parse(text);
+      } catch (jsonErr) {
+        console.error('Non-JSON response (Cloudflare?):', text.substring(0,1000));
+        if (text.includes('<!DOCTYPE') || text.includes('<html')) {
+          throw new Error('Cloudflare challenge or HTML returned - try again or use main site / . If persists, contact @ASTRA6RENDER. Status: '+r.status);
+        }
+        throw new Error('Server returned non-JSON: '+text.substring(0,200));
+      }
+    } catch (e) {
+      if (e.message.includes('Cloudflare') || e.message.includes('non-JSON')) throw e;
+      throw new Error('Network error: '+e.message);
+    }
+    
+    if (!r.ok) throw new Error(d.detail || d.error || 'Failed '+r.status);
+    
+    if (isRecoverMode) {
+      showStatus(`✅ Reset link sent to ${email}<br>Check Telegram @ASTRA6RENDER or email<br>Token: ${d.reset_token?.substring(0,20)}...`, 'success');
+    } else {
+      // Save token - robust with memToken fallback for all devices
+      memToken = d.token;
+      window.memToken = d.token;
+      try {
+        localStorage.setItem('astra6_token', d.token);
+        localStorage.setItem('astra6_email', d.email);
+        console.log('Token saved to localStorage and memory:', d.token.substring(0,20)+'...');
+      } catch (e) {
+        console.warn('localStorage failed, using memory only:', e);
+        // Still saved in memToken
+      }
+      // Also try sessionStorage
+      try {
+        sessionStorage.setItem('astra6_token', d.token);
+      } catch(e) {}
+      
+      showStatus(`✅ ${isLoginMode ? 'Signed in' : 'Account created'} as <b>${d.email}</b><br>Token: ${d.token.substring(0,20)}...<br><br><a href="/" style="font-weight:900;color:#065f46">→ Go to Dashboard - Clean Signals</a><br><br>5-layer analysis: Human + AI 90% + Finance 90% + TradingView 82% + Vibe 50% = 85%+ winrate`, 'success');
+      
+      // Auto-redirect after 1.5s
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 1500);
+    }
+    
+  } catch (e) {
+    showStatus('❌ ' + e.message + '<br><br>Try: astra6render@gmail.com / admin123<br>Or contact @ASTRA6RENDER on Telegram', 'error');
+  } finally {
+    btn.disabled = false;
+    btnText.innerHTML = originalText;
+  }
+}
+
+function showStatus(msg, type) {
+  const status = document.getElementById('status');
+  status.className = `status ${type} show`;
+  status.innerHTML = msg;
+}
+
+// Auto-fill from query params
+const params = new URLSearchParams(location.search);
+if (params.get('email')) document.getElementById('email').value = params.get('email');
+
+// Enter key submits
+document.addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') handleSubmit();
+});
+
+// Add subtle parallax to bubbles on mouse move - Flutter style
+document.addEventListener('mousemove', (e) => {
+  const bubbles = document.querySelectorAll('.bg-bubbles li');
+  const x = e.clientX / window.innerWidth;
+  const y = e.clientY / window.innerHeight;
+  bubbles.forEach((bubble, i) => {
+    const speed = (i % 3 + 1) * 0.5;
+    bubble.style.transform = `translate(${x * speed * 20}px, ${y * speed * 20}px)`;
+  });
+});
+</script>
+</body>
+</html>

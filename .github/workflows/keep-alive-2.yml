@@ -1,0 +1,15 @@
+name: Keep Alive Backup 24/7
+
+on:
+  schedule:
+    - cron: '2-59/5 * * * *'  # offset by 2 min, every 5 min
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Backup ping
+        run: |
+          curl -s --max-time 30 https://astra6.onrender.com/health || true
+          curl -s --max-time 30 https://astra6.onrender.com/ -o /dev/null -w "home %{http_code}\n" || true

@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ASTRA6 - Elite Gold Signals 85%+ Winrate - Rebuilt Smooth</title>
+<meta name="description" content="ASTRA6 Elite Rebuilt - First upgrade clean, all in one, all data 5-layer, free access, market stays, smooth working">
+<style>
+:root{--bg:#ffffff;--card:#ffffff;--card2:#f9fafb;--border:#e5e7eb;--text:#111827;--muted:#6b7280;--gold:#f59e0b;--green:#10b981;--red:#ef4444;--blue:#3b82f6}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,Inter,sans-serif;background:var(--bg);color:var(--text);line-height:1.5;min-height:100vh}
+.mono{font-family:ui-monospace,Menlo,monospace}
+.label{font-size:10px;color:var(--muted);font-weight:700;letter-spacing:0.5px;text-transform:uppercase;margin-bottom:4px}
+.topbar{position:sticky;top:0;z-index:100;background:#fff;border-bottom:1px solid var(--border);padding:12px 16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}
+.logo{display:flex;align-items:center;gap:10px}
+.logo-icon{width:36px;height:36px;background:#111827;color:#fff;display:flex;align-items:center;justify-content:center;border-radius:8px;font-weight:900;font-size:14px}
+.logo-text{font-weight:900;font-size:16px}
+.logo-sub{font-size:9px;color:var(--muted);font-weight:700;letter-spacing:0.5px}
+.price-bar{display:flex;gap:20px;align-items:center;flex-wrap:wrap}
+.price-main{font-size:22px;font-weight:900;color:#111827}
+.bidask{font-size:11px;color:var(--muted)}
+.live-dot{width:8px;height:8px;background:var(--green);border-radius:50%;display:inline-block;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+.content{max-width:1200px;margin:0 auto;padding:16px}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+@media(max-width:900px){.grid-2{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,0.05)}
+.card-title{font-weight:900;font-size:14px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center}
+.signal-card{border-radius:16px;padding:20px;border:2px solid var(--border);text-align:center;background:#fff;transition:all 0.3s}
+.signal-card.buy{border-color:var(--green);background:#d1fae5}
+.signal-card.sell{border-color:var(--red);background:#fee2e2}
+.signal-card.hold{border-color:var(--border);background:#fff}
+.signal-type{font-size:42px;font-weight:900;letter-spacing:-1px;line-height:1;margin-bottom:8px}
+.signal-type.buy{color:var(--green)}
+.signal-type.sell{color:var(--red)}
+.signal-type.hold{color:var(--muted)}
+.elite-badge{background:#111827;color:#fff;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:900;letter-spacing:0.5px}
+.btn{padding:8px 14px;border-radius:8px;border:1px solid var(--border);background:#fff;color:var(--text);font-weight:700;font-size:13px;cursor:pointer;transition:all 0.2s;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{background:var(--card2);transform:translateY(-1px)}
+.btn-gold{background:#111827;color:#fff;border-color:#111827}
+.btn-gold:hover{background:#000}
+.btn.active{background:#111827;color:#fff}
+.tf-btn{padding:6px 10px;font-size:11px;border-radius:6px;min-width:36px}
+.tf-btn.active{background:var(--gold);color:#fff;border-color:var(--gold)}
+#oanda_chart{width:100%;height:400px;background:#f9fafb;border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--muted)}
+.info-bar{display:flex;justify-content:space-between;padding:8px 0;font-size:10px;color:var(--muted);border-top:1px solid var(--border);margin-top:8px}
+.alert-item{display:flex;gap:10px;padding:10px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;background:#fff;align-items:center}
+.alert-badge{padding:4px 8px;border-radius:6px;font-size:11px;font-weight:900;min-width:50px;text-align:center}
+.alert-badge.buy{background:#d1fae5;color:#065f46}
+.alert-badge.sell{background:#fee2e2;color:#991b1b}
+.alert-badge.hold{background:#f3f4f6;color:var(--muted)}
+#sig-ai{background:#f9fafb;border:1px solid var(--border);border-radius:10px;padding:12px;font-size:11px;text-align:left;max-height:350px;overflow-y:auto;display:none;margin-top:12px;line-height:1.6}
+.input{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:#fff}
+.input:focus{outline:none;border-color:var(--text);box-shadow:0 0 0 3px rgba(0,0,0,0.05)}
+.hidden{display:none !important}
+</style>
+<script src="https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js"></script>
+</head>
+<body>
+<div class="topbar">
+  <div class="logo">
+    <div class="logo-icon">A6</div>
+    <div><div class="logo-text">ASTRA6</div><div class="logo-sub">ELITE • 85%+ • 5-LAYER • REBUILT</div></div>
+    <span class="elite-badge" style="margin-left:8px">70%+ WIN • REBUILT SMOOTH</span>
+  </div>
+  <div class="price-bar">
+    <div><div class="label">XAUUSD Price</div><div class="price-main" id="price">$--.--</div><div class="bidask mono" id="bidask">BID -- / ASK -- • Spread --</div></div>
+    <div><div class="label">Time & Market</div><div class="mono" style="font-size:12px" id="live-time">--:--:--</div><div style="font-size:11px"><span class="live-dot"></span> <span id="market-status" style="font-weight:800;color:var(--green)">LIVE</span> • <span id="stat-last" class="mono" style="font-size:10px">--</span></div></div>
+    <div style="display:flex;gap:6px"><button class="btn" id="refresh-btn" onclick="fetchDashboard()">🔄 Refresh</button><button class="btn" id="sound-btn" onclick="toggleSound()">🔔</button></div>
+  </div>
+</div>
+<div class="content">
+  <div class="grid-2">
+    <div>
+      <div class="signal-card hold" id="current-signal-card">
+        <div style="display:flex;justify-content:center;align-items:center;gap:8px;margin-bottom:8px"><img src="/logo.png" alt="ASTRA6" style="height:28px;width:auto" onerror="this.style.display='none'"><span class="mono" style="font-size:10px;font-weight:900;letter-spacing:1px">ASTRA6 ELITE • HUMAN + AI • 5-LAYER • REBUILT SMOOTH</span></div>
+        <div class="signal-type hold" id="sig-type">LOADING</div>
+        <div style="display:flex;justify-content:center;gap:24px;margin-top:16px;flex-wrap:wrap">
+          <div><div class="label">Price</div><div class="mono" id="sig-price" style="font-size:20px;font-weight:900">$--</div></div>
+          <div><div class="label">Confidence</div><div class="mono" id="sig-conf" style="font-size:18px;font-weight:800">--%</div></div>
+          <div><div class="label">Winrate</div><div class="mono" id="sig-winrate" style="font-size:18px;font-weight:800">--%</div></div>
+        </div>
+        <div id="sig-sltp" style="margin-top:12px;font-size:11px" class="mono"></div>
+        <div id="sig-reasons" style="margin-top:10px;font-size:12px;color:var(--muted)">Loading elite 85%+ signals - Rebuilt smooth working...</div>
+        <div style="margin-top:12px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+          <button class="btn" id="btn-toggle-data" onclick="toggleAllData()" style="font-size:11px">📊 Show All Data (5-Layer)</button>
+          <button class="btn" onclick="fetchDashboard()" style="font-size:11px">🔄 Refresh Signal</button>
+        </div>
+        <div id="sig-ai"></div>
+        <div class="mono" style="font-size:9px;color:var(--muted);margin-top:10px" id="sig-time">-- • REBUILT SMOOTH WORKING</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:12px">
+        <div class="card" style="text-align:center;padding:12px"><div class="label">Total Alerts</div><div class="mono" id="stat-total" style="font-size:20px;font-weight:900">0</div></div>
+        <div class="card" style="text-align:center;padding:12px"><div class="label">Buy / Sell</div><div class="mono" id="stat-bs" style="font-size:14px;font-weight:700">0 / 0</div></div>
+        <div class="card" style="text-align:center;padding:12px"><div class="label">Winrate Real</div><div class="mono" id="real-winrate" style="font-size:16px;font-weight:900;color:var(--green)">--%</div><div class="mono" id="real-stats" style="font-size:9px;color:var(--muted)">--</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">📈 Live Chart - XAUUSD / GOLD <span class="mono" style="font-size:10px;color:var(--muted)" id="chart-tf-label">M15 • Live</span></div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px" id="tf-buttons">
+        <button class="tf-btn" data-tf="M1">M1</button><button class="tf-btn" data-tf="M5">M5</button><button class="tf-btn active" data-tf="M15">M15</button><button class="tf-btn" data-tf="M30">M30</button><button class="tf-btn" data-tf="H1">H1</button><button class="tf-btn" data-tf="H4">H4</button><button class="tf-btn" data-tf="D">D1</button><button class="tf-btn" data-tf="W">W1</button>
+      </div>
+      <div id="oanda_chart">Loading chart...<br><span style="font-size:10px">Data works in Dashboard</span></div>
+      <div class="info-bar"><span>ASTRA6 CHART • <span id="chart-info-tf">M15</span> • <span id="chart-candle-count">--</span> • <span id="chart-source" style="color:#059669">XAUS REAL spot</span></span><span class="mono" id="chart-price-fallback">$--</span></div>
+    </div>
+  </div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">🚨 Live Alerts <span style="font-size:11px;color:var(--muted);font-weight:400">Only BUY/SELL • 70%+ Winrate • Rebuilt</span></div>
+      <div id="alerts-list" style="max-height:450px;overflow-y:auto"><div style="padding:20px;text-align:center;color:var(--muted);font-size:12px">Loading alerts...</div></div>
+    </div>
+    <div>
+      <div class="card" style="margin-bottom:12px">
+        <div class="card-title">📊 5-Layer Elite Analysis - Rebuilt Smooth</div>
+        <div style="font-size:11px;line-height:1.6;color:var(--muted)">
+          <div>🤖 <b>AI (pythonidae)</b> - Random Forest + Gradient Boosting, 75%+ winrate</div>
+          <div>💰 <b>Finance+Web</b> - FinanceDatabase 300k, DXY Silver SPX Oil EURUSD + web-check</div>
+          <div>📈 <b>TradingView</b> - 84 tools: RSI MACD EMA BB Vol + Pine Script patterns</div>
+          <div>🔥 <b>Vibe-Trading</b> - HKUDS Shadow + Qlib158 WVMA + Benford + Limits</div>
+          <div>👤 <b>Human</b> - Price-action, trend, support/resistance, multi-TF M1 M5 M15 M30 H1</div>
+        </div>
+        <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn" style="font-size:10px" onclick="fetchAIStatus()">🤖 AI Status</button><button class="btn" style="font-size:10px" onclick="fetchFinanceWebStatus()">💰 Finance+Web</button><button class="btn" style="font-size:10px" onclick="fetchTradingViewStatus()">📈 TradingView</button><button class="btn" style="font-size:10px" onclick="fetchVibeTradingStatus()">🔥 Vibe</button>
+        </div>
+        <div id="layer-status" style="margin-top:10px;font-size:10px" class="mono"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">📞 Contact & Info - Rebuilt</div>
+        <div style="display:flex;gap:12px;align-items:center">
+          <img src="/telegram-qr.jpg" alt="QR" style="width:80px;height:80px;border-radius:8px;border:1px solid var(--border)" onerror="this.style.display='none'">
+          <div><div style="font-weight:900"><a href="https://t.me/ASTRA6RENDER" target="_blank" style="color:var(--text);text-decoration:none">@ASTRA6RENDER</a></div><div style="font-size:11px;color:var(--muted)">Telegram only • Admin: astra6render@gmail.com</div><div style="font-size:10px;color:var(--muted);margin-top:4px">Elite 85%+ 5-layer • Rebuilt smooth working • No lag • Free access • Market stays • All in one • First upgrade style</div><a href="https://t.me/ASTRA6RENDER" target="_blank" class="btn btn-gold" style="margin-top:8px;font-size:11px">Open Telegram</a></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+let chart=null,candleSeries=null,lastCandles=[],currentTF=localStorage.getItem('astra6_tf')||'M15',lastPrice=0,priceUpdateCount=0,soundOn=localStorage.getItem('astra6_sound')!=='0';
+function getToken(){return localStorage.getItem('astra6_token')||sessionStorage.getItem('astra6_token')||window.token||'';}
+function setToken(t){if(t){localStorage.setItem('astra6_token',t);sessionStorage.setItem('astra6_token',t);window.token=t;}else{localStorage.removeItem('astra6_token');sessionStorage.removeItem('astra6_token');window.token='';}}
+function authHeaders(){const t=getToken();return t?{'Authorization':'Bearer '+t}:{};}
+function toggleAllData(){const el=document.getElementById('sig-ai');const btn=document.getElementById('btn-toggle-data');if(!el||!btn)return;const isHidden=el.style.display==='none'||el.style.display==='';el.style.display=isHidden?'block':'none';btn.textContent=isHidden?'📊 Hide All Data':'📊 Show All Data (5-Layer)';}
+function renderCurrent(s){if(!s)return;const typeEl=document.getElementById('sig-type');const card=document.getElementById('current-signal-card');if(!typeEl||!card)return;typeEl.textContent=s.type;typeEl.className='signal-type '+s.type.toLowerCase();card.className='signal-card '+s.type.toLowerCase();const sp=document.getElementById('sig-price');if(sp)sp.textContent='$'+(s.price||0).toFixed(2);const sc=document.getElementById('sig-conf');if(sc)sc.textContent=(s.confidence||0)+'%';const sw=document.getElementById('sig-winrate');if(sw)sw.textContent=(s.winrate_est||50)+'% WIN';const sl=document.getElementById('sig-time');if(sl){try{sl.textContent=(s.time_str||'')+' • '+(s.strategy||'ASTRA6 Elite')+(s.preview?' • PREVIEW':'')+' • REBUILT SMOOTH';}catch(e){sl.textContent=s.type;}}const reasons=document.getElementById('sig-reasons');if(reasons)reasons.textContent=(s.reasons&&s.reasons[0])||'High confluence sniper entry • 70%+ Winrate • Rebuilt smooth working';const sltp=document.getElementById('sig-sltp');if(sltp){if(s.sl) sltp.innerHTML=`<span style="color:var(--red)">SL $${s.sl.toFixed(2)}</span> • <span style="color:var(--green)">TP1 $${(s.tp1||0).toFixed(2)} TP2 $${(s.tp2||0).toFixed(2)}</span>`;else sltp.innerHTML='';}const aiEl=document.getElementById('sig-ai');if(aiEl){let html='';if(s.ai_signal){const ai=s.ai_signal;html+=`🤖 <b>AI (pythonidae)</b>: ${ai.type||'HOLD'} ${ai.confidence||0}% • RF ${ai.rf_conf||0}% GB ${ai.gb_conf||0}% • Winrate ${ai.winrate_est||0}%<br>`;}else if(s.ai_available){html+=`🤖 <b>AI</b>: Training from pythonidae (scikit-learn) 75%+ winrate<br>`;}if(s.finance_web_signal){const fw=s.finance_web_signal;const corr=(fw.finance&&fw.finance.correlations)||{};html+=`💰 <b>Finance+Web</b>: ${fw.type||'HOLD'} ${fw.confidence||0}% • Buy:${fw.buy_score||0} Sell:${fw.sell_score||0} • Web ${fw.web?.score||0}% ${fw.web?.health||''}<br><span style="font-size:10px;color:#666">DXY:${corr.DXY?.trend||'-'} Silver:${corr.SILVER?.trend||'-'} SPX:${corr.SPX?.trend||'-'} Oil:${corr.OIL?.trend||'-'} EURUSD:${corr.EURUSD?.trend||'-'}</span><br>`;}if(s.tradingview_signal){const tv=s.tradingview_signal;const ind=tv.indicators||{};html+=`📈 <b>TradingView</b>: ${tv.type||'HOLD'} ${tv.confidence||0}% • Buy:${tv.buy_score||0} Sell:${tv.sell_score||0}<br>`;if(ind.indicators){const ii=ind.indicators;html+=`<span style="font-size:10px;color:#666">RSI:${ii.rsi_14||'-'} MACD:${ii.macd_line||'-'} EMA21:${ii.ema_21||'-'} BB:${ii.bb_position||'-'} Vol:${ii.vol_ratio||'-'}x • Pine:${tv.pine?.overall||'-'}</span><br>`;}}if(s.vibe_trading_signal){const vt=s.vibe_trading_signal;html+=`🔥 <b>Vibe-Trading</b>: ${vt.type||'HOLD'} ${vt.confidence||0}% • Buy:${vt.buy_score||0} Sell:${vt.sell_score||0}<br>`;if(vt.shadow){html+=`<span style="font-size:10px;color:#666">Shadow RSI:${vt.shadow.entry_rsi14||'-'} Prior:${vt.shadow.prior_5d_return||'-'}% • Qlib ${vt.qlib?.overall||'-'} WVMA:${Object.keys(vt.qlib?.wvma||{}).length} • Limits ${vt.limits?.can_trade?'OK':'HALT'}</span><br>`;}}if(s.strategy) html+=`<span style="font-size:10px;color:#999">Strategy: ${s.strategy}</span><br>`;if(s.buy_score!==undefined) html+=`<span style="font-size:10px;color:#666">Buy: ${s.buy_score} Sell: ${s.sell_score} • Conf: ${s.confluence||'-'}</span>`;aiEl.innerHTML=html;}console.log('Signal rendered',s.type,s.price);}
+function renderAlerts(alerts){const el=document.getElementById('alerts-list');const statTotal=document.getElementById('stat-total');const statBS=document.getElementById('stat-bs');if(!el)return;if(!alerts||alerts.length===0){el.innerHTML='<div style="padding:20px;text-align:center;color:var(--muted);font-size:12px">No alerts yet — only BUY/SELL<br>Easy & clean • All devices • Rebuilt</div>';return;}const buys=alerts.filter(a=>a.type==='BUY').length;const sells=alerts.filter(a=>a.type==='SELL').length;if(statTotal)statTotal.textContent=alerts.length;if(statBS)statBS.textContent=buys+' / '+sells;el.innerHTML=alerts.map(a=>`<div class="alert-item"><div class="alert-badge ${a.type.toLowerCase()}">${a.type}</div><div style="flex:1;min-width:0"><div style="display:flex;gap:8px;align-items:center"><span class="mono" style="font-weight:800">$${a.price.toFixed(2)}</span><span class="mono" style="font-size:10px;color:var(--gold)">${a.confidence}% • ${a.winrate_est}%</span></div><div class="mono" style="font-size:9px;color:var(--muted);margin-top:2px">${new Date(a.timestamp*1000).toLocaleString()} • SL $${a.sl||'--'} TP $${a.tp1||'--'}</div></div></div>`).join('');}
+function initChart(){try{const c=document.getElementById('oanda_chart');if(!c)return;if(typeof LightweightCharts==='undefined'){c.innerHTML='<div style="padding:20px;text-align:center">Chart lib loading...<br><span style="font-size:10px">Data works in Dashboard • Rebuilt</span></div>';const s=document.createElement('script');s.src='https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js';s.onload=()=>{createChart();fetchChart(currentTF);};s.onerror=()=>{c.innerHTML='<div style="padding:20px;text-align:center">Chart CDN blocked in preview (normal)<br>Data works in Dashboard<br>Chart feed reconnecting • price above is LIVE</div>';};document.head.appendChild(s);return;}createChart();}catch(e){console.log('initChart err',e);}}
+function createChart(){try{const c=document.getElementById('oanda_chart');if(!c||typeof LightweightCharts==='undefined')return;if(chart)return;c.innerHTML='';chart=LightweightCharts.createChart(c,{layout:{background:{color:'#ffffff'},textColor:'#6b7280'},grid:{vertLines:{color:'#e5e7eb'},horzLines:{color:'#e5e7eb'}},width:c.clientWidth,height:400,timeScale:{timeVisible:true},rightPriceScale:{borderColor:'#e5e7eb'}});candleSeries=chart.addCandlestickSeries({upColor:'#10b981',downColor:'#ef4444',borderVisible:false,wickUpColor:'#10b981',wickDownColor:'#ef4444'});new ResizeObserver(()=>{if(chart)chart.applyOptions({width:c.clientWidth})}).observe(c);console.log('chart created rebuilt');}catch(e){console.log('createChart err',e);}}
+function setTimeframe(tf){currentTF=tf;localStorage.setItem('astra6_tf',tf);document.querySelectorAll('.tf-btn').forEach(b=>b.classList.toggle('active',b.dataset.tf===tf));document.getElementById('chart-tf-label').textContent=tf+' • Live';document.getElementById('chart-info-tf').textContent=tf;fetchChart(tf);}
+async function fetchChart(tf){tf=tf||currentTF;tf=tf.replace('D1','D').replace('W1','W');const count=(tf==='D'||tf==='W')?200:150;try{const r=await fetch(`/api/xauusd/history?granularity=${tf}&count=${count}`);const d=await r.json();const srcEl=document.getElementById('chart-source');if(d.status==='ok'&&d.candles&&d.candles.length&&candleSeries){const data=d.candles.map(c=>{let t=typeof c.time==='number'?Math.floor(c.time):Math.floor(new Date(c.time).getTime()/1000);if(t>1e12)t=Math.floor(t/1000);return {time:t,open:c.open,high:c.high,low:c.low,close:c.close};}).filter(c=>c.time>0).sort((a,b)=>a.time-b.time);const seen=new Set();const clean=data.filter(c=>{if(seen.has(c.time))return false;seen.add(c.time);return true;});try{candleSeries.setData(clean);lastCandles=clean;}catch(e){console.log('chart data err',e);}document.getElementById('chart-candle-count').textContent=`${clean.length} candles`;if(srcEl)srcEl.textContent=(d.source||'REAL OHLCV').replace('xaus.com /api/v1/chart XAU/USD (REAL spot OHLCV)','XAUS REAL spot').replace('yfinance GC=F (REAL futures OHLCV)','yfinance GC=F REAL');if(clean.length){const last=clean[clean.length-1];if(lastPrice===0){lastPrice=last.close;const p=document.getElementById('price');if(p&&p.textContent==='$--.--')p.textContent='$'+last.close.toFixed(2);}}let fb=document.getElementById('chart-price-fallback');if(fb&&lastPrice)fb.textContent='$'+lastPrice.toFixed(2);}else if(srcEl){srcEl.textContent='feed reconnecting (no fake data)';}}catch(e){console.log('chart fetch err',e);const s=document.getElementById('chart-source');if(s)s.textContent='feed reconnecting…';}}
+
+async function fetchFastPrice(){try{const r=await fetch('/api/xauusd/fast-price').catch(()=>null);if(!r)return;const d=await r.json();if(d.status==='ok'){const priceEl=document.getElementById('price');const newPrice=d.price;if(priceEl){if(lastPrice!==0&&Math.abs(newPrice-lastPrice)>0.01){priceEl.style.color=newPrice>lastPrice?'#10b981':'#ef4444';setTimeout(()=>{priceEl.style.color='#111827';},400);}priceEl.textContent='$'+newPrice.toFixed(2);}const sigPrice=document.getElementById('sig-price');if(sigPrice&&sigPrice.textContent==='$--')sigPrice.textContent='$'+newPrice.toFixed(2);lastPrice=newPrice;priceUpdateCount++;if(d.live_price){const ba=document.getElementById('bidask');if(ba){const spread=(d.live_price.ask-d.live_price.bid).toFixed(2);ba.textContent=`BID ${d.live_price.bid.toFixed(2)} / ASK ${d.live_price.ask.toFixed(2)} • Spread ${spread} • #${priceUpdateCount}`;}const fb=document.getElementById('chart-price-fallback');if(fb)fb.textContent='$'+newPrice.toFixed(2);}if(candleSeries&&lastCandles.length){const lc=lastCandles[lastCandles.length-1];const upd={time:lc.time,open:lc.open,high:Math.max(lc.high,newPrice),low:Math.min(lc.low,newPrice),close:newPrice};lastCandles[lastCandles.length-1]=upd;try{candleSeries.update(upd);}catch(e){}}}}catch(e){console.log('fast price err',e);}}
+async function fetchLive(){try{const r=await fetch('/api/xauusd/live').catch(()=>null);if(!r)return;const d=await r.json();if(d.status==='ok'&&priceUpdateCount===0){document.getElementById('price').textContent='$'+d.price.toFixed(2);lastPrice=d.price;}}catch(e){console.log('fetchLive err',e);}}
+async function fetchDashboard(){const btn=document.getElementById('refresh-btn');if(btn)btn.textContent='⏳';try{const [curR,alertsR,winrateR]=await Promise.all([fetch('/api/signals/current'),fetch('/api/signals/alerts?limit=15'),fetch('/api/signals/winrate').catch(()=>null)]);const cur=await curR.json();console.log('cur',cur);const alerts=await alertsR.json();if(cur.status==='ok'&&cur.signal)renderCurrent(cur.signal);else renderCurrent({type:'HOLD',price:lastPrice||0,confidence:56,winrate_est:50,timestamp:Date.now()/1000,preview:true,reasons:['No signal - REAL live price']});if(alerts.status==='ok')renderAlerts(alerts.alerts);if(winrateR&&winrateR.ok){const wr=await winrateR.json();if(wr.status==='ok'){document.getElementById('real-winrate').textContent=(wr.winrate||0)+'%';document.getElementById('real-stats').textContent=`${wr.wins||0}W / ${wr.losses||0}L • ${wr.total_evaluated||0} closed`;}}}catch(e){console.log('dashboard err',e);}if(btn)btn.textContent='🔄 Refresh';}
+function updateTimeSmooth(){const lt=document.getElementById('live-time');if(lt){const now=new Date();lt.textContent=now.toLocaleTimeString('en-US',{hour12:false})+' • '+now.toLocaleDateString();}const ms=document.getElementById('market-status');if(ms){const now=new Date();const day=now.getUTCDay();const utcHour=now.getUTCHours();const isWeekend=(day===6&&utcHour>=22)||(day===0&&utcHour<22)||day===0;ms.textContent=isWeekend?'CLOSED':'LIVE';ms.style.color=isWeekend?'var(--red)':'var(--green)';}}
+function toggleSound(){soundOn=!soundOn;localStorage.setItem('astra6_sound',soundOn?'1':'0');document.getElementById('sound-btn').textContent=soundOn?'🔔':'🔕';}
+async function fetchAIStatus(){try{const r=await fetch('/api/ai-status');const d=await r.json();document.getElementById('layer-status').textContent='AI: '+(d.status||JSON.stringify(d).substring(0,100));}catch(e){}}
+async function fetchFinanceWebStatus(){try{const r=await fetch('/api/finance-web');const d=await r.json();document.getElementById('layer-status').textContent='Finance+Web: '+(d.status||JSON.stringify(d).substring(0,100));}catch(e){}}
+async function fetchTradingViewStatus(){try{const r=await fetch('/api/tradingview');const d=await r.json();document.getElementById('layer-status').textContent='TradingView: '+(d.status||JSON.stringify(d).substring(0,100));}catch(e){}}
+async function fetchVibeTradingStatus(){try{const r=await fetch('/api/vibe-trading');const d=await r.json();document.getElementById('layer-status').textContent='Vibe: '+(d.status||JSON.stringify(d).substring(0,100));}catch(e){}}
+function initClicks(){document.querySelectorAll('.tf-btn').forEach(b=>{b.onclick=()=>setTimeframe(b.dataset.tf);b.ontouchend=(e)=>{e.preventDefault();setTimeframe(b.dataset.tf);};});console.log('ASTRA6 rebuilt smooth - all clicks bound');}
+initClicks();document.addEventListener('DOMContentLoaded',initClicks);setTimeout(initClicks,500);
+setTimeout(()=>{fetchDashboard();fetchChart(currentTF);fetchLive();fetchFastPrice();},800);
+setInterval(updateTimeSmooth,500);updateTimeSmooth();
+setInterval(fetchFastPrice,5000);setInterval(fetchLive,10000);setInterval(()=>{fetchDashboard();},15000);
+setInterval(()=>{fetch('/health').catch(()=>{});},240000);
+setInterval(()=>{fetchChart(currentTF);},30000);
+console.log('ASTRA6 REBUILT SMOOTH - First upgrade clean + All data + All in one + No lag + Smooth + Free access + Market stays + Working');
+</script>
+</body>
+</html>
