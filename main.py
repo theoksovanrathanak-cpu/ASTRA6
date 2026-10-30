@@ -3870,13 +3870,13 @@ def gc_udf_history(symbol: str = "OANDA:XAUUSD", resolution: str = "15",
     }
 
 # === Bitcoin - REAL spot price (TradingView crypto venues) + REAL OHLCV from xaus.com ===
-BTC_VENUES = ["COINBASE:BTCUSD", "BINANCE:BTCUSDT", "BITSTAMP:BTCUSD"]
+BTC_VENUES = ["BINANCE:BTCUSDT", "COINBASE:BTCUSD", "BITSTAMP:BTCUSD"]
 _BTC_CACHE = {"time": 0, "data": None}
 
 def fetch_btc_price(venue=None):
     """REAL BTC price: TradingView crypto venue -> xaus spot -> yfinance. No fabrication."""
     now = time.time()
-    v = venue or "COINBASE:BTCUSD"
+    v = venue or "BINANCE:BTCUSDT"
     if _BTC_CACHE["data"] and now - _BTC_CACHE["time"] < 1.5 and _BTC_CACHE["data"].get("venue") == v:
         return _BTC_CACHE["data"]
     try:
@@ -3892,8 +3892,10 @@ def fetch_btc_price(venue=None):
                 if close:
                     _b = float(bid) if bid else float(close)
                     _a = float(ask) if ask else float(close)
-                    _mid = (_b + _a) / 2 if (bid and ask and abs(_a - _b) < float(close) * 0.01) else float(close)
-                    data = {"mid": _mid, "bid": _b, "ask": _a,
+                    # TradingView's chart prints `close` (last trade) - use exactly that so the
+                    # site and the TV chart show the same number. Bid/ask kept for reference.
+                    _mid = float(close)
+                    data = {"mid": _mid, "bid": _b, "ask": _a, "book_mid": round((_b + _a) / 2, 2),
                             "change_pct": float(chg) if chg is not None else None,
                             "timestamp": now, "venue": v,
                             "source": f"TradingView {v} - REAL crypto venue feed", "real": True}
@@ -3928,7 +3930,7 @@ def fetch_btc_price(venue=None):
         print("btc yf failed", e)
     return _BTC_CACHE["data"]
 
-def fetch_btc_candles(granularity="M15", count=150, venue=None):
+def fetch_btc_candles(granularity="M15", count=150, venue="BINANCE:BTCUSDT"):
     """REAL BTC OHLCV from xaus.com chart (matches Coinbase spot), basis-anchored + TV live bar."""
     g = granularity.upper().replace("D1", "D").replace("W1", "W")
     cfg = {"M1": ("1d", "1m"), "M5": ("1d", "5m"), "M15": ("5d", "15m"),
@@ -3960,7 +3962,7 @@ def fetch_btc_candles(granularity="M15", count=150, venue=None):
             rows[-1]["close"] = live
             rows[-1]["high"] = max(rows[-1]["high"], live)
             rows[-1]["low"] = min(rows[-1]["low"], live)
-        bar = fetch_tv_bar(px.get("venue") if px else "COINBASE:BTCUSD", g)
+        bar = fetch_tv_bar(px.get("venue") if px else (venue or "BINANCE:BTCUSDT"), g)
         if bar:
             rows[-1].update({k: bar[k] for k in ("open", "high", "low", "close")})
         return rows[-count:], px
@@ -3971,18 +3973,18 @@ def fetch_btc_candles(granularity="M15", count=150, venue=None):
 # === RENDER zone strategy - support/resistance boxes drive every signal ===
 ZONE_TF = os.getenv("ZONE_TF", "M15")
 
-def _zone_candles(symbol: str):
+def _zone_candles(symbol: str, venue: str = None):
     if str(symbol).upper().startswith("BTC"):
-        return fetch_btc_candles(ZONE_TF, 500, "COINBASE:BTCUSD")[0]
+        return fetch_btc_candles(ZONE_TF, 500, venue or os.getenv("BTC_VENUE", "BINANCE:BTCUSDT"))[0]
     res = fetch_candles(ZONE_TF, 500, None)
     return res[0] if res else []
 
 @app.get("/api/zones")
-def get_zones(symbol: str = "XAUUSD", email: str = "free@astra6.com"):
+def get_zones(symbol: str = "XAUUSD", venue: str = None, email: str = "free@astra6.com"):
     """Live support/resistance boxes + the signal they imply. Real candles only."""
     try:
         import zones as Z
-        candles = _zone_candles(symbol)
+        candles = _zone_candles(symbol, venue)
         if not candles or len(candles) < 60:
             return {"status": "error", "error": "not_enough_candles", "real": True, "user": email}
         candles = sorted(candles, key=lambda c: c["time"])
