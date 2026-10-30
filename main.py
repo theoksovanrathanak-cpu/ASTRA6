@@ -537,15 +537,13 @@ def fetch_fast_price():
             print(f"✅ REAL XAUUSD price: {real_price} from {source}")
             return data
         if _fast_price_cache["data"]:
-            return _fast_price_cache["data"]
-        # Last resort dynamic mock
-        import math
-        base = 4286.14
-        variation = math.sin(now/30)*2 + math.sin(now/120)*5
-        mock_price = base + variation
-        data={"mid": mock_price, "bid": mock_price-0.5, "ask": mock_price+0.5, "timestamp": now, "source": "dynamic mock (free APIs failed)"}
-        _fast_price_cache = {"data": data, "time": now}
-        return data
+            cached = dict(_fast_price_cache["data"])
+            cached["stale"] = True
+            cached["source"] = cached.get("source", "") + " [cached - upstream down]"
+            return cached
+        # Honest failure - never invent a price
+        print("❌ No real XAUUSD source available - returning None (no fabrication)")
+        return None
 
 # ==== REAL CANDLES: XAUS OHLCV (same spot instrument as header price) -> yfinance GC=F -> honest none ====
 _XAUS_CHART_CACHE = {}
@@ -3650,6 +3648,62 @@ def history(granularity: str = "M15", count: int = 100, email: str = "free@astra
         "user": email
     }
 
+# === TradingView venue feed - REAL bid/ask/mid per venue, public scanner, no key ===
+TV_VENUES = ["OANDA:XAUUSD", "FX_IDC:XAUUSD", "FOREXCOM:XAUUSD", "TVC:GOLD"]
+_TV_CACHE = {"time": 0, "data": {}}
+
+def fetch_tradingview(ttl=5):
+    """REAL per-venue XAUUSD prices from TradingView's public scanner (same feed the app shows)."""
+    now = time.time()
+    if _TV_CACHE["data"] and now - _TV_CACHE["time"] < ttl:
+        return _TV_CACHE["data"]
+    try:
+        import requests as _req
+        r = _req.post("https://scanner.tradingview.com/cfd/scan",
+                      json={"symbols": {"tickers": TV_VENUES, "query": {"types": []}},
+                            "columns": ["close", "bid", "ask"]},
+                      timeout=5, headers={"User-Agent": "Mozilla/5.0"})
+        if r.status_code == 200:
+            out = {}
+            for row in r.json().get("data", []):
+                close, bid, ask = row["d"][:3]
+                if close is None:
+                    continue
+                out[row["s"]] = {"mid": round(float(close), 3),
+                                 "bid": round(float(bid), 3) if bid else None,
+                                 "ask": round(float(ask), 3) if ask else None}
+            if out:
+                _TV_CACHE.update({"time": now, "data": out})
+                return out
+    except Exception as e:
+        print(f"TradingView scanner failed: {e}")
+    return _TV_CACHE["data"]
+
+@app.get("/api/xauusd/tradingview")
+def tradingview_prices(email: str = "free@astra6.com"):
+    """REAL TradingView venue prices + delta vs our price - explains small venue differences."""
+    tv = fetch_tradingview()
+    fp = fetch_fast_price()
+    our = fp["mid"] if fp else None
+    venues = []
+    for name, q in tv.items():
+        mid = q.get("mid")
+        venues.append({"venue": name, "mid": mid, "bid": q.get("bid"), "ask": q.get("ask"),
+                       "spread": round(q["ask"] - q["bid"], 2) if q.get("ask") and q.get("bid") else None,
+                       "delta_vs_us": round(mid - our, 2) if (mid is not None and our) else None})
+    deltas = [v["delta_vs_us"] for v in venues if v["delta_vs_us"] is not None]
+    return {
+        "status": "ok" if venues else "error",
+        "source": "scanner.tradingview.com - REAL venue feeds (OANDA, FX_IDC, FOREXCOM, TVC)",
+        "our_price": round(our, 2) if our else None,
+        "venues": venues,
+        "max_delta": round(max(deltas), 2) if deltas else None,
+        "min_delta": round(min(deltas), 2) if deltas else None,
+        "explanation": "Small differences are venue spreads, not errors: each broker publishes its own spot (OANDA, FX_IDC, FOREXCOM). Our price is xaus.com spot MID; TradingView charts plot that venue's own series. GC=F futures trade at a premium to spot (basis).",
+        "real": True,
+        "user": email
+    }
+
 # === XAUS API Integration - REAL XAU/USD spot data, no key, trust no fabricated data ===
 # From https://github.com/misix-git/xaus-api - https://xaus.com/api/
 @app.get("/api/xauusd/xaus/spot")
@@ -3778,6 +3832,15 @@ def xauusd_sources(email: str = "free@astra6.com"):
                 sources.append({"name":"gold-api.com XAU","price":float(price),"source":"REAL spot","real":True})
     except Exception as e:
         sources.append({"name":"gold-api.com","error":str(e)})
+    # 4b TradingView venues (REAL, same feed as the TradingView app)
+    try:
+        tv = fetch_tradingview()
+        if "OANDA:XAUUSD" in tv:
+            q = tv["OANDA:XAUUSD"]
+            sources.append({"name":"TradingView OANDA:XAUUSD","price":q["mid"],"bid":q.get("bid"),"ask":q.get("ask"),
+                            "source":"scanner.tradingview.com - REAL OANDA venue feed (what the TV app shows)","real":True,"tradingview":True})
+    except Exception as e:
+        sources.append({"name":"TradingView","error":str(e)})
     # 5 Coingecko PAXG
     try:
         import requests as _req
