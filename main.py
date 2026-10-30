@@ -35,7 +35,7 @@ except Exception as e:
     print(f"Vibe-Trading not available: {e}")
     VIBE_TRADING_AVAILABLE = False
 
-from fastapi import FastAPI, Header, HTTPException, Depends, Request
+from fastapi import FastAPI, Header, HTTPException, Depends, Request, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, FileResponse
 from pydantic import BaseModel
@@ -3626,6 +3626,132 @@ def live(email: str = "free@astra6.com"):
         "candles_source": last_candle_source("M15"),
         "real": True,
         "user": email
+    }
+
+# === GoCharting integration - REAL candles served in UDF format, ready for their SDK widget ===
+# GoCharting SDK needs a licence credential (free tier with attribution) + package access.
+# Everything on our side is wired: set GOCHARTING_LICENCE_KEY and the chart lights up.
+GC_SYMBOLS = {
+    "OANDA:XAUUSD":    {"ticker": "OANDA:XAUUSD", "name": "Gold / US Dollar (OANDA)", "venue": "OANDA:XAUUSD"},
+    "FX_IDC:XAUUSD":   {"ticker": "FX_IDC:XAUUSD", "name": "Gold / US Dollar (FX_IDC)", "venue": "FX_IDC:XAUUSD"},
+    "FOREXCOM:XAUUSD": {"ticker": "FOREXCOM:XAUUSD", "name": "Gold / US Dollar (FOREXCOM)", "venue": "FOREXCOM:XAUUSD"},
+    "TVC:GOLD":        {"ticker": "TVC:GOLD", "name": "Gold (TVC)", "venue": "TVC:GOLD"},
+    "XAUS":            {"ticker": "XAUS", "name": "Gold spot (xaus.com)", "venue": "XAUS"},
+}
+GC_RES = {"1": "M1", "5": "M5", "15": "M15", "30": "M30", "60": "H1", "240": "H4", "D": "D", "1D": "D", "W": "W", "1W": "W"}
+
+@app.get("/api/gocharting/config")
+def gocharting_config(email: str = "free@astra6.com"):
+    """GoCharting widget config - tells the page whether a licence credential is configured."""
+    import os as _os
+    key = _os.getenv("GOCHARTING_LICENCE_KEY", "").strip()
+    return {
+        "status": "ok",
+        "provider": "GoCharting",
+        "docs": "https://gocharting.com/sdk/docs",
+        "free_tier": "Free with attribution - request a licence credential from GoCharting (no credit card)",
+        "white_label": "Paid - removes GoCharting attribution",
+        "licence_configured": bool(key),
+        "sdk_url": _os.getenv("GOCHARTING_SDK_URL", ""),
+        "default_symbol": _os.getenv("GOCHARTING_SYMBOL", "OANDA:XAUUSD"),
+        "symbols": list(GC_SYMBOLS.keys()),
+        "supported_resolutions": ["1", "5", "15", "30", "60", "240", "D", "W"],
+        "datafeed": {
+            "config": "/api/gocharting/udf/config",
+            "symbols": "/api/gocharting/udf/symbols?symbol={symbol}",
+            "history": "/api/gocharting/udf/history?symbol={symbol}&resolution={resolution}&from={from}&to={to}",
+            "time": "/api/gocharting/udf/time",
+        },
+        "note": "Candles are the same REAL xaus.com XAU/USD series the site draws - no synthetic data.",
+        "user": email
+    }
+
+@app.get("/api/gocharting/udf/time")
+def gc_udf_time():
+    return int(time.time())
+
+@app.get("/api/gocharting/udf/config")
+def gc_udf_config():
+    """UDF-compatible /config for GoCharting / TradingView style datafeeds."""
+    return {
+        "supports_search": True,
+        "supports_group_request": False,
+        "supports_marks": False,
+        "supports_timescale_marks": False,
+        "supports_time": True,
+        "supported_resolutions": ["1", "5", "15", "30", "60", "240", "D", "W"],
+        "exchanges": [{"value": "", "name": "All", "desc": "All venues"},
+                      {"value": "OANDA", "name": "OANDA", "desc": "OANDA spot"},
+                      {"value": "FX_IDC", "name": "FX_IDC", "desc": "FX_IDC spot"},
+                      {"value": "FOREXCOM", "name": "FOREXCOM", "desc": "FOREXCOM spot"},
+                      {"value": "TVC", "name": "TVC", "desc": "TVC gold"},
+                      {"value": "XAUS", "name": "xaus.com", "desc": "xaus.com spot"}],
+        "symbols_types": [{"value": "", "name": "All"}, {"value": "commodity", "name": "Commodity"}],
+    }
+
+@app.get("/api/gocharting/udf/symbols")
+def gc_udf_symbols(symbol: str = "OANDA:XAUUSD"):
+    """UDF symbol info - real metadata, tick size 0.01, pricescale 100."""
+    s = GC_SYMBOLS.get(symbol) or GC_SYMBOLS["OANDA:XAUUSD"]
+    px = fetch_fast_price(s["venue"])
+    price = px["mid"] if px else None
+    return {
+        "name": s["ticker"],
+        "ticker": s["ticker"],
+        "description": s["name"],
+        "type": "commodity",
+        "session": "24x7",
+        "session_holidays": "",
+        "timezone": "Etc/UTC",
+        "exchange": s["ticker"].split(":")[0] if ":" in s["ticker"] else "XAUS",
+        "listed_exchange": s["ticker"].split(":")[0] if ":" in s["ticker"] else "XAUS",
+        "minmov": 1,
+        "pricescale": 100,
+        "minmov2": 0,
+        "has_intraday": True,
+        "has_daily": True,
+        "has_weekly_and_monthly": True,
+        "has_no_volume": True,
+        "volume_precision": 0,
+        "supported_resolutions": ["1", "5", "15", "30", "60", "240", "D", "W"],
+        "currency_code": "USD",
+        "last_price": price,
+        "real": True,
+    }
+
+@app.get("/api/gocharting/udf/history")
+def gc_udf_history(symbol: str = "OANDA:XAUUSD", resolution: str = "15",
+                   frm: int = Query(0, alias="from"), to: int = 0, countback: int = 300):
+    """UDF history - REAL candles from our XAUS/TradingView chain, no synthetic bars."""
+    from_val = frm
+    to_val = to or int(time.time())
+    res = str(resolution).upper()
+    gran = GC_RES.get(str(resolution), GC_RES.get(res, "M15"))
+    venue = (GC_SYMBOLS.get(symbol) or GC_SYMBOLS["OANDA:XAUUSD"])["venue"]
+    n = int(countback) if countback else 300
+    n = max(50, min(n, 1000))
+    result = fetch_candles(gran, n, venue)
+    if not result or not result[0]:
+        return {"s": "error", "errmsg": "no real data available", "no_data": False}
+    candles = result[0]
+    try:
+        f = int(float(from_val)) if from_val else 0
+        t = int(float(to_val)) if to_val else int(time.time())
+    except Exception:
+        f, t = 0, int(time.time())
+    sel = [c for c in candles if c["time"] <= t and (not f or c["time"] >= f)]
+    if not sel:
+        sel = candles[-min(len(candles), n):]
+    return {
+        "s": "ok",
+        "t": [int(c["time"]) for c in sel],
+        "o": [round(float(c["open"]), 2) for c in sel],
+        "h": [round(float(c["high"]), 2) for c in sel],
+        "l": [round(float(c["low"]), 2) for c in sel],
+        "c": [round(float(c["close"]), 2) for c in sel],
+        "v": [int(c.get("volume") or 0) for c in sel],
+        "source": last_candle_source(gran),
+        "real": True,
     }
 
 @app.get("/api/xauusd/venues")

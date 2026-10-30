@@ -66,6 +66,29 @@ Vendor docs for the gold API live in [`xaus-api/`](xaus-api) (from
 
 Both run this repo's `main` branch. Health check: `/health`.
 
+## GoCharting integration
+
+GoCharting's charting SDK is licensed (free tier with attribution, but you must request a
+licence credential — the package is not on npm). Everything on our side is already wired:
+
+| Endpoint | What |
+|---|---|
+| `/api/gocharting/config` | whether a credential is configured, symbols, resolutions |
+| `/api/gocharting/udf/config` · `/time` · `/symbols` · `/history` | standard UDF datafeed |
+
+`/api/gocharting/udf/history` returns **real** XAUS / TradingView venue candles in UDF shape
+(`s, t, o, h, l, c, v`) — no synthetic bars, same series the site draws.
+
+Activate the embedded widget by setting two env vars in Render:
+
+```
+GOCHARTING_LICENCE_KEY=<credential from gocharting.com/sdk/docs>
+GOCHARTING_SDK_URL=https://<where the sdk bundle is served>/chart-sdk.js
+```
+
+Until then the panel shows a "Get the free licence" card and the
+**Open XAUUSD in GoCharting** button deep-links to their terminal.
+
 ## Run
 
 ```bash
