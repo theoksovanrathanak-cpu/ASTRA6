@@ -3968,6 +3968,36 @@ def fetch_btc_candles(granularity="M15", count=150, venue=None):
         print("btc candles err", e)
         return [], None
 
+# === RENDER zone strategy - support/resistance boxes drive every signal ===
+ZONE_TF = os.getenv("ZONE_TF", "M15")
+
+def _zone_candles(symbol: str):
+    if str(symbol).upper().startswith("BTC"):
+        return fetch_btc_candles(ZONE_TF, 500, "COINBASE:BTCUSD")[0]
+    res = fetch_candles(ZONE_TF, 500, None)
+    return res[0] if res else []
+
+@app.get("/api/zones")
+def get_zones(symbol: str = "XAUUSD", email: str = "free@astra6.com"):
+    """Live support/resistance boxes + the signal they imply. Real candles only."""
+    try:
+        import zones as Z
+        candles = _zone_candles(symbol)
+        if not candles or len(candles) < 60:
+            return {"status": "error", "error": "not_enough_candles", "real": True, "user": email}
+        candles = sorted(candles, key=lambda c: c["time"])
+        data = Z.analyse(candles, ZONE_TF)
+        atr = Z.atr_series(candles, 14)
+        zs, _ = Z.build_zones(candles)
+        data["layers"] = Z.layers(candles, atr, zs, data["signal"])
+        last = candles[-1]
+        data.update({"symbol": symbol.upper(), "price": last["close"], "bar_time": int(last["time"]),
+                     "source": "RENDER zones · real closed candles", "real": True, "user": email})
+        return data
+    except Exception as e:
+        print("zones err", e)
+        return {"status": "error", "error": str(e), "real": True, "user": email}
+
 @app.get("/api/btc/price")
 def btc_price(venue: str = None, email: str = "free@astra6.com"):
     px = fetch_btc_price(venue)
