@@ -1,31 +1,30 @@
-name: Keep ASTRA6 Alive 24/7
+name: Keep ASTRA6 awake (Render free tier)
+
+# Render free web services sleep after ~15 min idle.
+# Set the repository variable ASTRA6_URL (Settings > Secrets and variables > Actions > Variables)
+# to the live service URL, e.g. https://astra6-xxxx.onrender.com
+# Defaults to https://astra6.onrender.com if the variable is not set.
 
 on:
   schedule:
-    - cron: '*/5 * * * *'  # every 5 minutes - aggressive to prevent sleep
+    - cron: '*/5 * * * *'
   workflow_dispatch:
 
 jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping ASTRA6 Health (primary)
+      - name: Ping health + price (wake up if sleeping)
+        env:
+          URL: ${{ vars.ASTRA6_URL || 'https://astra6.onrender.com' }}
         run: |
-          echo "Pinging https://astra6.onrender.com/health"
-          curl -s --max-time 30 -o /dev/null -w "%{http_code} %{time_total}s\n" https://astra6.onrender.com/health || true
-          curl -s --max-time 30 https://astra6.onrender.com/health | head -c 300 || true
-          echo ""
-      - name: Ping Status + Home
-        run: |
-          curl -s --max-time 30 -o /dev/null -w "home: %{http_code} %{time_total}s\n" https://astra6.onrender.com/ || true
-          curl -s --max-time 30 -o /dev/null -w "status: %{http_code}\n" https://astra6.onrender.com/api/status || true
-      - name: Ping with retry - wake up if sleeping
-        run: |
-          for i in 1 2 3 4 5; do
-            CODE=$(curl -s --max-time 60 -o /dev/null -w "%{http_code}" https://astra6.onrender.com/health || echo "000")
-            echo "Attempt $i: $CODE at $(date)"
-            if [ "$CODE" = "200" ]; then echo "✅ Alive"; exit 0; fi
-            echo "Sleeping, retry in 15s..."
+          echo "Target: $URL"
+          for i in 1 2 3 4 5 6; do
+            CODE=$(curl -s --max-time 60 -o /dev/null -w "%{http_code}" "$URL/health" || echo 000)
+            echo "attempt $i -> $CODE ($(date -u +%H:%M:%S))"
+            if [ "$CODE" = "200" ]; then break; fi
             sleep 15
           done
-          echo "❌ Still down after 5 attempts"
+          curl -s --max-time 30 -o /dev/null -w "home  %{http_code} %{time_total}s\n" "$URL/" || true
+          curl -s --max-time 30 "$URL/api/xauusd/fast-price" | head -c 300 || true
+          echo ""
