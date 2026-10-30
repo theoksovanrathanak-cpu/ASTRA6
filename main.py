@@ -448,12 +448,41 @@ def fetch_xaus_spot():
         print(f"XAUS spot fetch failed: {e}")
         return None
 
-def fetch_fast_price():
-    """Ultra-fast price - REAL XAUUSD forex/spot from free APIs (no key) - XAUS primary"""
+_PRICE_VENUE = {"name": os.getenv("PRICE_VENUE", "OANDA:XAUUSD")}
+_FP_BY_VENUE = {}
+
+def fetch_fast_price(venue=None):
+    """Ultra-fast REAL XAUUSD price. Primary = chosen TradingView venue (real bid/ask),
+    fallback chain XAUS spot -> yfinance -> Currency-API -> gold-api -> PAXG. Never fabricates."""
     global _fast_price_cache
     now = time.time()
-    if _fast_price_cache["data"] and now - _fast_price_cache["time"] < 0.8:
-        return _fast_price_cache["data"]
+    v = (venue if venue is not None else _PRICE_VENUE["name"]) or ""
+    v = v.strip()
+    key = v.upper() or "XAUS"
+    hit = _FP_BY_VENUE.get(key)
+    if hit and now - hit["time"] < 0.8:
+        return hit["data"]
+    # 0. TradingView venue feed - REAL bid/ask from the same place the TradingView app reads
+    if v and key not in ("XAUS", "XAUS.COM", "SPOT", "AUTO"):
+        try:
+            tv = fetch_tradingview()
+            q = tv.get(v) or tv.get(v.upper())
+            if q and q.get("mid"):
+                data = {
+                    "mid": float(q["mid"]),
+                    "bid": float(q["bid"]) if q.get("bid") else float(q["mid"]),
+                    "ask": float(q["ask"]) if q.get("ask") else float(q["mid"]),
+                    "timestamp": now,
+                    "source": f"TradingView {v} - REAL venue feed, live bid/ask",
+                    "venue": v,
+                    "real": True,
+                    "bid_ask_from_venue": bool(q.get("bid") and q.get("ask")),
+                }
+                _FP_BY_VENUE[key] = {"time": now, "data": data}
+                _fast_price_cache = {"data": data, "time": now}
+                return data
+        except Exception as e:
+            print(f"TradingView venue {v} failed: {e}")
     client = get_oanda_client()
     if not client:
         # REAL XAUUSD spot price from free APIs - no key needed - XAUS API primary
@@ -532,8 +561,9 @@ def fetch_fast_price():
             except Exception as e:
                 print(f"Coingecko failed: {e}")
         if real_price:
-            data={"mid": real_price, "bid": real_price-0.5, "ask": real_price+0.5, "timestamp": now, "source": source}
+            data={"mid": real_price, "bid": real_price-0.5, "ask": real_price+0.5, "timestamp": now, "source": source, "venue": "XAUS"}
             _fast_price_cache = {"data": data, "time": now}
+            _FP_BY_VENUE[key] = {"time": now, "data": data}
             print(f"✅ REAL XAUUSD price: {real_price} from {source}")
             return data
         if _fast_price_cache["data"]:
@@ -692,11 +722,11 @@ def _stitch_live(candles, live_mid):
             candles[-1] = last
     return candles, candles[-1]["close"] if candles else None
 
-def fetch_candles(granularity="M15", count=100):
+def fetch_candles(granularity="M15", count=100, venue=None):
     """REAL candles only. OANDA (if configured) -> xaus.com OHLCV -> yfinance GC=F -> honest None."""
     global _price_cache
     now = time.time()
-    key = f"{granularity}|{count}"
+    key = f"{granularity}|{count}|{(venue if venue is not None else _PRICE_VENUE['name'])}"
     hit = _candle_cache.get(key)
     if hit and now - hit["time"] < 15:
         return hit["data"]
@@ -720,7 +750,7 @@ def fetch_candles(granularity="M15", count=100):
             return result
         except Exception as e:
             print(f"OANDA error {granularity}: {e}")
-    fp = fetch_fast_price()
+    fp = fetch_fast_price(venue)
     candles = _xaus_candles(granularity, count)
     _gg = granularity.upper().replace("D1", "D").replace("W1", "W")
     src = "xaus.com /api/v1/history XAU/USD (REAL daily)" if _gg in ("D", "W") else "xaus.com /api/v1/chart XAU/USD (REAL spot OHLCV)"
@@ -3598,11 +3628,25 @@ def live(email: str = "free@astra6.com"):
         "user": email
     }
 
+@app.get("/api/xauusd/venues")
+def price_venues(email: str = "free@astra6.com"):
+    """All selectable REAL price venues - default primary is the TradingView venue feed."""
+    tv = fetch_tradingview()
+    out = []
+    for name in TV_VENUES:
+        q = tv.get(name)
+        if q:
+            out.append({"id": name, "label": name.replace(":XAUUSD", "").replace(":GOLD", " (TVC GOLD)"),
+                        "price": q.get("mid"), "bid": q.get("bid"), "ask": q.get("ask"), "real": True})
+    out.append({"id": "XAUS", "label": "xaus.com spot", "price": (fetch_xaus_spot() or {}).get("price"), "real": True})
+    return {"status": "ok", "primary": _PRICE_VENUE["name"], "venues": out,
+            "note": "Pick any venue - header, chart and signals all follow it", "user": email}
+
 @app.get("/api/xauusd/fast-price")
 @app.get("/api/xauusd/price")
-def fast_price(email: str = "free@astra6.com"):
+def fast_price(venue: str = None, email: str = "free@astra6.com"):
     """Ultra-fast price - no candles, only bid/ask - for smooth 1s updates"""
-    price = fetch_fast_price()
+    price = fetch_fast_price(venue)
     if not price:
         if _price_cache["data"]:
             _, lp = _price_cache["data"]
@@ -3624,10 +3668,10 @@ def fast_price(email: str = "free@astra6.com"):
     }
 
 @app.get("/api/xauusd/history")
-def history(granularity: str = "M15", count: int = 100, email: str = "free@astra6.com"):
+def history(granularity: str = "M15", count: int = 100, venue: str = None, email: str = "free@astra6.com"):
     """REAL OHLCV candles only - xaus.com XAU/USD spot first, yfinance GC=F fallback. No fabricated candles."""
     count = max(10, min(count, 5000))
-    result = fetch_candles(granularity, count)
+    result = fetch_candles(granularity, count, venue)
     if not result or not result[0]:
         return {"status":"error","error":"candle_feed_unavailable","real":False,
                 "granularity":granularity,"count":0,"candles":[],
@@ -3644,6 +3688,7 @@ def history(granularity: str = "M15", count: int = 100, email: str = "free@astra
         "latest_price": closes[-1],
         "candles": candles,
         "source": src,
+        "venue": (fetch_fast_price(venue) or {}).get("venue"),
         "real": True,
         "user": email
     }
@@ -3685,6 +3730,7 @@ def tradingview_prices(email: str = "free@astra6.com"):
     tv = fetch_tradingview()
     fp = fetch_fast_price()
     our = fp["mid"] if fp else None
+    xaus = fetch_xaus_spot() or {}
     venues = []
     for name, q in tv.items():
         mid = q.get("mid")
@@ -3696,6 +3742,9 @@ def tradingview_prices(email: str = "free@astra6.com"):
         "status": "ok" if venues else "error",
         "source": "scanner.tradingview.com - REAL venue feeds (OANDA, FX_IDC, FOREXCOM, TVC)",
         "our_price": round(our, 2) if our else None,
+        "our_venue": (fp or {}).get("venue"),
+        "xaus_spot": xaus.get("price"),
+        "xaus_delta": round(xaus["price"] - our, 2) if (xaus.get("price") and our) else None,
         "venues": venues,
         "max_delta": round(max(deltas), 2) if deltas else None,
         "min_delta": round(min(deltas), 2) if deltas else None,
