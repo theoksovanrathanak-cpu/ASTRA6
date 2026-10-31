@@ -184,6 +184,8 @@ button,select{font-family:inherit}
 #tv-legend .lg-t{font-weight:800;color:var(--ink)}
 #tv-legend .lg-c.up{color:var(--up)} #tv-legend .lg-c.dn{color:var(--down)}
 #zone-layer{position:absolute;inset:1px;width:100%;height:100%;pointer-events:none;overflow:hidden;z-index:3}
+#vwap-layer{position:absolute;inset:1px;width:100%;height:100%;pointer-events:none;overflow:hidden;z-index:4}
+#volpanel{z-index:5}
 .zone-key{display:inline-flex;align-items:center;gap:5px}
 .zone-key i{width:9px;height:9px;border-radius:2px;display:inline-block}
 .gc-shell{border-radius:10px;overflow:hidden;border:1px solid var(--line-soft)}
@@ -388,11 +390,24 @@ button,select{font-family:inherit}
       <div class="tf-row" id="tf-buttons">
         <button class="tf-btn" data-tf="M1">M1</button><button class="tf-btn" data-tf="M5">M5</button><button class="tf-btn active" data-tf="M15">M15</button><button class="tf-btn" data-tf="M30">M30</button><button class="tf-btn" data-tf="H1">H1</button><button class="tf-btn" data-tf="H4">H4</button><button class="tf-btn" data-tf="D">D1</button><button class="tf-btn" data-tf="W">W1</button>
       </div>
+      <div class="tf-row" id="strategy-row" style="margin-top:6px">
+        <span style="font-size:10.5px;font-weight:700;letter-spacing:.06em;color:#64748b;text-transform:uppercase;align-self:center;margin-right:2px">Strategy</span>
+        <button class="tf-btn active" data-strategy="render">RENDER</button><button class="tf-btn" data-strategy="volume">VOLUME</button>
+        <span id="strategy-hint" style="font-size:11px;color:#64748b;align-self:center;margin-left:4px">15m target · 5m entry</span>
+      </div>
     </div>
     <div class="chart-shell">
       <div id="oanda_chart">Loading chart…</div>
       <div id="tv-legend"><span class="lg-t" id="lg-sym">XAUUSD</span><span id="lg-tf">M15</span><span id="lg-ohlc">—</span></div>
+      <svg id="vwap-layer" aria-hidden="true"></svg>
       <svg id="zone-layer" aria-hidden="true"></svg>
+      <div id="volpanel" style="display:none;position:absolute;left:8px;bottom:8px;max-width:min(300px,66%);max-height:62%;overflow:hidden;border-radius:9px;padding:7px 8px;font-size:10px;line-height:1.35;background:var(--panel,#fff);border:1px solid var(--line,#e2e8f0);box-shadow:0 6px 18px rgba(2,6,23,.14);pointer-events:none">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:5px">
+          <b style="font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink,#0f172a)">Volume clusters</b>
+          <span id="vol-src" style="font-size:9px;color:#64748b">—</span>
+        </div>
+        <div id="vol-rows"></div>
+      </div>
     </div>
     <div class="meta-row">
       <span>ASTRA6 chart · <span id="chart-info-tf">M15</span> · <span id="chart-candle-count">--</span> · <span class="ok" id="chart-source">connecting</span></span>
@@ -471,7 +486,7 @@ function createChart(){try{const c=document.getElementById('oanda_chart');if(!c|
     chart=LightweightCharts.createChart(c,_opts);
     candleSeries=chart.addCandlestickSeries({upColor:_p.up,downColor:_p.dn,borderVisible:false,wickUpColor:_p.up,wickDownColor:_p.dn,priceLineWidth:1,lastValueVisible:true,priceLineStyle:2});
     chart.subscribeCrosshairMove(param=>{let bar=null;try{bar=param.seriesData&&param.seriesData.get(candleSeries);}catch(e){}updateLegend(bar,param.time);});new ResizeObserver(()=>{if(chart){chart.applyOptions({width:c.clientWidth,height:c.clientHeight||420});scheduleZoneDraw();}}).observe(c);chart.timeScale().subscribeVisibleLogicalRangeChange(()=>scheduleZoneDraw());console.log('chart created rebuilt');}catch(e){console.log('createChart err',e);}}
-function setTimeframe(tf){currentTF=tf;updateLegend(null);localStorage.setItem('astra6_tf',tf);document.querySelectorAll('.tf-btn').forEach(b=>b.classList.toggle('active',b.dataset.tf===tf));document.getElementById('chart-tf-label').textContent=tf;document.getElementById('chart-info-tf').textContent=tf;fetchChart(tf);}
+function setTimeframe(tf){currentTF=tf;updateLegend(null);localStorage.setItem('astra6_tf',tf);document.querySelectorAll('[data-tf]').forEach(b=>b.classList.toggle('active',b.dataset.tf===tf));document.getElementById('chart-tf-label').textContent=tf;document.getElementById('chart-info-tf').textContent=tf;fetchChart(tf);}
 
 function updateSymTabs(){
   document.querySelectorAll('.sym-btn').forEach(b=>b.classList.toggle('active',b.dataset.sym===currentSymbol));
@@ -552,8 +567,8 @@ async function fetchChart(tf){tf=tf||currentTF;tf=tf.replace('D1','D').replace('
 async function fetchFastPrice(){const cfg=symConf();try{const r=await fetch(cfg.price+'?venue='+encodeURIComponent(currentVenue)).catch(()=>null);if(!r)return;const d=await r.json();if(d.status==='ok'){const priceEl=document.getElementById('price');const newPrice=currentSymbol==='BTCUSD'?d.mid:d.price;if(priceEl){const txt=fmtPx(newPrice);if(priceEl.textContent!==txt){if(lastPrice!==0&&Math.abs(newPrice-lastPrice)>0.01){priceEl.style.color=newPrice>lastPrice?'var(--up)':'var(--down)';setTimeout(()=>{priceEl.style.color='var(--ink)';},380);}priceEl.textContent=txt;}}setTabPrice(currentSymbol,newPrice);const sigPrice=document.getElementById('sig-price');if(sigPrice&&sigPrice.textContent==='$--')sigPrice.textContent=fmtPx(newPrice);lastPrice=newPrice;priceUpdateCount++;const bid=currentSymbol==='BTCUSD'?null:(d.live_price?d.live_price.bid:d.bid),ask=currentSymbol==='BTCUSD'?null:(d.live_price?d.live_price.ask:d.ask);
         if(currentSymbol==='BTCUSD'){const ba0=document.getElementById('bidask');if(ba0){const chg0=d.change_pct!=null?`${d.change_pct>=0?'+':''}${Number(d.change_pct).toFixed(2)}%`:'—';ba0.textContent=`${(d.venue||'BINANCE:BTCUSDT').replace(':',' · ')} · ${chg0} (24h)`;}}if(bid&&ask){const ba=document.getElementById('bidask');if(ba){const spread=(ask-bid).toFixed(2);const chg=d.change_pct!=null?` • ${d.change_pct>=0?'+':''}${Number(d.change_pct).toFixed(2)}%`:'';ba.textContent=`BID ${Number(bid).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})} / ASK ${Number(ask).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}${chg}`;}}const fb=document.getElementById('chart-price-fallback');if(fb)fb.textContent=fmtPx(newPrice);if(candleSeries&&lastCandles.length){const lc=lastCandles[lastCandles.length-1];const upd={time:lc.time,open:lc.open,high:Math.max(lc.high,newPrice),low:Math.min(lc.low,newPrice),close:newPrice};lastCandles[lastCandles.length-1]=upd;try{candleSeries.update(upd);}catch(e){}scheduleZoneDraw();}}if(priceUpdateCount%15===0){if(currentSymbol==='BTCUSD')fetchBtcCompare();else fetchTVCompare();}}catch(e){console.log('fast price err',e);}}
 async function loadVenues(){try{const cfg=symConf();const r=await fetch(cfg.venues);const d=await r.json();const sel=document.getElementById('venue-select');if(!sel||d.status!=='ok')return;let opts;if(currentSymbol==='BTCUSD'){opts=(d.venues||[]).filter(v=>v.price).map(v=>`<option value="${v.id}">${v.id.replace(':BTCUSD','').replace(':BTCUSDT','')}</option>`).join('');}else{opts=(d.venues||[]).filter(v=>v.price).map(v=>`<option value="${v.id}">${v.id==='XAUS'?'xaus.com spot':'TradingView · '+v.label}</option>`).join('');}if(opts){sel.innerHTML=opts;const def=currentSymbol==='BTCUSD'?'BINANCE:BTCUSDT':(d.primary||'OANDA:XAUUSD');const has=[...sel.options].some(o=>o.value===currentVenue);sel.value=has?currentVenue:def;currentVenue=sel.value;}}catch(e){console.log('venues err',e);}}
-function setVenue(v){currentVenue=v;if(currentSymbol==='BTCUSD'){currentVenueBtc=v;localStorage.setItem('astra6_venue_btc',v);}else{localStorage.setItem('astra6_venue',v);}lastPrice=0;lastCandles=[];fetchFastPrice();fetchChart(currentTF);if(currentSymbol==='BTCUSD')fetchBtcCompare();else fetchTVCompare();}
-function setSymbol(sym){if(sym===currentSymbol)return;currentSymbol=sym;localStorage.setItem('astra6_symbol',sym);const isBtc=sym==='BTCUSD';
+function setVenue(v){currentVenue=v;window._volume=null;if(window._strategy==='volume')setTimeout(fetchVolume,300);if(currentSymbol==='BTCUSD'){currentVenueBtc=v;localStorage.setItem('astra6_venue_btc',v);}else{localStorage.setItem('astra6_venue',v);}lastPrice=0;lastCandles=[];fetchFastPrice();fetchChart(currentTF);if(currentSymbol==='BTCUSD')fetchBtcCompare();else fetchTVCompare();}
+function setSymbol(sym){if(sym===currentSymbol)return;currentSymbol=sym;window._volume=null;if(window._strategy==='volume')setTimeout(fetchVolume,300);localStorage.setItem('astra6_symbol',sym);const isBtc=sym==='BTCUSD';
   currentVenue=isBtc?currentVenueBtc:(localStorage.getItem('astra6_venue_gold')||'OANDA:XAUUSD');
   if(!isBtc)localStorage.setItem('astra6_venue_gold',currentVenue);
   document.querySelectorAll('.sym-btn').forEach(b=>b.classList.toggle('active',b.dataset.sym===sym));
@@ -637,6 +652,157 @@ function showLayer(which){
   el.style.display='block'; el.dataset.open=which;
 }
 
+// ---------- strategy switch: RENDER boxes  |  VOLUME clusters ----------
+window._strategy = localStorage.getItem('astra6_strategy') || 'render';
+function setStrategy(s){
+  window._strategy = s;
+  localStorage.setItem('astra6_strategy', s);
+  document.querySelectorAll('[data-strategy]').forEach(b=>b.classList.toggle('active', b.dataset.strategy===s));
+  const hint=document.getElementById('strategy-hint');
+  if(hint) hint.textContent = s==='volume' ? 'volume clusters · daily VWAP' : '15m target · 5m entry';
+  const vp=document.getElementById('volpanel'); if(vp) vp.style.display = s==='volume' ? 'block' : 'none';
+  scheduleZoneDraw();
+  if(s==='volume'){
+    fetchVolume();
+    if(window._volume) renderVolumeSignal(window._volume);
+  }else if(window._zones){
+    renderZoneSignal(window._zones);
+  }
+}
+
+// ---------- volume clusters + daily VWAP ----------
+window._volume = null;
+let _volPending=false, _volAt=0;
+async function fetchVolume(){
+  const sym = currentSymbol, venue = currentVenue;
+  try{
+    const r = await fetch(`/api/volume?symbol=${encodeURIComponent(sym)}&venue=${encodeURIComponent(venue)}`, {cache:'no-store'});
+    const d = await r.json();
+    if(d && d.status==='ok' && currentSymbol===sym){
+      window._volume = d; _volAt = Date.now();
+      renderVolumePanel(d);
+      if(window._strategy==='volume') renderVolumeSignal(d);
+      scheduleZoneDraw();
+      return d;
+    }
+  }catch(e){console.log('volume err',e);}
+  return null;
+}
+
+// the volume-cluster signal, shown in the same card as RENDER
+function renderVolumeSignal(d){
+  const s=d.signal||{}, type=s.type||'HOLD';
+  const poc=d.poc||{}, rows=(d.rows||[]);
+  const est = (d.split||'').indexOf('estimated')>=0;
+  const card = document.getElementById('current-signal-card');
+  renderCurrent({
+    type:type, price:s.price||d.price, confidence:s.confidence||55, winrate_est:s.winrate_est||50,
+    timestamp:d.bar_time||Date.now()/1000,
+    time_str:new Date().toLocaleString(),
+    strategy:'volume clusters · daily VWAP',
+    sl:s.sl, tp1:s.tp1, tp2:s.tp2,
+    reasons:[
+      (s.reason||'Waiting for a clean cluster.')+
+      (poc.top!=null?`  POC ${Number(poc.bot).toFixed(2)}–${Number(poc.top).toFixed(2)} · δ${Number(poc.delta||0).toFixed(0)}.`:'')+
+      (est?'  Split is estimated from real tick volume.':'  Real taker buy/sell.')
+    ]
+  });
+  const stamp=document.getElementById('sig-stamp');
+  if(stamp) stamp.textContent='volume clusters · daily VWAP';
+  const ai=document.getElementById('sig-ai');
+  if(ai){
+    const top=rows.slice().sort((a,b)=>Math.abs(b.delta||0)-Math.abs(a.delta||0)).slice(0,4);
+    ai.innerHTML=
+      `<div style="display:flex;justify-content:space-between;gap:10px;padding:3px 0"><span style="color:var(--muted)">Daily VWAP</span><span><b>${d.vwap!=null?Number(d.vwap).toFixed(2):'—'}</b> <span style="color:var(--muted);font-size:10px">${d.vwap_bars||0} bars</span></span></div>`+
+      `<div style="display:flex;justify-content:space-between;gap:10px;padding:3px 0"><span style="color:var(--muted)">POC</span><span><b>${poc.bot!=null?Number(poc.bot).toFixed(2)+'–'+Number(poc.top).toFixed(2):'—'}</b> <span style="color:var(--muted);font-size:10px">δ${Number(poc.delta||0).toFixed(1)}</span></span></div>`+
+      `<div style="display:flex;justify-content:space-between;gap:10px;padding:3px 0"><span style="color:var(--muted)">Value area</span><span><b>${d.value_area?Number(d.value_area.low).toFixed(2)+'–'+Number(d.value_area.high).toFixed(2):'—'}</b></span></div>`+
+      `<div style="display:flex;justify-content:space-between;gap:10px;padding:3px 0"><span style="color:var(--muted)">Cluster rows</span><span><b>${rows.length}</b> <span style="color:var(--muted);font-size:10px">row ${d.row_size} · ATR ${Number(d.atr||0).toFixed(2)}</span></span></div>`+
+      top.map(r=>`<div style="display:flex;justify-content:space-between;gap:10px;padding:2px 0;font-size:10px;color:var(--muted)"><span>${Number(r.bot).toFixed(2)}–${Number(r.top).toFixed(2)}</span><span style="color:${(r.delta||0)>=0?'var(--green)':'var(--red)'};font-weight:700">${fmtVol(r.sell)} × ${fmtVol(r.buy)}</span></div>`).join('')+
+      `<div style="font-size:10px;color:var(--muted);padding-top:4px">${d.source||''} · ${est?'split estimated':'real taker split'}</div>`;
+    ai.style.display='none';
+    const btn=document.getElementById('btn-toggle-data'); if(btn) btn.textContent='Show all data';
+  }
+  if(card) card.dataset.strategy='volume';
+}
+function scheduleVolume(){ if(_volPending) return; _volPending=true; setTimeout(()=>{_volPending=false; if(window._strategy==='volume') fetchVolume();}, 600); }
+
+function fmtVol(n){
+  n=Number(n)||0; const a=Math.abs(n);
+  if(a>=1e9) return (n/1e9).toFixed(2)+'B';
+  if(a>=1e6) return (n/1e6).toFixed(2)+'M';
+  if(a>=1e3) return (n/1e3).toFixed(2)+'K';
+  return n.toFixed(a<10?2:0);
+}
+function renderVolumePanel(d){
+  const rowsEl=document.getElementById('vol-rows'), srcEl=document.getElementById('vol-src');
+  if(!rowsEl) return;
+  if(srcEl) srcEl.textContent = d.symbol+' · '+(d.bars_used||0)+' bars';
+  const rows=(d.rows||[]).slice().sort((a,b)=>b.top-a.top);
+  const pocTop = d.poc && d.poc.top;
+  const vals = rows.map(r=>r.total||0); const mx = Math.max(1, ...vals);
+  const sig = d.signal||{};
+  let html='';
+  rows.slice(0,14).forEach(r=>{
+    const isPoc = pocTop!=null && Math.abs(r.top-pocTop)<1e-9;
+    const pos = (r.delta||0)>=0;
+    const bg = pos ? 'rgba(13,148,136,.16)' : 'rgba(239,68,68,.14)';
+    const bd = isPoc ? '2px solid #f59e0b' : '2px solid transparent';
+    const bar = Math.max(2, Math.round(28*(r.total||0)/mx));
+    html+=`<div class="volrow" data-poc="${isPoc?1:0}" style="display:flex;align-items:center;gap:6px;padding:1px 4px;margin-bottom:1px;border-radius:4px;border:${bd};background:${bg}">
+      <span style="flex:0 0 78px;font-variant-numeric:tabular-nums;color:var(--ink,#0f172a)">${r.bot.toFixed(2)}–${r.top.toFixed(2)}</span>
+      <span style="flex:1 1 auto;height:6px;border-radius:3px;background:${pos?'#0d9488':'#ef4444'};opacity:.55;max-width:${bar}px"></span>
+      <span style="flex:0 0 auto;font-variant-numeric:tabular-nums;color:${pos?'#0f766e':'#b91c1c'};font-weight:700">${fmtVol(r.sell)} × ${fmtVol(r.buy)}</span>
+    </div>`;
+  });
+  rowsEl.innerHTML=html;
+}
+function drawVolume(){
+  const svg=document.getElementById('vwap-layer'), box=document.getElementById('oanda_chart');
+  if(!svg) return;
+  const d=window._volume;
+  const on = window._strategy==='volume';
+  if(!on||!d||!d.vwap_series||d.vwap_series.length<2||!chart||!candleSeries||!box){
+    if(svg.childNodes.length) svg.innerHTML='';
+    return;
+  }
+  const w=box.clientWidth,h=box.clientHeight;
+  if(!w||!h){ if(svg.childNodes.length) svg.innerHTML=''; return; }
+  if(svg.getAttribute('width')!=String(w)){
+    svg.setAttribute('width',w); svg.setAttribute('height',h); svg.setAttribute('viewBox',`0 0 ${w} ${h}`);
+  }
+  const ts=chart.timeScale();
+  const pts=[], ys=[];
+  for(const p of d.vwap_series){
+    const x=ts.timeToCoordinate(p.time), y=candleSeries.priceToCoordinate(p.value);
+    if(x==null||y==null) continue;
+    pts.push(`${pts.length?'L':'M'}${x.toFixed(1)},${y.toFixed(1)}`);
+    ys.push({x,y,v:p.value});
+  }
+  if(pts.length<2){ if(svg.childNodes.length) svg.innerHTML=''; return; }
+  let out=`<path d="${pts.join(' ')}" fill="none" stroke="#eab308" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" opacity="0.95"></path>`;
+  // dot + tag on the live end of the VWAP
+  const last=ys[ys.length-1];
+  const plotW=(typeof ts.width==='function'?ts.width():w-64);
+  const tx=Math.min(plotW-4, last.x+7);
+  out+=`<circle cx="${last.x.toFixed(1)}" cy="${last.y.toFixed(1)}" r="2.6" fill="#eab308"></circle>`;
+  out+=`<text x="${tx.toFixed(1)}" y="${(last.y-6).toFixed(1)}" font-family="ui-monospace,monospace" font-size="9.5" font-weight="700" fill="#a16207">VWAP ${Number(last.v).toFixed(2)}</text>`;
+  // cluster rows: horizontal bands at price, teal = positive delta, red = negative
+  const rows=(d.rows||[]), pocTop=d.poc&&d.poc.top, atr=Number(d.atr)||0;
+  const maxTot=Math.max(1,...rows.map(r=>r.total||0));
+  rows.forEach(r=>{
+    const y1=candleSeries.priceToCoordinate(r.top), y2=candleSeries.priceToCoordinate(r.bot);
+    if(y1==null||y2==null) return;
+    const top=Math.min(y1,y2), hgt=Math.max(1.2,Math.abs(y2-y1));
+    if(top<0||top>h) return;
+    const pos=(r.delta||0)>=0;
+    const isPoc = pocTop!=null && Math.abs(r.top-pocTop)<1e-9;
+    const len=Math.max(6, Math.round((ts.width?ts.width():plotW)*0.10*(r.total||0)/maxTot));
+    const col = pos ? '13,148,136' : '239,68,68';
+    out+=`<rect x="4" y="${top.toFixed(1)}" width="${len}" height="${hgt.toFixed(1)}" rx="1" fill="rgba(${col},${pos?0.42:0.34})"${isPoc?' stroke="#f59e0b" stroke-width="2"':''}></rect>`;
+  });
+  if(svg.innerHTML!==out) svg.innerHTML=out;
+}
+
 // ---------- zone boxes: 15m = TARGET (solid) · 5m = ENTRY (thin dashed) ----------
 let _drawPending=false;
 function scheduleZoneDraw(){
@@ -647,6 +813,12 @@ function scheduleZoneDraw(){
 function zoneColor(side){return side==='demand'?(isDark()?'38,166,154':'16,185,129'):(isDark()?'239,83,80':'239,68,68');}
 function drawZones(){
   const svg=document.getElementById('zone-layer'); if(!svg) return;
+  if(window._strategy==='volume'){
+    if(svg.childNodes.length) svg.innerHTML='';
+    drawVolume();
+    return;
+  }
+  drawVolume();
   const Z=window._zones||{}, box=document.getElementById('oanda_chart');
   if(!chart||!candleSeries||!box){if(svg.childNodes.length)svg.innerHTML='';return;}
   const targets=Z.zones||[], entries=Z.entries||[];
@@ -701,7 +873,7 @@ async function fetchZones(){
     const d=await r.json();
     if(d.status!=='ok'||sym!==currentSymbol)return;   // symbol moved on — drop stale payload
     window._zones=d;
-    renderZoneSignal(d);
+    if(window._strategy!=='volume') renderZoneSignal(d);
     scheduleZoneDraw();
   }catch(e){console.log('zones err',e);}
 }
@@ -764,12 +936,17 @@ function renderZoneStats(wr){
   set('real-winrate',(wr!=null?wr:0)+'%');
   set('real-stats','5m box hold rate');
 }
-function initClicks(){document.querySelectorAll('.tf-btn').forEach(b=>{b.onclick=()=>setTimeframe(b.dataset.tf);b.ontouchend=(e)=>{e.preventDefault();setTimeframe(b.dataset.tf);};});console.log('ASTRA6 rebuilt smooth - all clicks bound');}
+function initClicks(){
+  document.querySelectorAll('[data-tf]').forEach(b=>{b.onclick=()=>setTimeframe(b.dataset.tf);b.ontouchend=(e)=>{e.preventDefault();setTimeframe(b.dataset.tf);};});
+  document.querySelectorAll('[data-strategy]').forEach(b=>{b.onclick=()=>setStrategy(b.dataset.strategy);b.ontouchend=(e)=>{e.preventDefault();setStrategy(b.dataset.strategy);};});
+  setStrategy(window._strategy||'render');
+  console.log('ASTRA6 rebuilt smooth - all clicks bound');
+}
 applyTheme();document.getElementById('sound-btn')&&(document.getElementById('sound-btn').style.opacity=soundOn?'1':'.4');
 initClicks();document.addEventListener('DOMContentLoaded',initClicks);setTimeout(initClicks,500);
 setTimeout(()=>{initChart();if(currentSymbol==='BTCUSD'){const b=document.querySelector('.sym-btn[data-sym="BTCUSD"]');if(b)b.classList.add('active');const g=document.querySelector('.sym-btn[data-sym="XAUUSD"]');if(g)g.classList.remove('active');document.querySelector('.brand-sub').textContent='Bitcoin · 15m / 5m';}else{fetchDashboard();}fetchChart(currentTF);fetchLive();fetchFastPrice();},800);
 setInterval(updateTimeSmooth,500);updateTimeSmooth();
-setInterval(fetchFastPrice,2500);setInterval(fetchOtherPrice,12000);setInterval(fetchZones,30000);setInterval(fetchLive,10000);setInterval(()=>{if(currentSymbol!=='BTCUSD')fetchDashboard();},15000);
+setInterval(fetchFastPrice,2500);setInterval(fetchOtherPrice,12000);setInterval(fetchZones,30000);setInterval(()=>{if(window._strategy==='volume')fetchVolume();},20000);setInterval(fetchLive,10000);setInterval(()=>{if(currentSymbol!=='BTCUSD')fetchDashboard();},15000);
 document.getElementById('venue-select')?.addEventListener('change',e=>setVenue(e.target.value));
 loadVenues().then(()=>{if(currentSymbol==='BTCUSD')fetchBtcCompare();else fetchTVCompare();});updateSymTabs();fetchOtherPrice();renderZoneAlerts();fetchZones();
 setInterval(()=>{fetch('/health').catch(()=>{});},240000);

@@ -4033,6 +4033,50 @@ def get_zones(symbol: str = "XAUUSD", venue: str = None, email: str = "free@astr
         return {"status": "error", "error": str(e), "real": True, "user": email}
 
 
+# === Volume clusters + daily VWAP strategy ===
+_VOL_CACHE = {}
+
+
+@app.get("/api/volume")
+def get_volume(symbol: str = "XAUUSD", venue: str = None, rows: int = 48,
+               min_pct: float = 10.0, email: str = "free@astra6.com"):
+    """
+    Volume-at-price clusters + daily VWAP, and the signal they imply.
+    BTCUSD: real Binance taker buy/sell. XAUUSD: real tick volume, estimated split.
+    """
+    key = f"{str(symbol).upper()}|{venue or ''}|{rows}|{min_pct}"
+    now = time.time()
+    hit = _VOL_CACHE.get(key)
+    if hit and now - hit["t"] < 10:
+        return hit["d"]
+    try:
+        import volume as VOL
+        if str(symbol).upper().startswith("BTC"):
+            raw = VOL.fetch_btc_klines("1m", 600)
+            split_note = "real taker buy/sell (Binance)"
+            src = "Binance 1m klines · real taker flow"
+        else:
+            c5 = _zone_candles(symbol, venue, "M5", 400)
+            if not c5:
+                return {"status": "error", "error": "no candles", "real": True, "user": email}
+            raw = [{"time": int(c["time"]), "open": c["open"], "high": c["high"],
+                    "low": c["low"], "close": c["close"], "volume": float(c.get("volume") or 0)} for c in c5]
+            raw = VOL.split_estimate(raw)
+            split_note = "estimated split (close-location) from real tick volume"
+            src = "xaus 5m · real tick volume"
+        raw = [c for c in raw if c["volume"] > 0]
+        if len(raw) < 30:
+            return {"status": "error", "error": "not_enough_volume", "real": True, "user": email}
+        data = VOL.analyse(raw, rows=max(12, min(120, rows)), min_pct=max(0.0, min(100.0, min_pct)))
+        data.update({"symbol": str(symbol).upper(), "source": src, "split": split_note,
+                     "bars_used": len(raw), "real": True, "user": email})
+        _VOL_CACHE[key] = {"t": now, "d": data}
+        return data
+    except Exception as e:
+        print("volume err", e)
+        return {"status": "error", "error": str(e), "real": True, "user": email}
+
+
 @app.get("/api/btc/price")
 def btc_price(venue: str = None, email: str = "free@astra6.com"):
     px = fetch_btc_price(venue)
