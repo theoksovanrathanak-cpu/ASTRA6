@@ -213,7 +213,6 @@ button,select{font-family:inherit}
 .layer-b{min-width:0}
 .layer-t{font-size:12.5px;font-weight:700;letter-spacing:-.1px}
 .layer-d{font-size:11.5px;color:var(--muted);line-height:1.5}
-#layer-status{margin-top:12px;font-size:11px;color:var(--ink-2);background:var(--line-soft);border-radius:8px;padding:9px 11px;word-break:break-word;display:none}
 #sig-ai{
   display:none;margin-top:16px;padding:14px;border-radius:10px;background:#fbfcfd;
   border:1px solid var(--line-soft);font-size:11.5px;line-height:1.75;text-align:left;color:var(--ink-2);
@@ -409,40 +408,17 @@ button,select{font-family:inherit}
   </section>
 
 
-  <section class="grid-two">
+  <section class="grid-two" style="grid-template-columns:1fr">
     <article class="card">
       <div class="card-hd">
         <div>
           <div class="card-title">Recent alerts</div>
-          <div class="card-note">one alert per box</div>
+          <div class="card-note">one alert per cluster</div>
         </div>
       </div>
       <div id="alerts-list"><div style="padding:26px;text-align:center;color:var(--muted);font-size:12px">Loading alerts…</div></div>
     </article>
 
-    <article class="card">
-      <div class="card-hd">
-        <div>
-          <div class="card-title">Confluence</div>
-          <div class="card-note">5 checks · tap one</div>
-        </div>
-      </div>
-      <div class="layers">
-        <div class="layer"><div class="layer-i">ZN</div><div class="layer-b"><div class="layer-t">Zone</div><div class="layer-d">15m target · 5m entry box</div></div></div>
-        <div class="layer"><div class="layer-i">TR</div><div class="layer-b"><div class="layer-t">Trend</div><div class="layer-d">HH / HL · EMA 9 / 21</div></div></div>
-        <div class="layer"><div class="layer-i">MO</div><div class="layer-b"><div class="layer-t">Momentum</div><div class="layer-d">RSI 14 · MACD</div></div></div>
-        <div class="layer"><div class="layer-i">VL</div><div class="layer-b"><div class="layer-t">Volatility</div><div class="layer-d">ATR 14 percentile</div></div></div>
-        <div class="layer"><div class="layer-i">SS</div><div class="layer-b"><div class="layer-t">Session</div><div class="layer-d">UTC hour filter</div></div></div>
-      </div>
-      <div style="margin-top:14px;display:flex;gap:6px;flex-wrap:wrap">
-        <button class="btn btn-sm" onclick="showLayer('zone')">Zone</button>
-        <button class="btn btn-sm" onclick="showLayer('trend')">Trend</button>
-        <button class="btn btn-sm" onclick="showLayer('momentum')">Momentum</button>
-        <button class="btn btn-sm" onclick="showLayer('volatility')">Volatility</button>
-        <button class="btn btn-sm" onclick="showLayer('session')">Session</button>
-      </div>
-      <div id="layer-status"></div>
-    </article>
   </section>
 
   <footer class="foot">
@@ -470,7 +446,7 @@ function setToken(t){if(t){localStorage.setItem('astra6_token',t);sessionStorage
 function authHeaders(){const t=getToken();return t?{'Authorization':'Bearer '+t}:{};}
 function toggleAllData(){const el=document.getElementById('sig-ai');const btn=document.getElementById('btn-toggle-data');if(!el||!btn)return;const isHidden=el.style.display==='none'||el.style.display==='';el.style.display=isHidden?'block':'none';btn.textContent=isHidden?'Hide all data':'Show all data';}
 function renderCurrent(s){if(!s)return;window._lastSignal=s;const typeEl=document.getElementById('sig-type');const card=document.getElementById('current-signal-card');if(!typeEl||!card)return;typeEl.textContent=s.type;typeEl.className='signal-type '+s.type.toLowerCase();card.className='signal-card '+s.type.toLowerCase();const pv=document.getElementById('sig-price');if(pv)pv.className='metric-v mono '+(s.type==='BUY'?'up':s.type==='SELL'?'down':'');const sp=document.getElementById('sig-price');if(sp)sp.textContent=fmtPx(s.price||0);const sc=document.getElementById('sig-conf');if(sc)sc.textContent=(s.confidence||0)+'%';const sw=document.getElementById('sig-winrate');if(sw)sw.textContent=(s.winrate_est||50)+'%';const sl=document.getElementById('sig-time');if(sl){try{sl.textContent=(s.time_str||'')+' · '+(s.strategy||'ASTRA6 Elite');}catch(e){sl.textContent=s.type;}}const reasons=document.getElementById('sig-reasons');if(reasons)reasons.textContent=(s.reasons&&s.reasons[0])||'Scanning for a high-confluence setup.';const sltp=document.getElementById('sig-sltp');if(sltp){if(s.sl) sltp.innerHTML=`<span style="color:var(--red)">SL ${fmtPx(s.sl)}</span> • <span style="color:var(--green)">TP1 ${fmtPx(s.tp1||0)} TP2 ${fmtPx(s.tp2||0)}</span>`;else sltp.innerHTML='';}const aiEl=document.getElementById('sig-ai');if(aiEl){let html='';if(s.ai_signal){const ai=s.ai_signal;html+=`🤖 <b>AI (pythonidae)</b>: ${ai.type||'HOLD'} ${ai.confidence||0}% • RF ${ai.rf_conf||0}% GB ${ai.gb_conf||0}% • Winrate ${ai.winrate_est||0}%<br>`;}else if(s.ai_available){html+=`🤖 <b>AI</b>: Training from pythonidae (scikit-learn) 75%+ winrate<br>`;}if(s.finance_web_signal){const fw=s.finance_web_signal;const corr=(fw.finance&&fw.finance.correlations)||{};html+=`💰 <b>Finance+Web</b>: ${fw.type||'HOLD'} ${fw.confidence||0}% • Buy:${fw.buy_score||0} Sell:${fw.sell_score||0} • Web ${fw.web?.score||0}% ${fw.web?.health||''}<br><span style="font-size:10px;color:#666">DXY:${corr.DXY?.trend||'-'} Silver:${corr.SILVER?.trend||'-'} SPX:${corr.SPX?.trend||'-'} Oil:${corr.OIL?.trend||'-'} EURUSD:${corr.EURUSD?.trend||'-'}</span><br>`;}if(s.tradingview_signal){const tv=s.tradingview_signal;const ind=tv.indicators||{};html+=`📈 <b>TradingView</b>: ${tv.type||'HOLD'} ${tv.confidence||0}% • Buy:${tv.buy_score||0} Sell:${tv.sell_score||0}<br>`;if(ind.indicators){const ii=ind.indicators;html+=`<span style="font-size:10px;color:#666">RSI:${ii.rsi_14||'-'} MACD:${ii.macd_line||'-'} EMA21:${ii.ema_21||'-'} BB:${ii.bb_position||'-'} Vol:${ii.vol_ratio||'-'}x • Pine:${tv.pine?.overall||'-'}</span><br>`;}}if(s.vibe_trading_signal){const vt=s.vibe_trading_signal;html+=`🔥 <b>Vibe-Trading</b>: ${vt.type||'HOLD'} ${vt.confidence||0}% • Buy:${vt.buy_score||0} Sell:${vt.sell_score||0}<br>`;if(vt.shadow){html+=`<span style="font-size:10px;color:#666">Shadow RSI:${vt.shadow.entry_rsi14||'-'} Prior:${vt.shadow.prior_5d_return||'-'}% • Qlib ${vt.qlib?.overall||'-'} WVMA:${Object.keys(vt.qlib?.wvma||{}).length} • Limits ${vt.limits?.can_trade?'OK':'HALT'}</span><br>`;}}if(s.strategy) html+=`<span style="font-size:10px;color:#999">Strategy: ${s.strategy}</span><br>`;if(s.buy_score!==undefined) html+=`<span style="font-size:10px;color:#666">Buy: ${s.buy_score} Sell: ${s.sell_score} • Conf: ${s.confluence||'-'}</span>`;aiEl.innerHTML=html;}console.log('Signal rendered',s.type,s.price);}
-function renderAlerts(alerts){const el=document.getElementById('alerts-list');const statTotal=document.getElementById('stat-total');const statBS=document.getElementById('stat-bs');if(!el)return;if(!alerts||alerts.length===0){el.innerHTML='<div style="padding:20px;text-align:center;color:var(--muted);font-size:12px">No alerts yet — only BUY/SELL<br>Easy & clean • All devices • Rebuilt</div>';return;}const buys=alerts.filter(a=>a.type==='BUY').length;const sells=alerts.filter(a=>a.type==='SELL').length;if(statTotal)statTotal.textContent=alerts.length;if(statBS)statBS.textContent=buys+' / '+sells;el.innerHTML=alerts.map(a=>`<div class="alert-item"><div class="alert-badge ${a.type.toLowerCase()}">${a.type}</div><div style="flex:1;min-width:0"><div style="display:flex;gap:8px;align-items:center"><span class="mono" style="font-weight:800">$${a.price.toFixed(2)}</span><span class="mono" style="font-size:10px;color:var(--gold)">${a.confidence}% • ${a.winrate_est}%</span></div><div class="mono" style="font-size:9px;color:var(--muted);margin-top:2px">${new Date(a.timestamp*1000).toLocaleString()} • SL $${a.sl||'--'} TP $${a.tp1||'--'}</div></div></div>`).join('');}
+function renderAlerts(alerts){const el=document.getElementById('alerts-list');const statTotal=document.getElementById('stat-total');const statBS=document.getElementById('stat-bs');if(!el)return;if(!alerts||alerts.length===0){el.innerHTML='<div style="padding:20px;text-align:center;color:var(--muted);font-size:12px">No alerts yet — only BUY/SELL<br>Easy & clean • All devices • Rebuilt</div>';return;}const buys=alerts.filter(a=>a.type==='BUY').length;const sells=alerts.filter(a=>a.type==='SELL').length;if(statTotal)statTotal.textContent=alerts.length;if(statBS)statBS.textContent=buys+' / '+sells;el.innerHTML=alerts.map(a=>`<div class="alert-item"><div class="alert-badge ${a.type.toLowerCase()}">${a.type}</div><div style="flex:1;min-width:0"><div style="display:flex;gap:8px;align-items:center"><span class="mono" style="font-weight:800">$${a.price.toFixed(2)}</span><span class="mono" style="font-size:10px;color:var(--gold)">${a.confidence}%${a.label?' • '+a.label:(a.winrate_est!=null?' • '+a.winrate_est+'%':'')}</span></div><div class="mono" style="font-size:9px;color:var(--muted);margin-top:2px">${new Date(a.timestamp*1000).toLocaleString()} • SL $${a.sl||'--'} TP $${a.tp1||'--'}</div></div></div>`).join('');}
 function initChart(){try{const c=document.getElementById('oanda_chart');if(!c)return;if(typeof LightweightCharts==='undefined'){c.innerHTML='<div style="padding:20px;text-align:center">Chart lib loading...<br><span style="font-size:10px">Data works in Dashboard • Rebuilt</span></div>';const s=document.createElement('script');s.src='/static/vendor/lightweight-charts.js';s.onload=()=>{createChart();fetchChart(currentTF);};s.onerror=()=>{c.innerHTML='<div style="padding:20px;text-align:center">Chart CDN blocked in preview (normal)<br>Data works in Dashboard<br>Chart feed reconnecting • price above is LIVE</div>';};document.head.appendChild(s);return;}createChart();fetchChart(currentTF);}catch(e){console.log('initChart err',e);}}
 function createChart(){try{const c=document.getElementById('oanda_chart');if(!c||typeof LightweightCharts==='undefined')return;if(chart)return;c.innerHTML='';c.style.display='block';c.style.alignItems='stretch';c.style.justifyContent='flex-start';const _ch=c.clientHeight||420;const _p=chartPalette();
     const _opts=tvChartOptions();_opts.width=c.clientWidth;_opts.height=_ch;
@@ -553,14 +529,18 @@ function updateLegend(bar,time){
 }
 function symConf(){return currentSymbol==='BTCUSD'?{price:'/api/btc/price',chart:'/api/btc/chart',venues:'/api/btc/venues',gc:'COINBASE:BTCUSD',dec:2,unit:'BTC'}:{price:'/api/xauusd/fast-price',chart:'/api/xauusd/history',venues:'/api/xauusd/venues',gc:currentVenue,dec:2,unit:'XAU'};}
 function fmtPx(v){const d=symConf().dec;return '$'+(Number(v)||0).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});}
-async function fetchChart(tf){tf=tf||currentTF;tf=tf.replace('D1','D').replace('W1','W');const count=(tf==='D'||tf==='W')?200:150;const cfg=symConf();try{const url=currentSymbol==='BTCUSD'?`${cfg.chart}?granularity=${tf}&count=${count}&venue=${encodeURIComponent(currentVenue)}`:`${cfg.chart}?granularity=${tf}&count=${count}&venue=${encodeURIComponent(currentVenue)}`;const r=await fetch(url);const d=await r.json();const srcEl=document.getElementById('chart-source');if(d.status==='ok'&&d.candles&&d.candles.length&&candleSeries){const data=d.candles.map(c=>{let t=typeof c.time==='number'?Math.floor(c.time):Math.floor(new Date(c.time).getTime()/1000);if(t>1e12)t=Math.floor(t/1000);return {time:t,open:c.open,high:c.high,low:c.low,close:c.close};}).filter(c=>c.time>0).sort((a,b)=>a.time-b.time);const seen=new Set();const clean=data.filter(c=>{if(seen.has(c.time))return false;seen.add(c.time);return true;});
+async function fetchChart(tf){tf=tf||currentTF;tf=tf.replace('D1','D').replace('W1','W');const count=(tf==='D'||tf==='W')?200:150;const cfg=symConf();const _sym=currentSymbol,_ven=currentVenue,_tf=tf;try{const url=currentSymbol==='BTCUSD'?`${cfg.chart}?granularity=${tf}&count=${count}&venue=${encodeURIComponent(currentVenue)}`:`${cfg.chart}?granularity=${tf}&count=${count}&venue=${encodeURIComponent(currentVenue)}`;const r=await fetch(url);const d=await r.json();
+    // a slow gold reply must never paint over a BTC chart
+    if(_sym!==currentSymbol||_ven!==currentVenue||_tf!==currentTF)return;
+    const srcEl=document.getElementById('chart-source');if(d.status==='ok'&&d.candles&&d.candles.length&&candleSeries){const data=d.candles.map(c=>{let t=typeof c.time==='number'?Math.floor(c.time):Math.floor(new Date(c.time).getTime()/1000);if(t>1e12)t=Math.floor(t/1000);return {time:t,open:c.open,high:c.high,low:c.low,close:c.close};}).filter(c=>c.time>0).sort((a,b)=>a.time-b.time);const seen=new Set();const clean=data.filter(c=>{if(seen.has(c.time))return false;seen.add(c.time);return true;});
 const _key=currentSymbol+'|'+tf,_same=(window._chartKey===_key);window._chartKey=_key;
 let _vr=null;try{if(_same)_vr=chart.timeScale().getVisibleLogicalRange();}catch(e){}
 try{candleSeries.setData(clean);lastCandles=clean;
   if(_vr)chart.timeScale().setVisibleLogicalRange(_vr);   // no jump every refresh
 }catch(e){console.log('chart data err',e);}document.getElementById('chart-candle-count').textContent=`${clean.length} candles`;setTimeout(scheduleZoneDraw,60);updateLegend(null);if(srcEl)srcEl.textContent=(d.source||'REAL OHLCV').replace('xaus.com /api/v1/chart XAU/USD (REAL OHLCV, spot-anchored)','XAUS spot · TradingView bar').replace('xaus.com /api/v1/chart XAU/USD (REAL spot OHLCV)','XAUS REAL spot').replace('yfinance GC=F (REAL futures OHLCV)','yfinance GC=F REAL');if(clean.length){const last=clean[clean.length-1];if(lastPrice===0){lastPrice=last.close;const p=document.getElementById('price');if(p&&p.textContent==='$--.--')p.textContent=fmtPx(last.close);}}let fb=document.getElementById('chart-price-fallback');if(fb&&lastPrice)fb.textContent=fmtPx(lastPrice);}else if(srcEl){srcEl.textContent=(!candleSeries?'chart library loading…':'feed reconnecting (no fake data)');}}catch(e){console.log('chart fetch err',e);const s=document.getElementById('chart-source');if(s)s.textContent='feed reconnecting…';}}
 
-async function fetchFastPrice(){const cfg=symConf();try{const r=await fetch(cfg.price+'?venue='+encodeURIComponent(currentVenue)).catch(()=>null);if(!r)return;const d=await r.json();if(d.status==='ok'){const priceEl=document.getElementById('price');const newPrice=currentSymbol==='BTCUSD'?d.mid:d.price;if(priceEl){const txt=fmtPx(newPrice);if(priceEl.textContent!==txt){if(lastPrice!==0&&Math.abs(newPrice-lastPrice)>0.01){priceEl.style.color=newPrice>lastPrice?'var(--up)':'var(--down)';setTimeout(()=>{priceEl.style.color='var(--ink)';},380);}priceEl.textContent=txt;}}setTabPrice(currentSymbol,newPrice);const sigPrice=document.getElementById('sig-price');if(sigPrice&&sigPrice.textContent==='$--')sigPrice.textContent=fmtPx(newPrice);lastPrice=newPrice;priceUpdateCount++;const bid=currentSymbol==='BTCUSD'?null:(d.live_price?d.live_price.bid:d.bid),ask=currentSymbol==='BTCUSD'?null:(d.live_price?d.live_price.ask:d.ask);
+async function fetchFastPrice(){const cfg=symConf();const _sym=currentSymbol,_ven=currentVenue;try{const r=await fetch(cfg.price+'?venue='+encodeURIComponent(_ven)).catch(()=>null);if(!r)return;const d=await r.json();if(_sym!==currentSymbol||_ven!==currentVenue)return;   // stale reply from the previous symbol/venue
+if(d.status==='ok'){const priceEl=document.getElementById('price');const newPrice=currentSymbol==='BTCUSD'?d.mid:d.price;if(priceEl){const txt=fmtPx(newPrice);if(priceEl.textContent!==txt){if(lastPrice!==0&&Math.abs(newPrice-lastPrice)>0.01){priceEl.style.color=newPrice>lastPrice?'var(--up)':'var(--down)';setTimeout(()=>{priceEl.style.color='var(--ink)';},380);}priceEl.textContent=txt;}}setTabPrice(currentSymbol,newPrice);const sigPrice=document.getElementById('sig-price');if(sigPrice&&sigPrice.textContent==='$--')sigPrice.textContent=fmtPx(newPrice);lastPrice=newPrice;priceUpdateCount++;const bid=currentSymbol==='BTCUSD'?null:(d.live_price?d.live_price.bid:d.bid),ask=currentSymbol==='BTCUSD'?null:(d.live_price?d.live_price.ask:d.ask);
         if(currentSymbol==='BTCUSD'){const ba0=document.getElementById('bidask');if(ba0){const chg0=d.change_pct!=null?`${d.change_pct>=0?'+':''}${Number(d.change_pct).toFixed(2)}%`:'—';ba0.textContent=`${(d.venue||'BINANCE:BTCUSDT').replace(':',' · ')} · ${chg0} (24h)`;}}if(bid&&ask){const ba=document.getElementById('bidask');if(ba){const spread=(ask-bid).toFixed(2);const chg=d.change_pct!=null?` • ${d.change_pct>=0?'+':''}${Number(d.change_pct).toFixed(2)}%`:'';ba.textContent=`BID ${Number(bid).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})} / ASK ${Number(ask).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}${chg}`;}}const fb=document.getElementById('chart-price-fallback');if(fb)fb.textContent=fmtPx(newPrice);if(candleSeries&&lastCandles.length){const lc=lastCandles[lastCandles.length-1];const upd={time:lc.time,open:lc.open,high:Math.max(lc.high,newPrice),low:Math.min(lc.low,newPrice),close:newPrice};lastCandles[lastCandles.length-1]=upd;try{candleSeries.update(upd);}catch(e){}scheduleZoneDraw();}}if(priceUpdateCount%15===0){if(currentSymbol==='BTCUSD')fetchBtcCompare();else fetchTVCompare();}}catch(e){console.log('fast price err',e);}}
 async function loadVenues(){try{const cfg=symConf();const r=await fetch(cfg.venues);const d=await r.json();const sel=document.getElementById('venue-select');if(!sel||d.status!=='ok')return;let opts;if(currentSymbol==='BTCUSD'){opts=(d.venues||[]).filter(v=>v.price).map(v=>`<option value="${v.id}">${v.id.replace(':BTCUSD','').replace(':BTCUSDT','')}</option>`).join('');}else{opts=(d.venues||[]).filter(v=>v.price).map(v=>`<option value="${v.id}">${v.id==='XAUS'?'xaus.com spot':'TradingView · '+v.label}</option>`).join('');}if(opts){sel.innerHTML=opts;const def=currentSymbol==='BTCUSD'?'BINANCE:BTCUSDT':(d.primary||'OANDA:XAUUSD');const has=[...sel.options].some(o=>o.value===currentVenue);sel.value=has?currentVenue:def;currentVenue=sel.value;}}catch(e){console.log('venues err',e);}}
 function setVenue(v){currentVenue=v;window._volume=null;if(window._strategy==='volume')setTimeout(fetchVolume,300);if(currentSymbol==='BTCUSD'){currentVenueBtc=v;localStorage.setItem('astra6_venue_btc',v);}else{localStorage.setItem('astra6_venue',v);}lastPrice=0;lastCandles=[];fetchFastPrice();fetchChart(currentTF);if(currentSymbol==='BTCUSD')fetchBtcCompare();else fetchTVCompare();}
@@ -623,30 +603,7 @@ function updateTimeSmooth(){const lt=document.getElementById('live-time');if(lt)
 function toggleSound(){soundOn=!soundOn;localStorage.setItem('astra6_sound',soundOn?'1':'0');const b=document.getElementById('sound-btn');if(b){b.style.opacity=soundOn?'1':'.4';b.title=soundOn?'Alert sound on':'Alert sound off';}}
 function beep(){if(!soundOn)return;try{const A=window.AudioContext||window.webkitAudioContext;if(!A)return;const c=new A();const o=c.createOscillator(),g=c.createGain();o.type='sine';o.frequency.value=880;g.gain.setValueAtTime(.06,c.currentTime);g.gain.exponentialRampToValueAtTime(.0005,c.currentTime+.22);o.connect(g);g.connect(c.destination);o.start();o.stop(c.currentTime+.24);setTimeout(()=>{try{c.close();}catch(e){}},400);}catch(e){}}
 function layerRow(k,v,extra){return `<div style="display:flex;justify-content:space-between;gap:12px;padding:5px 0;border-bottom:1px solid var(--line-soft)"><span style="color:var(--muted)">${k}</span><span style="text-align:right"><b>${v}</b>${extra?` <span style="color:var(--muted)">${extra}</span>`:''}</span></div>`;}
-function showLayer(which){
-  const el=document.getElementById('layer-status'); if(!el) return;
-  if(el.dataset.open===which){el.style.display='none';el.dataset.open='';return;}
-  const Z=window._zones||{};
-  const L=Z.layers||[];
-  const picked=L.find(x=>x.k===which);
-  if(!picked){el.style.display='none';el.dataset.open='';return;}
-  let body='';
-  if(which==='zone'){
-    // the indicator's road map rows
-    body=(Z.roadmap||[]).map(r=>layerRow(r.label,r.value,r.note)).join('');
-    body+=layerRow('15m boxes',(Z.zones||[]).length)+layerRow('5m boxes',(Z.entries||[]).length);
-  }else if(which==='trend'){
-    body=layerRow('Structure',picked.value)+layerRow('EMA',picked.note||'—');
-  }else if(which==='momentum'){
-    body=layerRow('RSI 14',picked.value.replace('RSI ',''))+layerRow('MACD',(picked.note||'').replace('MACD ',''));
-  }else if(which==='volatility'){
-    body=layerRow('Regime',picked.value)+layerRow('ATR',(picked.note||'').replace('ATR ',''));
-  }else{
-    body=layerRow('Now',picked.value)+layerRow('Filter',picked.note||'');
-  }
-  el.innerHTML=`<div style="font-weight:750;color:var(--ink);margin-bottom:6px">${picked.label}</div>${body}`;
-  el.style.display='block'; el.dataset.open=which;
-}
+
 
 // ---------- strategy switch: RENDER boxes  |  VOLUME clusters ----------
 // v2 key = one-time reset to the new default so existing visitors see the volume strategy
@@ -687,6 +644,21 @@ async function fetchVolume(){
 
 // the volume-cluster signal, shown in the same card as RENDER
 function renderVolumeSignal(d){
+  // the volume cluster is the signal: fire once per cluster, never twice
+  try{
+    const sg=d.signal||{}, t=sg.type;
+    if((t==='BUY'||t==='SELL') && sg.row){
+      const key=currentSymbol+'|VOL|'+t+'|'+Number(sg.row.bot).toFixed(2)+'|'+Number(sg.row.top).toFixed(2);
+      if(!firedKeys().includes(key)){
+        markFired(key);
+        recordZoneAlert(key,{type:t,entry:sg.entry||sg.price,price:sg.price,
+                             confidence:sg.confidence||70,label:(sg.r!=null?sg.r+'R':null),
+                             sl:sg.sl,tp1:sg.tp1});
+        beep();
+      }
+    }
+  }catch(e){console.log('vol alert err',e);}
+
   const sig=JSON.stringify([d.signal&&d.signal.type,d.signal&&d.signal.price,d.vwap,
     d.poc&&d.poc.bot,d.poc&&d.poc.top,currentSymbol]);
   if(window._volSigKey===sig) return;   // nothing changed — leave the card alone
@@ -968,7 +940,7 @@ function renderZoneSignal(d){
     const btn=document.getElementById('btn-toggle-data'); if(btn)btn.textContent='Show all data';
   }
   // one alert per 5m entry box, ever — and only for the symbol on screen
-  if(type!=='HOLD'&&s.entry_zone){
+  if(type!=='HOLD'&&s.entry_zone&&window._strategy==='render'){
     const key=currentSymbol+'|'+type+'|'+s.entry_zone.top.toFixed(2)+'|'+s.entry_zone.bot.toFixed(2);
     if(!firedKeys().includes(key)){recordZoneAlert(key,s);markFired(key);beep();}
   }
@@ -987,7 +959,7 @@ function recordZoneAlert(key,s){
   const list=zoneAlerts();
   if(list.some(a=>a.key===key))return;
   list.unshift({key:key,type:s.type,price:s.entry||s.price,confidence:s.confidence||60,winrate:s.held_pct,
-                sl:s.sl,tp1:s.tp1,timestamp:Math.floor(Date.now()/1000)});
+                label:s.label,sl:s.sl,tp1:s.tp1,timestamp:Math.floor(Date.now()/1000)});
   localStorage.setItem('astra6_zone_alerts_'+currentSymbol,JSON.stringify(list.slice(0,40)));
   renderZoneAlerts();
 }
