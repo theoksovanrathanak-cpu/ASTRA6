@@ -4038,9 +4038,18 @@ def get_volume(symbol: str = "XAUUSD", venue: str = None, rows: int = 48,
     try:
         import volume as VOL
         if str(symbol).upper().startswith("BTC"):
-            raw = VOL.fetch_btc_klines("1m", 600)
-            split_note = "real taker buy/sell (Binance)"
-            src = "Binance 1m klines · real taker flow"
+            try:
+                raw = VOL.fetch_btc_klines("1m", 600)
+                split_note = "real taker buy/sell (Binance)"
+                src = "Binance 1m klines · real taker flow"
+            except Exception as e:
+                # Binance banned this server's IP (HTTP 418). Their klines give the real
+                # taker split, but a ban is not worth losing the strategy over: Coinbase
+                # gives real volume, and the split is labelled as the estimate it is.
+                print("binance klines unavailable, using coinbase:", e)
+                raw = VOL.fetch_btc_candles_fallback(350)
+                split_note = "estimated split (close-location) from real Coinbase volume"
+                src = "Coinbase 1m · real volume, split estimated"
         else:
             c5 = _zone_candles(symbol, venue, "M5", 400)
             if not c5:
