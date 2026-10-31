@@ -1084,7 +1084,7 @@ body[data-view="home"] .wrap{position:relative;overflow:hidden}
 .tool-panel .tp-row.on{border-color:transparent;background-image:linear-gradient(140deg,var(--a-violet),#6d5cf0);color:#fff}
 .tool-panel .tp-sw{position:relative;flex:0 0 auto;width:26px;height:15px;border-radius:99px;background:color-mix(in srgb,var(--muted) 36%,transparent);transition:background .15s}
 .tool-panel .tp-sw::after{content:'';position:absolute;top:2px;left:2px;width:11px;height:11px;border-radius:99px;background:#fff;transition:left .16s}
-.tool-panel .tp-row.on .tp-sw{background:rgba(255,255,255,.45)}
+.tool-panel .tp-row.on .tp-sw{background:linear-gradient(90deg,var(--a-violet,#7c5cff),var(--a-cyan,#22d3ee));box-shadow:0 0 0 1px color-mix(in srgb,var(--a-violet) 40%,transparent)}
 .tool-panel .tp-row.on .tp-sw::after{left:13px}
 .tool-panel .tp-chips{display:grid;grid-template-columns:1fr 1fr;gap:5px}
 .tool-panel .tp-chips.one{grid-template-columns:1fr}
@@ -1130,7 +1130,9 @@ body.chart-full #chart-section{position:fixed;inset:0;z-index:95;height:100dvh;b
 @media(max-width:620px){
   #tv-rail{left:5px;top:108px;padding:3px;gap:1px;max-height:calc(100% - 140px)}
   #tv-rail .rail-btn{width:26px;height:26px}
-  .tool-panel{left:38px;top:108px;width:min(240px,calc(100% - 48px))}
+  .tool-panel{left:38px;top:104px;width:min(244px,calc(100% - 48px));max-height:calc(100% - 118px)}
+  .tool-panel .tp-row{padding:5px 8px;font-size:10.6px}
+  .tool-panel .tp-h{padding:4px 2px 0}
   #draw-hint{left:38px;top:108px;max-width:calc(100% - 50px)}
   #ind-legend{max-width:40vw}
 }
@@ -2121,7 +2123,7 @@ let drawTool='cursor',drawings=[],drawHidden=false,drawLocked=false,_dStart=null
 let chartType=localStorage.getItem('astra6_ctype')||'candles';
 window._logScale=localStorage.getItem('astra6_log')==='1';
 const IND=Object.assign({ma20:false,ma50:false,ma200:false,ema20:false,bb:false,vwap:false,vwapb:false,vol:false,st:false,
-                        rsi:false,macd:false,stoch:false,atr:false},
+                        rsi:false,macd:false,stoch:false,atr:false},{vwap:true,vol:true},
   (function(){try{return JSON.parse(localStorage.getItem('astra6_ind')||'{}');}catch(e){return {};}})());
 let indSeries=[],paneRef={},_syncGuard=false;
 
@@ -2567,10 +2569,12 @@ function closePanels(){
 function renderIndPanel(){
   const box=document.getElementById('ind-panel');
   if(!box)return;
-  let h='<div class="tp-h">Indicators on the chart</div>';
-  IND_LIST.forEach(function(it){
-    h+='<div class="tp-row'+(IND[it[0]]?' on':'')+'" data-ind="'+it[0]+'" onclick="toggleInd(\''+it[0]+'\')">'+it[1]+'<span class="tp-sw"></span></div>';
-  });
+  const row=function(it){return '<div class="tp-row'+(IND[it[0]]?' on':'')+'" data-ind="'+it[0]+'" onclick="toggleInd(\''+it[0]+'\')">'+it[1]+'<span class="tp-sw"></span></div>';};
+  const isPane=function(it){return PANE_KINDS.indexOf(it[0])>=0;};
+  let h='<div class="tp-h">On the price</div>';
+  IND_LIST.filter(function(it){return !isPane(it);}).forEach(function(it){h+=row(it);});
+  h+='<div class="tp-h">Separate panes</div>';
+  IND_LIST.filter(isPane).forEach(function(it){h+=row(it);});
   if(MKT[currentSymbol]&&MKT[currentSymbol].vol===false){
     h+='<div class="tp-note">'+currentSymbol+' has no real volume feed, so volume and VWAP stay off.</div>';
   }
@@ -2580,6 +2584,7 @@ function toggleInd(k){
   IND[k]=!IND[k];
   try{localStorage.setItem('astra6_ind',JSON.stringify(IND));}catch(e){}
   renderIndPanel();paintIndicators(lastCandles);scheduleDraw();
+  if(k==='vwap'&&typeof scheduleVolume==='function')scheduleVolume();
 }
 function renderChartMenu(){
   const box=document.getElementById('chart-menu');
@@ -2675,7 +2680,12 @@ function paintIndLegend(bars){
   if(IND.ma200){const v=last(taSMA(closes,200));if(v!=null)bits.push('MA200 '+fmtPx(v));}
   if(IND.ema20){const v=last(taEMA(closes,20));if(v!=null)bits.push('EMA20 '+fmtPx(v));}
   if(IND.bb){const b=taBB(closes,20,2);const u=last(b.up),l=last(b.dn);if(u!=null&&l!=null)bits.push('BB '+fmtPx(l)+' – '+fmtPx(u));}
-  if(IND.vwap&&MKT[currentSymbol]&&MKT[currentSymbol].vol!==false){const v=last(taVWAP(bars));if(v!=null)bits.push('VWAP '+fmtPx(v));}
+  if(IND.vwap&&MKT[currentSymbol]&&MKT[currentSymbol].vol!==false){
+    // the legend must quote the same VWAP the yellow line is drawn from
+    const dv=window._volume&&Number(window._volume.vwap);
+    const v=(dv&&isFinite(dv))?dv:last(taVWAP(bars));
+    if(v!=null&&isFinite(v))bits.push('VWAP '+fmtPx(v));
+  }
   if(IND.st){const st=taSupertrend(bars,10,3);const lastI=st.line.length-1;if(lastI>=0)bits.push('ST '+fmtPx(st.line[lastI])+(st.dir[lastI]===1?' ▲':' ▼'));}
   if(IND.stoch){const sk=taStoch(bars,14,3,3);const v=last(sk.k);if(v!=null)bits.push('Stoch '+v.toFixed(1));}
   if(IND.atr){const av=last(taATR(bars,14));if(av!=null)bits.push('ATR '+fmtPx(av));}
@@ -2713,7 +2723,9 @@ function paintIndicators(bars){
   if(IND.ma200)mk(taSMA(closes,200),'#10b981',1.6);
   if(IND.ema20)mk(taEMA(closes,20),'#38bdf8',1.6);
   if(IND.bb){const b=taBB(closes,20,2);mk(b.up,'#94a3b8',1.1,2);mk(b.mid,'#64748b',1,2);mk(b.dn,'#94a3b8',1.1,2);}
-  if(IND.vwap&&hasVol){const v=taVWAP(bars);if(bars.some(function(b){return b.v!=null;}))mk(v,'#f472b6',1.7);}
+  // on markets with a real volume feed the volume overlay already draws the daily VWAP;
+  // drawing it twice gives two different lines, so this one is only the fallback
+  if(IND.vwap&&!hasVol){const v=taVWAP(bars);mk(v,'#eab308',1.7);}
   if(IND.vwapb&&hasVol){
     const b=taVWAPbands(bars);
     mk(b.up,'rgba(244,114,182,.55)',1,2);mk(b.dn,'rgba(244,114,182,.55)',1,2);mk(b.mid,'#f472b6',1.7);
@@ -3649,7 +3661,18 @@ function drawVolume(){
     m.setAttribute('fill',pos?'rgba(13,148,136,0.42)':'rgba(239,68,68,0.36)');
     // only the three rows that matter carry text: the point of control and the two
     // edges of the value area. Every other row keeps its volume bar and says nothing.
-    if((isPoc||g.isVah||g.isVal)&&g.hh>=5&&bw>110) labels.push({g,isPoc,isVah:g.isVah,isVal:g.isVal});
+    if((isPoc||g.isVah||g.isVal)&&g.hh>=5&&bw>110){
+      // don't print a level under the floating alert card: half-covered text is worse than none
+      const _c=document.getElementById('alert-float');
+      let covered=false;
+      if(_c&&!_c.hidden){
+        const _cr=_c.getBoundingClientRect(), _plot=document.getElementById('vwap-layer');
+        if(_plot){const _pr=_plot.getBoundingClientRect();
+          const yTop=g.top+_pr.top, yBot=yTop+g.hh;
+          covered=(yBot>_cr.top&&yTop<_cr.bottom&&_cr.bottom>_pr.top);}
+      }
+      if(!covered) labels.push({g,isPoc,isVah:g.isVah,isVal:g.isVal});
+    }
   }
   // value area and point of control, drawn as quiet guides across the whole plot
   try{
@@ -3671,12 +3694,19 @@ function drawVolume(){
     if(gG&&gG.getAttribute('data-k')!==gh){gG.innerHTML=gh;gG.setAttribute('data-k',gh);}
   }catch(e){}
   _pool(gL,_VL.labels,labels.length,'text');
+  // when the alert's entry/SL/TP chips own the right edge, the level labels step left of them
+  const _af=document.getElementById('alert-float');
+  const _tagW=(_af&&!_af.hidden)?70:5;
   for(let i=0;i<labels.length;i++){
     const {g,isPoc,isVah,isVal}=labels[i], r=g.r, pos=(r.delta||0)>=0;
     const t=_VL.labels[i];
-    t.setAttribute('x',(xR-5).toFixed(1));
+    t.setAttribute('x',(xR-_tagW).toFixed(1));
     t.setAttribute('y',(g.top+g.hh/2+2.6).toFixed(1));
     t.setAttribute('text-anchor','end');
+    t.setAttribute('paint-order','stroke');
+    t.setAttribute('stroke','#0b1220');
+    t.setAttribute('stroke-width','2.4');
+    t.setAttribute('stroke-linejoin','round');
     t.setAttribute('font-family','ui-monospace,SFMono-Regular,Menlo,monospace');
     t.setAttribute('font-size',isPoc?'8.6':'8');
     t.setAttribute('font-weight',isPoc?'900':'700');
@@ -3690,7 +3720,16 @@ function drawVolume(){
     if(t.textContent!==txt) t.textContent=txt;
   }
 
-  // daily VWAP on top of the rows
+  // daily VWAP on top of the rows — the on/off switch in the panel owns this line
+  const _vwOn=(typeof IND==='undefined')?true:!!IND.vwap;
+  if(!_vwOn){
+    if(_VL.path) _VL.path.setAttribute('d','');
+    if(_VL.dot)  _VL.dot.setAttribute('visibility','hidden');
+    if(_VL.tag)  _VL.tag.setAttribute('visibility','hidden');
+    drawVolumeLevels(d);
+    return;
+  }
+  ['path','dot','tag'].forEach(function(k){if(_VL[k])_VL[k].setAttribute('visibility','visible');});
   if(!_VL.path){
     _VL.path=_svgEl('path');
     _VL.path.setAttribute('fill','none');
@@ -3721,14 +3760,21 @@ function drawVolume(){
   drawVolumeLevels(d);
 
   if(!_VL.tag){_VL.tag=_svgEl('text');gM.appendChild(_VL.tag);}
-  _VL.tag.setAttribute('x',Math.max(4,Math.min(plotW-4,lastXY.x+7)).toFixed(1));
+  const _vtxt='VWAP '+Number(lastXY.v).toFixed(2);
+  const _vw=_vtxt.length*5.6;
+  const _flip=lastXY.x+7+_vw>plotW-4;               // never spill into the price axis
+  _VL.tag.setAttribute('text-anchor',_flip?'end':'start');
+  _VL.tag.setAttribute('x',(_flip?Math.min(plotW-4,Math.max(_vw+4,lastXY.x-7)):Math.max(4,lastXY.x+7)).toFixed(1));
   _VL.tag.setAttribute('y',(lastXY.y-6).toFixed(1));
+  _VL.tag.setAttribute('paint-order','stroke');
+  _VL.tag.setAttribute('stroke','#0b1220');
+  _VL.tag.setAttribute('stroke-width','2.6');
+  _VL.tag.setAttribute('stroke-linejoin','round');
   _VL.tag.setAttribute('font-family','ui-monospace,SFMono-Regular,Menlo,monospace');
   _VL.tag.setAttribute('font-size','9.5');
   _VL.tag.setAttribute('font-weight','700');
   _VL.tag.setAttribute('fill','#a16207');
-  const vtxt='VWAP '+Number(lastXY.v).toFixed(2);
-  if(_VL.tag.textContent!==vtxt) _VL.tag.textContent=vtxt;
+  if(_VL.tag.textContent!==_vtxt) _VL.tag.textContent=_vtxt;
 }
 
 // ---------- zone boxes: 15m = TARGET (solid) · 5m = ENTRY (thin dashed) ----------
