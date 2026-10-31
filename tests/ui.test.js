@@ -115,7 +115,7 @@ eval([
   'journalHtml', 'openJournal', 'openSheet', 'closeSheet', 'calHtml', 'newsHtml',
   'renderCalStrip', 'renderNewsStrip',
   'jnKeyOf', 'jnByDay', 'jnCalHtml', 'jnListHtml', 'jnMonth', 'jnPickDay', 'jnRepaint',
-  'marketOpenNow', 'setNet', 'candlesLate',
+  'marketOpenNow', 'setNet', 'candlesLate', 'nextOpenLocal',
 ].map(n => grab(n)).join('\n'));
 ['recordZoneAlert', 'renderZoneAlerts', 'zoneAlerts', 'latestTrade',
  'openMenu', 'closeMenu', 'toggleMenu', 'setView', 'endIntro', 'playIntro',
@@ -124,7 +124,7 @@ eval([
  'journalHtml', 'openJournal', 'openSheet', 'closeSheet', 'calHtml', 'newsHtml',
  'renderCalStrip', 'renderNewsStrip',
  'jnKeyOf', 'jnByDay', 'jnCalHtml', 'jnListHtml', 'jnMonth', 'jnPickDay', 'jnRepaint',
- 'marketOpenNow', 'setNet', 'candlesLate'].forEach(n => { global[n] = eval(n); });
+ 'marketOpenNow', 'setNet', 'candlesLate', 'nextOpenLocal'].forEach(n => { global[n] = eval(n); });
 // the calendar keeps its month/day in module scope in the page; give the harness the same
 global._jnM = new Date(2026, 10, 1);
 global._jnDay = null;
@@ -591,6 +591,9 @@ section('the page says when the data stops');
   ok('a closed market is not a fault', candlesLate(1356, 'M15', 'XAUUSD', new Date('2026-10-31T12:00:00Z').getTime()) === false);
   ok('bitcoin is watched around the clock', candlesLate(50, 'M15', 'BTCUSD', new Date('2026-10-31T12:00:00Z').getTime()) === true);
   ok('the chip pulls the same rule', /candlesLate\(_ca,currentTF,sym\)/.test(grab('netWatch')));
+  ok('a closed chart offers the reopening time', /reopens '\+nxt/.test(grab('setCandleAge')));
+  ok('the reopening time is a real local date', nextOpenLocal('XAUUSD', new Date('2026-10-31T12:00:00Z').getTime()).length > 5);
+  ok('the watchdog keeps the note current', /setCandleAge\(\{last_bar_age_min:window._candleAgeMin\}\)/.test(grab('netWatch')));
 }
 
 console.log(`\n${fail ? '\x1b[31m' : '\x1b[32m'}${pass} passed, ${fail} failed\x1b[0m`);

@@ -316,6 +316,9 @@ body.intro-open{overflow:hidden}
   color:#7a4b00;background:rgba(255,196,84,.20);border:1px solid #e3b258;border-radius:8px;
   padding:5px 8px;backdrop-filter:blur(6px);pointer-events:none}
 .chart-stale::before{content:'⚠';margin-right:5px}
+.chart-stale.closed{color:var(--ink-2);background:color-mix(in srgb,var(--surface) 86%,transparent);
+  border-color:var(--line);font-weight:700}
+.chart-stale.closed::before{content:'';margin:0}
 /* the timeframe belongs to the chart, not the drawer */
 #tf-float{
   position:absolute;top:6px;left:8px;z-index:6;display:flex;gap:3px;padding:3px;border-radius:10px;
@@ -1547,11 +1550,25 @@ function candlesLate(age,tf,sym,when){
   const tfMin={'M1':1,'M5':5,'M15':15,'M30':30,'H1':60,'H4':240,'D':1440,'W':10080,'W1':10080}[tf]||15;
   return age!=null && age>Math.max(tfMin*3,20) && marketOpenNow(sym,when);
 }
+function nextOpenLocal(sym,from){
+  const step=15*60*1000; let t=(from||Date.now());
+  for(let i=0;i<4*24*4;i++){ t+=step; if(marketOpenNow(sym,t)) return new Date(t).toLocaleString(undefined,{weekday:'short',hour:'2-digit',minute:'2-digit'}); }
+  return '';
+}
 function setCandleAge(d){
   const el=document.getElementById('chart-stale');
   window._candleAgeMin=(d&&d.last_bar_age_min!=null)?Number(d.last_bar_age_min):null;
   if(!el) return;
   const age=window._candleAgeMin;
+  if(!marketOpenNow(currentSymbol)){
+    const nxt=nextOpenLocal(currentSymbol), txt=`market closed${nxt?' · reopens '+nxt:''}`;
+    el.classList.add('closed');
+    if(el.textContent!==txt){ el.textContent=txt; }
+    el.hidden=false;
+    el.title='Closed markets do not print new candles. The last quote stays on screen until trading resumes.';
+    return;
+  }
+  el.classList.remove('closed');
   const late=candlesLate(age,currentTF,currentSymbol);
   if(!late){ el.hidden=true; el.textContent=''; el.title=''; return; }
   const hrs=age>=90?`${(age/60).toFixed(1)} hours`:`${Math.round(age)} minutes`;
@@ -1569,6 +1586,7 @@ function netWatch(){
     const txt=marketOpenNow(sy)?'':'market closed · last quote';
     if(tag.textContent!==txt) tag.textContent=txt;
   });
+  setCandleAge({last_bar_age_min:window._candleAgeMin});
   if(!open){ setNet('closed','CLOSED', sym+' market is closed - showing the last real quote'); return; }
   if(_netFails>=2 || age===null || age>10){
     setNet('warn','RECONNECTING','no fresh price for '+(age===null?'a while':age+'s')+' - retrying');
