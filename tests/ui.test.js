@@ -91,11 +91,11 @@ Object.defineProperty(global, 'currentSymbol', { get: () => currentSymbol, set: 
 eval([
   'firedKeys', 'markFired', 'zoneAlerts', 'recordZoneAlert', 'latestTrade', 'renderZoneAlerts',
   'openMenu', 'closeMenu', 'toggleMenu', 'setView', 'endIntro', 'playIntro',
-  'drawVolume', 'syncHdH',
+  'drawVolume', 'syncHdH', 'setTabPrice',
 ].map(n => grab(n)).join('\n'));
 ['recordZoneAlert', 'renderZoneAlerts', 'zoneAlerts', 'latestTrade',
  'openMenu', 'closeMenu', 'toggleMenu', 'setView', 'endIntro', 'playIntro',
- 'drawVolume', 'syncHdH'].forEach(n => { global[n] = eval(n); });
+ 'drawVolume', 'syncHdH', 'setTabPrice'].forEach(n => { global[n] = eval(n); });
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => { if (cond) { pass++; console.log('  \x1b[32m✓\x1b[0m', name); } else { fail++; console.log('  \x1b[31m✗\x1b[0m', name, extra === undefined ? '' : JSON.stringify(extra)); } };
@@ -205,7 +205,6 @@ section('chart fills the device');
   ok('header height is measured, not guessed', /getBoundingClientRect\(\)\.height/.test(grab('syncHdH')));
   ok('header resize re-fits the chart', /ResizeObserver\(fitScreen\)\.observe/.test(html));
   ok('rotation re-fits the chart', /orientationchange/.test(html) && /visualViewport/.test(html));
-  ok('the site opens on the chart', /localStorage\.getItem\('astra6_view'\) \|\| 'chart'/.test(html));
   syncHdH();
   ok('--hd-h lands on the root', document.documentElement.style['--hd-h'] === '64px', document.documentElement.style['--hd-h']);
 }
@@ -261,6 +260,68 @@ section('the profile uses the chart timeframe');
   ok('clipped to the oldest candle on screen', /&since=\$\{since\}/.test(html));
   ok('switching timeframe rebuilds the clusters', /window\._volume=null;window\._volSigKey=null;if\(window\._strategy==='volume'\)setTimeout\(fetchVolume,120\)/.test(html));
   ok('a new candle set refreshes them too', /scheduleVolume\(\)/.test(grab('fetchChart')));
+}
+
+section('nothing opens by itself');
+{
+  const css = html.slice(html.indexOf('<style>'), html.indexOf('</style>'));
+  ok('the site lands on home', /<body data-view="home">/.test(html));
+  ok('home is not restored from storage', /window\._view = 'home'/.test(html));
+  ok('boot calls setView home', /setView\('home'\);fitScreen\(\)/.test(html));
+  ok('no chart is built at boot', !/setTimeout\(\(\)=>\{initChart\(\)/.test(html));
+  ok('the chart is built when asked for', /if\(!chart && typeof initChart==='function'\) initChart\(\)/.test(html));
+  ok('nothing polls the chart while it is closed', /if\(chart\)fetchChart\(currentTF\)/.test(html));
+  ok('hero and chart are hidden on home', /body\[data-view="home"\] #chart-section/.test(css));
+  ok('footer is hidden on home', /body\[data-view="home"\] \.foot\{display:none\}/.test(css));
+  ok('home shows both markets', html.includes('id="home-px-XAUUSD"') && html.includes('id="home-px-BTCUSD"'));
+  ok('home tells you the chart is in the menu', /tap the <b>menu<\/b> → <b>Chart<\/b>/.test(html));
+  ok('menu has a Home choice', /data-view="home"/.test(html));
+  ok('Home starts active in the menu', /class="tf-btn active" data-view="home"/.test(html));
+  BTNS = ['home', 'chart', 'signal', 'all'].map(v => { const b = mkEl('b-' + v); b.dataset.view = v; return b; });
+  setView('home');
+  ok('home view applies', document.body.attrs['data-view'] === 'home');
+  ok('hint says pick a screen', els['view-hint'].textContent === 'pick a screen to open');
+  setView('chart');
+  ok('chart is still one click away', document.body.attrs['data-view'] === 'chart');
+  setTabPrice('XAUUSD', 3876.5);
+  ok('home tile follows the live price', document.getElementById('home-px-XAUUSD').textContent === '$3876.50',
+     document.getElementById('home-px-XAUUSD').textContent);
+}
+
+section('entry, stop and target add up');
+{
+  const { execSync } = require('child_process');
+  const out = execSync(`cd ${root} && python3 -c "
+import sys; sys.path.insert(0,'.')
+import volume as V
+def mk(n=90, start=100.0, step=0.15, vol=10.0):
+    out=[]; p=start
+    for i in range(n):
+        o=p; c=p+step; h=max(o,c)+0.12; l=min(o,c)-0.12
+        out.append({'time':1700000000+i*900,'open':o,'high':h,'low':l,'close':c,
+                    'volume':vol,'buy':vol*0.75,'sell':vol*0.25}); p=c
+    return out
+c=mk(); vw,_=V.daily_vwap(c); rows,poc,st=V.clusters(c,48,10.0)
+atr=sum(c[i]['high']-c[i]['low'] for i in range(-14,0))/14
+s=V.signal(c,vw,rows,poc,atr,10.0,V.vwap_series(c))
+p=s['entry']; r=s['risk']
+tp1=abs(s['tp1']-p); tp2=abs(s['tp2']-p)
+checks=[]
+checks.append(('signal fires', s['type'] in ('BUY','SELL')))
+checks.append(('stop is 0.6-1.6 ATR from entry', 0.6 <= r/atr <= 1.6))
+checks.append(('tp2 clears tp1', tp2 > tp1))
+checks.append(('target is 1.0-2.6R', 1.0 <= tp2/r <= 2.6))
+checks.append(('reported R matches the levels', abs(s['r'] - tp2/r) < 0.03))
+quiet=[{'time':1+i*900,'open':100+i*0.001,'high':100.02+i*0.001,'low':99.99+i*0.001,
+        'close':100.01+i*0.001,'volume':5,'buy':3,'sell':2} for i in range(150)]
+rq,pq,sq=V.clusters(quiet,48,10.0)
+checks.append(('a quiet market cannot explode the book', sq and sq > 0 and len(rq) < 4000))
+bad=[n for n,okv in checks if not okv]
+print('OK' if not bad else 'FAIL '+','.join(bad))
+"`).toString().trim();
+  ok('stops sit just past the cluster, targets stay near', out === 'OK', out);
+  ok('the chart levels quote the ladder numbers', /latestTrade\(currentSymbol\)/.test(grab('drawVolumeLevels')) &&
+     /sg\.entry=_lv\.entry/.test(grab('drawVolumeLevels')));
 }
 
 console.log(`\n${fail ? '\x1b[31m' : '\x1b[32m'}${pass} passed, ${fail} failed\x1b[0m`);

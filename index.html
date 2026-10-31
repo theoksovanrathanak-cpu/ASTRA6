@@ -368,6 +368,42 @@ body[data-view="signal"] #hero-signal{position:relative}
 .foot-d{font-size:11px;color:var(--muted);margin-top:1px}
 .legal{font-size:10px;color:#a2a9b6;text-align:right;max-width:40ch;line-height:1.5}
 
+/* ---------- home: nothing opens by itself ---------- */
+.home{display:none}
+body[data-view="home"] .home{display:flex}
+body[data-view="home"] #hero-signal,
+body[data-view="home"] #chart-section,
+body[data-view="home"] .foot{display:none}
+body[data-view="home"] .wrap{
+  max-width:none;min-height:calc(100vh - var(--hd-h));min-height:calc(100dvh - var(--hd-h));
+  padding:22px;align-items:center;justify-content:center;
+}
+.home{
+  flex-direction:column;align-items:center;gap:18px;width:100%;max-width:460px;
+  text-align:center;padding:6px 0;
+}
+.home-mark{
+  width:64px;height:64px;border-radius:19px;display:grid;place-items:center;
+  font-size:20px;font-weight:850;letter-spacing:-.6px;color:#fff;
+  background:linear-gradient(150deg,#2563eb,#0ea5e9 55%,#22d3ee);
+  box-shadow:0 12px 30px -14px rgba(37,99,235,.75);
+}
+.home-title{font-size:25px;font-weight:800;letter-spacing:-.8px;line-height:1.1}
+.home-sub{font-size:11px;color:var(--muted);letter-spacing:.5px;text-transform:uppercase;margin-top:5px}
+.home-tiles{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;width:100%}
+.home-tile{
+  background:var(--surface);border:1px solid var(--line);border-radius:13px;
+  padding:13px 12px;display:flex;flex-direction:column;gap:4px;box-shadow:var(--shadow);
+}
+.tile-k{font-size:9.5px;font-weight:700;letter-spacing:.7px;color:var(--muted);text-transform:uppercase}
+.tile-v{font-size:18px;font-weight:800;letter-spacing:-.6px}
+.home-hint{
+  display:inline-flex;align-items:center;gap:9px;font-size:12.5px;color:var(--ink-2);
+  background:var(--surface);border:1px dashed var(--line);border-radius:11px;padding:10px 14px;
+}
+.home-hint b{color:var(--ink);font-weight:750}
+.home-hint svg{flex:0 0 auto;color:var(--muted)}
+
 /* ---------- one screen: the chart fills the device ---------- */
 :root{--hd-h:64px}
 body[data-view="chart"]{overflow:hidden}
@@ -453,8 +489,8 @@ body[data-view="signal"] .wrap{
 <link rel="stylesheet" href="/static/ibm-plex-mono/fonts.css">
 <script>try{document.documentElement.setAttribute("data-theme",localStorage.getItem("astra6_theme")||"dark");}catch(e){}</script>
 </head>
-<body data-view="chart">
-<script>try{document.body.setAttribute("data-view",localStorage.getItem("astra6_view")||"chart");}catch(e){}</script>
+<body data-view="home">
+<script>try{document.body.setAttribute("data-view","home");}catch(e){}</script>
 
 <div id="intro" role="dialog" aria-label="Welcome to ASTRA6">
   <div class="intro-stage">
@@ -505,9 +541,9 @@ body[data-view="signal"] .wrap{
   <div class="menu-sec">
     <div class="menu-label">View</div>
     <div class="tf-row" id="view-row">
-      <button class="tf-btn" data-view="chart" onclick="setView('chart')">Chart</button>
+      <button class="tf-btn active" data-view="home" onclick="setView('home')">Home</button><button class="tf-btn" data-view="chart" onclick="setView('chart')">Chart</button>
       <button class="tf-btn" data-view="signal" onclick="setView('signal')">Signal</button>
-      <button class="tf-btn active" data-view="all" onclick="setView('all')">Both</button>
+      <button class="tf-btn" data-view="all" onclick="setView('all')">Both</button>
     </div>
     <div class="menu-hint" id="view-hint">chart and signal together</div>
   </div>
@@ -575,6 +611,22 @@ body[data-view="signal"] .wrap{
 </aside>
 
 <main class="wrap">
+
+  <section class="home" id="home-view">
+    <div class="home-mark">A6</div>
+    <div>
+      <div class="home-title">ASTRA6</div>
+      <div class="home-sub">gold · bitcoin · volume clusters</div>
+    </div>
+    <div class="home-tiles">
+      <div class="home-tile"><span class="tile-k">GOLD · XAUUSD</span><span class="tile-v mono" id="home-px-XAUUSD">$--.--</span></div>
+      <div class="home-tile"><span class="tile-k">BITCOIN · BTCUSD</span><span class="tile-v mono" id="home-px-BTCUSD">$--.--</span></div>
+    </div>
+    <div class="home-hint">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      <span>tap the <b>menu</b> → <b>Chart</b> to open the chart</span>
+    </div>
+  </section>
 
   <section class="grid-hero" id="hero-signal">
     <div class="signal-card hold" id="current-signal-card" data-hero>
@@ -718,16 +770,23 @@ function playIntro(){
 })();
 
 // ---- view: chart, signal, or both ----
-window._view = localStorage.getItem('astra6_view') || 'chart';
+window._view = 'home';   // nothing opens by itself: the chart is a menu choice
 function setView(v){
   window._view=v;
   localStorage.setItem('astra6_view',v);
   document.body.setAttribute('data-view',v);
   document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
   const hint=document.getElementById('view-hint');
-  if(hint)hint.textContent = v==='chart' ? 'trading chart only'
+  if(hint)hint.textContent = v==='home' ? 'pick a screen to open'
+                            : v==='chart' ? 'trading chart only'
                             : v==='signal' ? 'live signal only'
                             : 'chart and signal together';
+  // the chart is built the first time it is asked for, so opening the site draws nothing
+  if(v==='chart' || v==='all'){
+    const had=!!chart;
+    if(!chart && typeof initChart==='function') initChart();
+    else if(had && typeof fetchChart==='function') fetchChart(currentTF);
+  }
   if(typeof closeMenu==='function' && document.getElementById('menu').classList.contains('open')) closeMenu();
   // the chart needs its size re-measured when it comes back into the layout
   setTimeout(()=>{syncHdH();relayoutChart();},60);
@@ -849,7 +908,7 @@ function updateSymTabs(){
   const chartTitle=document.querySelector('.card-title');
   if(chartTitle&&/Price chart/i.test(chartTitle.textContent))chartTitle.textContent='Price chart · '+currentSymbol;
 }
-function setTabPrice(sym,price){const el=document.getElementById('px-'+sym);if(el&&price)el.textContent=fmtPx(price);}
+function setTabPrice(sym,price){if(!price)return;['px-','home-px-'].forEach(pre=>{const el=document.getElementById(''+pre+sym);if(el)el.textContent=fmtPx(price);});}
 async function fetchOtherPrice(){
   const other=currentSymbol==='BTCUSD'?'XAUUSD':'BTCUSD';
   try{
@@ -1240,6 +1299,16 @@ function drawVolumeLevels(d){
   window._volLineKey=key;
   clearVolumeLevels();
   if(!want||!candleSeries||!candleSeries.createPriceLine) return;
+  // the lines on the chart quote the same numbers as the alert in the menu, so an
+  // entry/SL/TP can never read one way in the ladder and another way on the chart
+  let _lv={entry:sg.entry,sl:sg.sl,tp1:sg.tp1,tp2:sg.tp2};
+  try{
+    const lt=(typeof latestTrade==='function')?latestTrade(currentSymbol):null;
+    if(lt && lt.type===sg.type && (sg.type==='BUY'||sg.type==='SELL')){
+      _lv={entry:lt.entry,sl:lt.sl,tp1:lt.tp1,tp2:lt.tp2};
+    }
+  }catch(e){}
+  sg.entry=_lv.entry; sg.sl=_lv.sl; sg.tp1=_lv.tp1; sg.tp2=_lv.tp2;
   const add=(price,color,title,style)=>{
     if(price==null) return;
     try{
@@ -1570,13 +1639,13 @@ function initClicks(){
 }
 applyTheme();document.getElementById('sound-btn')&&(document.getElementById('sound-btn').style.opacity=soundOn?'1':'.4');
 initClicks();document.addEventListener('DOMContentLoaded',initClicks);setTimeout(initClicks,500);
-setTimeout(()=>{initChart();if(currentSymbol==='BTCUSD'){const b=document.querySelector('.sym-btn[data-sym="BTCUSD"]');if(b)b.classList.add('active');const g=document.querySelector('.sym-btn[data-sym="XAUUSD"]');if(g)g.classList.remove('active');document.querySelector('.brand-sub').textContent='Bitcoin · 15m / 5m';}else{fetchDashboard();}fetchChart(currentTF);fetchLive();fetchFastPrice();},800);
+setTimeout(()=>{if(currentSymbol==='BTCUSD'){const b=document.querySelector('.sym-btn[data-sym="BTCUSD"]');if(b)b.classList.add('active');const g=document.querySelector('.sym-btn[data-sym="XAUUSD"]');if(g)g.classList.remove('active');document.querySelector('.brand-sub').textContent='Bitcoin · 15m / 5m';}else{fetchDashboard();}fetchLive();fetchFastPrice();},800);
 setInterval(updateTimeSmooth,500);updateTimeSmooth();
-setView(window._view||'chart');fitScreen();setTimeout(fitScreen,300);setTimeout(fitScreen,1200);startPriceStream();setInterval(fetchFastPrice,1500);setInterval(fetchOtherPrice,12000);setInterval(fetchZones,30000);setInterval(()=>{if(window._strategy==='volume')fetchVolume();},20000);setInterval(fetchLive,10000);setInterval(()=>{if(currentSymbol!=='BTCUSD')fetchDashboard();},15000);
+setView('home');fitScreen();setTimeout(fitScreen,300);setTimeout(fitScreen,1200);startPriceStream();setInterval(fetchFastPrice,1500);setInterval(fetchOtherPrice,12000);setInterval(fetchZones,30000);setInterval(()=>{if(window._strategy==='volume')fetchVolume();},20000);setInterval(fetchLive,10000);setInterval(()=>{if(currentSymbol!=='BTCUSD')fetchDashboard();},15000);
 document.getElementById('venue-select')?.addEventListener('change',e=>setVenue(e.target.value));
 loadVenues().then(()=>{if(currentSymbol==='BTCUSD')fetchBtcCompare();else fetchTVCompare();});updateSymTabs();fetchOtherPrice();renderZoneAlerts();fetchZones();
 setInterval(()=>{fetch('/health').catch(()=>{});},240000);
-setInterval(()=>{fetchChart(currentTF);},30000);
+setInterval(()=>{if(chart)fetchChart(currentTF);},30000);
 console.log('ASTRA6 REBUILT SMOOTH - First upgrade clean + All data + All in one + No lag + Smooth + Free access + Market stays + Working');
 </script>
 </body>

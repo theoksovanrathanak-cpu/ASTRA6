@@ -167,11 +167,17 @@ def _row_size(candles, rows=48):
     span = hi - lo
     if span <= 0:
         return None
+    rows = max(8, min(400, int(rows)))
     raw = span / rows
     # round to a pleasant step so the rows look like the indicator's ticks
-    mag = 10 ** max(0, int(f"{raw:e}".split("e")[1]) - 1)
+    mag = 10 ** (int(f"{raw:e}".split("e")[1]) - 1)
     step = round(raw / mag) * mag
-    return max(step, 1e-8)
+    if step <= 0:
+        step = raw
+    # A quiet market can make span/rows smaller than 1, and the old max(0, ...) then gave
+    # a step of 0 -> a 1e-8 step -> hundreds of millions of bins -> the worker was killed.
+    # Cap the book at ~4000 bins whatever the instrument does.
+    return max(step, span / 4000.0, 1e-9)
 
 
 def clusters(candles, rows=48, min_pct=10.0):
@@ -328,33 +334,50 @@ def signal(candles, vwap, rows, poc, atr, min_pct=10.0, vwap_series_in=None):
                               f"{'positive' if cur['delta'] > 0 else 'negative'} delta - no edge."})
         return out
 
-    # ---- stop: outside the row and never tighter than 1 ATR ----
-    if side == 1:
-        nxt = [r for r in rows if r["bot"] > cur["top"]]
-        tp_level = min(nxt, key=lambda r: r["bot"])["bot"] if nxt else (vwap or price + 2 * a)
-        sl = min(cur["bot"] - 0.15 * a, price - 1.0 * a)
-    else:
-        nxt = [r for r in rows if r["top"] < cur["bot"]]
-        tp_level = max(nxt, key=lambda r: r["top"])["top"] if nxt else (vwap or price - 2 * a)
-        sl = max(cur["top"] + 0.15 * a, price + 1.0 * a)
-
-    risk = abs(price - sl)
+    # ---- stop: just past the cluster the price is sitting in, never inside the noise ----
+    # The old rule took min(|row edge|, 1 ATR), so the stop was almost always exactly
+    # 1 ATR and had nothing to do with the box drawn on the chart. Now it is the row
+    # edge plus a small buffer - the level that invalidates the cluster - kept between
+    # 0.7 and 1.5 ATR so tick noise cannot stop it out and the target stays reachable.
+    row_edge = cur["bot"] if side == 1 else cur["top"]
+    struct_risk = abs(price - (row_edge - side * 0.2 * a))
+    risk = min(max(struct_risk, 0.7 * a), 1.5 * a)
+    sl = price - side * risk
     if risk <= 0:
         out.update({"type": "HOLD", "reason": "degenerate risk"})
         return out
     tp1 = price + side * 0.75 * risk
-    tp2 = tp_level
+
+    # ---- target: the next genuine row edge, always beyond TP1 and never a long shot ----
+    # Before, the nearest row above could be one tick away, so TP2 sometimes came out
+    # BEHIND TP1 (0.39R). Now it has to clear TP1 and is capped at 2.5R.
+    tp_min = 1.05 * risk
+    tp_max = 2.5 * risk
+    if side == 1:
+        edges = [r["bot"] - price for r in rows if r["bot"] > cur["top"]]
+    else:
+        edges = [price - r["top"] for r in rows if r["top"] < cur["bot"]]
+    edges = sorted(d for d in edges if d > 0)
+    tp_dist = next((d for d in edges if d >= tp_min), tp_max)
+    tp_dist = min(max(tp_dist, tp_min), tp_max)
+    tp2 = price + side * tp_dist
+    # quote everything at the precision the card prints, then derive R from those exact
+    # numbers - so entry/sl/tp1/tp2/R all add up on screen instead of R drifting
+    _entry, _sl = round(price, 2), round(sl, 2)
+    _tp1, _tp2 = round(tp1, 2), round(tp2, 2)
+    _risk = abs(_entry - _sl) or risk
+    _r = round(abs(_tp2 - _entry) / _risk, 2)
     out.update({
         "type": "BUY" if side == 1 else "SELL",
-        "entry": round(price, 2), "sl": round(sl, 2),
-        "tp1": round(tp1, 2), "tp2": round(tp2, 2),
-        "risk": round(risk, 2),
-        "r": round(abs(tp2 - price) / risk, 2),
+        "entry": _entry, "sl": _sl,
+        "tp1": _tp1, "tp2": _tp2,
+        "risk": round(_risk, 2),
+        "r": _r,
         "confidence": min(92, 55 + int(min(35, ratio * 100 * 0.5))),
         "reason": (f"Cluster {cur['bot']:.2f}-{cur['top']:.2f} · "
                    f"{'above' if side == 1 else 'below'} VWAP {vwap:.2f} · "
                    f"delta {'+' if cur['delta'] >= 0 else ''}{cur['delta']:.2f} · "
-                   f"stop {risk/a:.1f} ATR"),
+                   f"stop {_risk/a:.1f} ATR past the cluster · target {_r:.1f}R"),
     })
     return out
 
