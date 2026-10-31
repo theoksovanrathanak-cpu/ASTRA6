@@ -593,6 +593,7 @@ section('the page says when the data stops');
   ok('the chip pulls the same rule', /candlesLate\(_ca,currentTF,sym\)/.test(grab('netWatch')));
   ok('a closed chart offers the reopening time', /reopens '\+nxt/.test(grab('setCandleAge')));
   ok('the reopening time is a real local date', nextOpenLocal('XAUUSD', new Date('2026-10-31T12:00:00Z').getTime()).length > 5);
+  ok('the reopening time lands on a quarter hour', /:(00|15|30|45)\b/.test(nextOpenLocal('XAUUSD', new Date('2026-10-31T12:07:31Z').getTime())));
   ok('the watchdog keeps the note current', /setCandleAge\(\{last_bar_age_min:window._candleAgeMin\}\)/.test(grab('netWatch')));
 }
 
