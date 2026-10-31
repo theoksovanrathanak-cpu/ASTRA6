@@ -45,6 +45,7 @@ function mkEl(id) {
     remove() { this.removed = true; },
     querySelector() { return null; },
     clientWidth: 800, clientHeight: 400, childNodes: [], offsetWidth: 1,
+    getBoundingClientRect: () => ({ height: 64, width: 390, top: 0, left: 0 }),
     classList: {
       add: c => cl.add(c), remove: c => cl.delete(c),
       toggle: (c, on) => { on === undefined ? (cl.has(c) ? cl.delete(c) : cl.add(c)) : (on ? cl.add(c) : cl.delete(c)); },
@@ -65,7 +66,7 @@ global.document = {
   addEventListener: () => {},
   body: { style: {}, classList: { add: c => bodyCl.add(c), remove: c => bodyCl.delete(c), contains: c => bodyCl.has(c) },
           setAttribute(k, v) { this.attrs = this.attrs || {}; this.attrs[k] = v; } },
-  documentElement: { setAttribute() {}, getAttribute: () => 'dark' },
+  documentElement: { setAttribute() {}, getAttribute: () => 'dark', style: { setProperty(k, v) { this[k] = v; } } },
 };
 global.localStorage = { getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); }, removeItem: k => { delete store[k]; } };
 global.window = { innerWidth: 1280 };
@@ -90,9 +91,11 @@ Object.defineProperty(global, 'currentSymbol', { get: () => currentSymbol, set: 
 eval([
   'firedKeys', 'markFired', 'zoneAlerts', 'recordZoneAlert', 'latestTrade', 'renderZoneAlerts',
   'openMenu', 'closeMenu', 'toggleMenu', 'setView', 'endIntro', 'playIntro',
+  'drawVolume', 'syncHdH',
 ].map(n => grab(n)).join('\n'));
 ['recordZoneAlert', 'renderZoneAlerts', 'zoneAlerts', 'latestTrade',
- 'openMenu', 'closeMenu', 'toggleMenu', 'setView', 'endIntro', 'playIntro'].forEach(n => { global[n] = eval(n); });
+ 'openMenu', 'closeMenu', 'toggleMenu', 'setView', 'endIntro', 'playIntro',
+ 'drawVolume', 'syncHdH'].forEach(n => { global[n] = eval(n); });
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => { if (cond) { pass++; console.log('  \x1b[32m✓\x1b[0m', name); } else { fail++; console.log('  \x1b[31m✗\x1b[0m', name, extra === undefined ? '' : JSON.stringify(extra)); } };
@@ -187,6 +190,77 @@ section('3D welcome');
   ok('prompt points at the menu', html.includes('tap the menu to open'));
   ok('replay available in the menu', html.includes('Replay welcome'));
   ok('no session gate', !html.includes("sessionStorage.getItem('astra6_intro')"));
+}
+
+section('chart fills the device');
+{
+  const css = html.slice(html.indexOf('<style>'), html.indexOf('</style>'));
+  ok('chart view is a full-height screen',
+     /body\[data-view="chart"\] \.wrap\{[^}]*height:calc\(100dvh - var\(--hd-h\)\)/.test(css));
+  ok('the card stops being a card', /body\[data-view="chart"\] #chart-section\{[^}]*height:100%/.test(css));
+  ok('chart stretches to that height', /body\[data-view="chart"\] #oanda_chart\{height:100%/.test(css));
+  ok('chart shell flexes, no dead strip', /body\[data-view="chart"\] \.chart-shell\{flex:1 1 auto;min-height:0\}/.test(css));
+  ok('footer is not a separate part', /body\[data-view="chart"\] \.foot,body\[data-view="signal"\] \.foot\{display:none\}/.test(css));
+  ok('no page scroll behind the chart', /body\[data-view="chart"\]\{overflow:hidden\}/.test(css));
+  ok('header height is measured, not guessed', /getBoundingClientRect\(\)\.height/.test(grab('syncHdH')));
+  ok('header resize re-fits the chart', /ResizeObserver\(fitScreen\)\.observe/.test(html));
+  ok('rotation re-fits the chart', /orientationchange/.test(html) && /visualViewport/.test(html));
+  ok('the site opens on the chart', /localStorage\.getItem\('astra6_view'\) \|\| 'chart'/.test(html));
+  syncHdH();
+  ok('--hd-h lands on the root', document.documentElement.style['--hd-h'] === '64px', document.documentElement.style['--hd-h']);
+}
+
+section('the cluster sits on its own candles');
+{
+  // 150 M15 bars, 4 px each, prices 100..200 over a 400 px plot
+  const T0 = 1793250000, STEP = 900, SP = 4;
+  const toX = t => ((t - T0) / STEP + 0.5) * SP;
+  const toY = p => 400 - ((p - 100) / 100) * 400;
+  global.chart = { applyOptions() {}, timeScale: () => ({
+    timeToCoordinate: toX, width: () => 720, options: () => ({ barSpacing: SP }), getVisibleRange: () => null }) };
+  global.candleSeries = { priceToCoordinate: toY, update() {}, createPriceLine: () => ({}), removePriceLine() {} };
+  global.lastCandles = [];
+  for (let i = 0; i < 150; i++) {
+    const low = i === 0 ? 100 : 120 + (i % 7), high = i === 149 ? 200 : 180 - (i % 5);
+    global.lastCandles.push({ time: T0 + i * STEP, open: 150, high, low, close: 150 });
+  }
+  global.window._strategy = 'volume';
+  global.window._volume = {
+    status: 'ok', tf: 'M15', bars_used: 150, from: T0, to: T0 + 149 * STEP,
+    split: 'estimated split', vwap: 150, poc: { bot: 150, top: 151 },
+    // two rows are deliberately outside the candle range, as two venues' wicks would be
+    rows: [
+      { bot: 205, top: 210, buy: 1, sell: 1, total: 2, delta: 0 },
+      { bot: 180, top: 185, buy: 9, sell: 3, total: 12, delta: 6 },
+      { bot: 150, top: 156, buy: 4, sell: 8, total: 12, delta: -4 },
+      { bot: 92,  top: 98,  buy: 2, sell: 2, total: 4, delta: 0 },
+    ],
+    vwap_series: [{ time: T0, value: 150 }, { time: T0 + 149 * STEP, value: 151 }],
+  };
+  global._VL = { bands: [], meters: [], labels: [], path: null, dot: null, tag: null };
+  global._svgEl = () => mkEl('svg');
+  global._pool = (parent, pool, n) => { while (pool.length < n) { const e = mkEl('r'); parent.appendChild(e); pool.push(e); } return pool; };
+  global.drawVolumeLevels = () => {};
+  global.fmtVol = n => String(n);
+  drawVolume();
+  const bands = global._VL.bands;
+  ok('a band per row inside the candles', bands.length === 2, bands.length);
+  const x = Number(bands[0].getAttribute('x')), w = Number(bands[0].getAttribute('width'));
+  ok('left edge on the first candle', Math.abs(x - 1.5) < 0.6, x);            // clamped at the plot edge
+  ok('right edge on the last candle', Math.abs((x + w) - (toX(T0 + 149 * STEP) + SP / 2)) < 0.6, x + w);
+  const ys = bands.map(b => [Number(b.getAttribute('y')), Number(b.getAttribute('y')) + Number(b.getAttribute('height'))]);
+  ok('every row stays inside the candle range', ys.every(([a, b]) => a >= toY(200) - 0.5 && b <= toY(100) + 0.5), ys);
+  ok('the row above the top wick is clipped, not floating', ys.every(([a]) => a >= toY(200) - 0.5), ys[0][0]);
+  ok('the legend says which bars were used', /M15 · 150 bars/.test(document.getElementById('lg-note').textContent),
+     document.getElementById('lg-note').textContent);
+}
+
+section('the profile uses the chart timeframe');
+{
+  ok('every request carries the timeframe', /\/api\/volume\?symbol=\$\{encodeURIComponent\(sym\)\}&venue=\$\{encodeURIComponent\(venue\)\}&tf=\$\{encodeURIComponent\(tf\)\}/.test(html));
+  ok('clipped to the oldest candle on screen', /&since=\$\{since\}/.test(html));
+  ok('switching timeframe rebuilds the clusters', /window\._volume=null;window\._volSigKey=null;if\(window\._strategy==='volume'\)setTimeout\(fetchVolume,120\)/.test(html));
+  ok('a new candle set refreshes them too', /scheduleVolume\(\)/.test(grab('fetchChart')));
 }
 
 console.log(`\n${fail ? '\x1b[31m' : '\x1b[32m'}${pass} passed, ${fail} failed\x1b[0m`);

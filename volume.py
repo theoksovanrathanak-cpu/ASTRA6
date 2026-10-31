@@ -55,22 +55,76 @@ def fetch_btc_klines(interval="1m", limit=500):
     return out
 
 
-def fetch_btc_candles_fallback(bars=350):
+# ---- timeframe helpers -------------------------------------------------------
+# The chart plots M1..W1. The profile has to be built from the SAME bars the chart
+# shows, otherwise the cluster box floats over candles it was never measured from.
+TF_MINUTES = {"M1": 1, "M5": 5, "M15": 15, "M30": 30, "H1": 60, "H4": 240, "D": 1440, "W": 10080}
+TF_BINANCE = {"M1": "1m", "M5": "5m", "M15": "15m", "M30": "30m", "H1": "1h", "H4": "4h", "D": "1d", "W": "1w"}
+TF_COINBASE = {"M1": 60, "M5": 300, "M15": 900, "M30": 1800, "H1": 3600, "H4": 21600, "D": 86400}
+
+
+def normalise_tf(tf):
+    """Accept M15 / 15m / D1 / W1 / 1h and give back one of our keys."""
+    raw = str(tf or "M15").strip()
+    t = raw.upper()
+    t = {"D1": "D", "W1": "W"}.get(t, t)
+    if t in TF_MINUTES:
+        return t
+    low = raw.lower()
+    rev = {v: k for k, v in TF_BINANCE.items()}
+    if low in rev:
+        return rev[low]
+    if low in ("1d", "d", "daily", "day"):
+        return "D"
+    if low in ("1w", "w", "weekly", "week"):
+        return "W"
+    return "M15"
+
+
+def aggregate(candles, minutes):
+    """Merge smaller bars into bigger ones, keeping the real volume and taker split."""
+    if minutes <= 1 or not candles:
+        return list(candles)
+    step = minutes * 60
+    out, cur = [], None
+    for c in sorted(candles, key=lambda x: x["time"]):
+        b = int(c["time"] // step) * step
+        if cur is None or cur["time"] != b:
+            if cur:
+                out.append(cur)
+            cur = {"time": b, "open": c["open"], "high": c["high"], "low": c["low"],
+                   "close": c["close"], "volume": float(c.get("volume") or 0),
+                   "buy": float(c.get("buy") or 0), "sell": float(c.get("sell") or 0)}
+        else:
+            cur["high"] = max(cur["high"], c["high"])
+            cur["low"] = min(cur["low"], c["low"])
+            cur["close"] = c["close"]
+            cur["volume"] += float(c.get("volume") or 0)
+            cur["buy"] += float(c.get("buy") or 0)
+            cur["sell"] += float(c.get("sell") or 0)
+    if cur:
+        out.append(cur)
+    return out
+
+
+def fetch_btc_candles_fallback(bars=350, tf="M1"):
     """Real Coinbase 1m candles with the taker split ESTIMATED from close location.
 
     Only used when Binance rate-limits the server IP. The volume is real; the buy/sell
     split is an estimate and every caller labels it as one.
     """
     import requests
+    key = normalise_tf(tf)
+    gran = TF_COINBASE.get(key, 60)
     r = requests.get("https://api.exchange.coinbase.com/products/BTC-USD/candles",
-                     params={"granularity": 60}, timeout=12,
+                     params={"granularity": gran}, timeout=12,
                      headers={"User-Agent": "ASTRA6/1.0"})
     r.raise_for_status()
     rows = sorted(r.json(), key=lambda k: k[0])
     out = [{"time": int(k[0]), "low": float(k[1]), "high": float(k[2]),
             "open": float(k[3]), "close": float(k[4]), "volume": float(k[5])} for k in rows]
-    out = [c for c in out if c["volume"] > 0]
-    return split_estimate(out[-bars:])
+    out = [c for c in out if c["volume"] > 0][-bars:]
+    return split_estimate(out)
 
 
 def split_estimate(candles):

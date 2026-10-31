@@ -4025,46 +4025,62 @@ _VOL_CACHE = {}
 
 @app.get("/api/volume")
 def get_volume(symbol: str = "XAUUSD", venue: str = None, rows: int = 48,
-               min_pct: float = 10.0, email: str = "free@astra6.com"):
+               min_pct: float = 10.0, tf: str = "M15", bars: int = 200,
+               since: int = 0, email: str = "free@astra6.com"):
     """
     Volume-at-price clusters + daily VWAP, and the signal they imply.
     BTCUSD: real Binance taker buy/sell. XAUUSD: real tick volume, estimated split.
+
+    `tf` matters: the profile is built from bars of the SAME timeframe the chart is
+    drawing, so the cluster box lands on the candles it was measured from instead of
+    floating over a different set of bars.
     """
-    key = f"{str(symbol).upper()}|{venue or ''}|{rows}|{min_pct}"
+    import volume as VOL
+    tf_key = VOL.normalise_tf(tf)
+    bars = max(40, min(600, int(bars or 200)))
+    key = f"{str(symbol).upper()}|{venue or ''}|{rows}|{min_pct}|{tf_key}|{bars}|{since}"
     now = time.time()
     hit = _VOL_CACHE.get(key)
     if hit and now - hit["t"] < 10:
         return hit["d"]
     try:
-        import volume as VOL
         if str(symbol).upper().startswith("BTC"):
+            interval = VOL.TF_BINANCE.get(tf_key, "15m")
             try:
-                raw = VOL.fetch_btc_klines("1m", 600)
+                raw = VOL.fetch_btc_klines(interval, bars)
                 split_note = "real taker buy/sell (Binance)"
-                src = "Binance 1m klines · real taker flow"
+                src = f"Binance {interval} klines · real taker flow"
             except Exception as e:
                 # Binance banned this server's IP (HTTP 418). Their klines give the real
                 # taker split, but a ban is not worth losing the strategy over: Coinbase
                 # gives real volume, and the split is labelled as the estimate it is.
                 print("binance klines unavailable, using coinbase:", e)
-                raw = VOL.fetch_btc_candles_fallback(350)
+                raw = VOL.fetch_btc_candles_fallback(bars, tf_key)
                 split_note = "estimated split (close-location) from real Coinbase volume"
-                src = "Coinbase 1m · real volume, split estimated"
+                src = f"Coinbase {interval} · real volume, split estimated"
         else:
-            c5 = _zone_candles(symbol, venue, "M5", 400)
-            if not c5:
+            raw_c = _zone_candles(symbol, venue, tf_key, bars)
+            if not raw_c:
                 return {"status": "error", "error": "no candles", "real": True, "user": email}
             raw = [{"time": int(c["time"]), "open": c["open"], "high": c["high"],
-                    "low": c["low"], "close": c["close"], "volume": float(c.get("volume") or 0)} for c in c5]
+                    "low": c["low"], "close": c["close"], "volume": float(c.get("volume") or 0)} for c in raw_c]
             raw = VOL.split_estimate(raw)
             split_note = "estimated split (close-location) from real tick volume"
-            src = "xaus 5m · real tick volume"
+            src = f"xaus {tf_key} · real tick volume"
         raw = [c for c in raw if c["volume"] > 0]
-        if len(raw) < 30:
+        # The chart passes the timestamp of its oldest candle: profile exactly the bars
+        # that are on screen, so the cluster cannot hang above or beside the candles.
+        if since and len(raw) > 40:
+            clipped = [c for c in raw if int(c["time"]) >= int(since)]
+            if len(clipped) >= 40:
+                raw = clipped
+        if len(raw) < 20:
             return {"status": "error", "error": "not_enough_volume", "real": True, "user": email}
         data = VOL.analyse(raw, rows=max(12, min(120, rows)), min_pct=max(0.0, min(100.0, min_pct)))
         data.update({"symbol": str(symbol).upper(), "source": src, "split": split_note,
-                     "bars_used": len(raw), "real": True, "user": email})
+                     "tf": tf_key, "bars_used": len(raw),
+                     "from": int(raw[0]["time"]), "to": int(raw[-1]["time"]),
+                     "real": True, "user": email})
         _VOL_CACHE[key] = {"t": now, "d": data}
         return data
     except Exception as e:

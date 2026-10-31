@@ -368,6 +368,37 @@ body[data-view="signal"] #hero-signal{position:relative}
 .foot-d{font-size:11px;color:var(--muted);margin-top:1px}
 .legal{font-size:10px;color:#a2a9b6;text-align:right;max-width:40ch;line-height:1.5}
 
+/* ---------- one screen: the chart fills the device ---------- */
+:root{--hd-h:64px}
+body[data-view="chart"]{overflow:hidden}
+body[data-view="chart"] .foot,body[data-view="signal"] .foot{display:none}
+body[data-view="chart"] .wrap{
+  max-width:none;padding:0;gap:0;
+  height:calc(100vh - var(--hd-h));height:calc(100dvh - var(--hd-h));
+}
+body[data-view="chart"] #chart-section{
+  height:100%;display:flex;flex-direction:column;padding:0;border:0;border-radius:0;
+  box-shadow:none;background:var(--surface);
+}
+body[data-view="chart"] #chart-section .card-hd,
+body[data-view="chart"] #chart-section .meta-row{display:none}
+body[data-view="chart"] .chart-shell{flex:1 1 auto;min-height:0}
+body[data-view="chart"] #oanda_chart{height:100%;border:0;border-radius:0}
+body[data-view="chart"] #zone-layer,body[data-view="chart"] #vwap-layer{inset:0}
+body[data-view="chart"] .hd-in{padding-top:8px;padding-bottom:8px}
+body[data-view="signal"] .wrap{
+  max-width:780px;padding:14px;gap:13px;
+  min-height:calc(100vh - var(--hd-h));min-height:calc(100dvh - var(--hd-h));justify-content:flex-start;
+}
+.lg-note{color:var(--muted);font-weight:600;font-size:10px;letter-spacing:.2px}
+@media(max-width:620px){
+  body[data-view="chart"] .hd-in{padding:7px 12px}
+  body[data-view="chart"] .brand-mark{width:30px;height:30px;font-size:11.5px}
+  body[data-view="chart"] .price-value{font-size:21px}
+  #tv-legend{font-size:10px;gap:7px}
+  .lg-note{display:none}
+}
+
 /* ---------- responsive ---------- */
 @media(max-width:1020px){
   .grid-hero{grid-template-columns:minmax(0,1fr)}
@@ -422,7 +453,8 @@ body[data-view="signal"] #hero-signal{position:relative}
 <link rel="stylesheet" href="/static/ibm-plex-mono/fonts.css">
 <script>try{document.documentElement.setAttribute("data-theme",localStorage.getItem("astra6_theme")||"dark");}catch(e){}</script>
 </head>
-<body data-view="all">
+<body data-view="chart">
+<script>try{document.body.setAttribute("data-view",localStorage.getItem("astra6_view")||"chart");}catch(e){}</script>
 
 <div id="intro" role="dialog" aria-label="Welcome to ASTRA6">
   <div class="intro-stage">
@@ -607,7 +639,7 @@ body[data-view="signal"] #hero-signal{position:relative}
     </div>
     <div class="chart-shell">
       <div id="oanda_chart">Loading chart…</div>
-      <div id="tv-legend"><span class="lg-t" id="lg-sym">XAUUSD</span><span id="lg-tf">M15</span><span id="lg-ohlc">—</span></div>
+      <div id="tv-legend"><span class="lg-t" id="lg-sym">XAUUSD</span><span id="lg-tf">M15</span><span id="lg-ohlc">—</span><span class="lg-note" id="lg-note"></span></div>
       <svg id="vwap-layer" aria-hidden="true"><g id="vw-bands"></g><g id="vw-marks"></g><g id="vw-labels"></g></svg>
       <svg id="zone-layer" aria-hidden="true"></svg>
     </div>
@@ -686,7 +718,7 @@ function playIntro(){
 })();
 
 // ---- view: chart, signal, or both ----
-window._view = localStorage.getItem('astra6_view') || 'all';
+window._view = localStorage.getItem('astra6_view') || 'chart';
 function setView(v){
   window._view=v;
   localStorage.setItem('astra6_view',v);
@@ -698,13 +730,28 @@ function setView(v){
                             : 'chart and signal together';
   if(typeof closeMenu==='function' && document.getElementById('menu').classList.contains('open')) closeMenu();
   // the chart needs its size re-measured when it comes back into the layout
-  if(v!=='signal' && typeof chart!=='undefined' && chart){
-    setTimeout(()=>{try{const c=document.getElementById('oanda_chart');
-      if(c&&chart) chart.applyOptions({width:c.clientWidth,height:c.clientHeight||420});
-      if(typeof scheduleZoneDraw==='function') scheduleZoneDraw();
-    }catch(e){}},60);
-  }
+  setTimeout(()=>{syncHdH();relayoutChart();},60);
 }
+
+// The chart fills whatever the header leaves. Measure the header instead of guessing,
+// so a tall mobile header cannot push the chart's bottom edge off the device.
+function syncHdH(){
+  const hd=document.querySelector('.hd');
+  const h=hd?Math.round(hd.getBoundingClientRect().height):0;
+  if(h>0) document.documentElement.style.setProperty('--hd-h',h+'px');
+}
+function relayoutChart(){
+  try{
+    const c=document.getElementById('oanda_chart');
+    if(chart&&c) chart.applyOptions({width:c.clientWidth,height:c.clientHeight||420});
+    if(typeof scheduleZoneDraw==='function') scheduleZoneDraw();
+  }catch(e){}
+}
+function fitScreen(){syncHdH();relayoutChart();}
+window.addEventListener('resize',fitScreen);
+window.addEventListener('orientationchange',()=>setTimeout(fitScreen,260));
+if(window.visualViewport) window.visualViewport.addEventListener('resize',fitScreen);
+try{new ResizeObserver(fitScreen).observe(document.querySelector('.hd'));}catch(e){}
 
 // ---- hamburger menu ----
 function toggleMenu(){
@@ -793,7 +840,7 @@ function createChart(){try{const c=document.getElementById('oanda_chart');if(!c|
     chart=LightweightCharts.createChart(c,_opts);
     candleSeries=chart.addCandlestickSeries({upColor:_p.up,downColor:_p.dn,borderVisible:false,wickUpColor:_p.up,wickDownColor:_p.dn,priceLineWidth:1,lastValueVisible:true,priceLineStyle:2});
     chart.subscribeCrosshairMove(param=>{let bar=null;try{bar=param.seriesData&&param.seriesData.get(candleSeries);}catch(e){}updateLegend(bar,param.time);});new ResizeObserver(()=>{if(chart){chart.applyOptions({width:c.clientWidth,height:c.clientHeight||420});scheduleZoneDraw();}}).observe(c);chart.timeScale().subscribeVisibleLogicalRangeChange(()=>scheduleZoneDraw());console.log('chart created rebuilt');}catch(e){console.log('createChart err',e);}}
-function setTimeframe(tf){currentTF=tf;if(typeof closeMenu==='function')closeMenu();updateLegend(null);localStorage.setItem('astra6_tf',tf);document.querySelectorAll('[data-tf]').forEach(b=>b.classList.toggle('active',b.dataset.tf===tf));document.getElementById('chart-tf-label').textContent=tf;document.getElementById('chart-info-tf').textContent=tf;fetchChart(tf);}
+function setTimeframe(tf){currentTF=tf;if(typeof closeMenu==='function')closeMenu();updateLegend(null);localStorage.setItem('astra6_tf',tf);document.querySelectorAll('[data-tf]').forEach(b=>b.classList.toggle('active',b.dataset.tf===tf));document.getElementById('chart-tf-label').textContent=tf;document.getElementById('chart-info-tf').textContent=tf;window._volume=null;window._volSigKey=null;if(window._strategy==='volume')setTimeout(fetchVolume,120);scheduleZoneDraw();fetchChart(tf);}
 
 function updateSymTabs(){
   document.querySelectorAll('.sym-btn').forEach(b=>b.classList.toggle('active',b.dataset.sym===currentSymbol));
@@ -879,7 +926,7 @@ const _key=currentSymbol+'|'+tf,_same=(window._chartKey===_key);window._chartKey
 let _vr=null;try{if(_same)_vr=chart.timeScale().getVisibleLogicalRange();}catch(e){}
 try{candleSeries.setData(clean);lastCandles=clean;
   if(_vr)chart.timeScale().setVisibleLogicalRange(_vr);   // no jump every refresh
-}catch(e){console.log('chart data err',e);}document.getElementById('chart-candle-count').textContent=`${clean.length} candles`;setTimeout(scheduleZoneDraw,60);updateLegend(null);if(srcEl)srcEl.textContent=(d.source||'REAL OHLCV').replace('xaus.com /api/v1/chart XAU/USD (REAL OHLCV, spot-anchored)','XAUS spot · TradingView bar').replace('xaus.com /api/v1/chart XAU/USD (REAL spot OHLCV)','XAUS REAL spot').replace('yfinance GC=F (REAL futures OHLCV)','yfinance GC=F REAL');if(clean.length){const last=clean[clean.length-1];if(lastPrice===0){lastPrice=last.close;const p=document.getElementById('price');if(p&&p.textContent==='$--.--')p.textContent=fmtPx(last.close);}}let fb=document.getElementById('chart-price-fallback');if(fb&&lastPrice)fb.textContent=fmtPx(lastPrice);}else if(srcEl){srcEl.textContent=(!candleSeries?'chart library loading…':'feed reconnecting (no fake data)');}}catch(e){console.log('chart fetch err',e);const s=document.getElementById('chart-source');if(s)s.textContent='feed reconnecting…';}}
+}catch(e){console.log('chart data err',e);}document.getElementById('chart-candle-count').textContent=`${clean.length} candles`;setTimeout(scheduleZoneDraw,60);if(window._strategy==='volume'&&typeof scheduleVolume==='function')scheduleVolume();updateLegend(null);if(srcEl)srcEl.textContent=(d.source||'REAL OHLCV').replace('xaus.com /api/v1/chart XAU/USD (REAL OHLCV, spot-anchored)','XAUS spot · TradingView bar').replace('xaus.com /api/v1/chart XAU/USD (REAL spot OHLCV)','XAUS REAL spot').replace('yfinance GC=F (REAL futures OHLCV)','yfinance GC=F REAL');if(clean.length){const last=clean[clean.length-1];if(lastPrice===0){lastPrice=last.close;const p=document.getElementById('price');if(p&&p.textContent==='$--.--')p.textContent=fmtPx(last.close);}}let fb=document.getElementById('chart-price-fallback');if(fb&&lastPrice)fb.textContent=fmtPx(lastPrice);}else if(srcEl){srcEl.textContent=(!candleSeries?'chart library loading…':'feed reconnecting (no fake data)');}}catch(e){console.log('chart fetch err',e);const s=document.getElementById('chart-source');if(s)s.textContent='feed reconnecting…';}}
 
 // One path for applying a price to the page: the SSE stream and the polling
 // fallback both come through here, so behaviour can never drift between them.
@@ -1064,11 +1111,15 @@ const VOL_COOLDOWN_MS = 15*60*1000;   // one alert per symbol per 15 minutes, at
 window._volume = null;
 let _volPending=false, _volAt=0;
 async function fetchVolume(){
-  const sym = currentSymbol, venue = currentVenue;
+  const sym = currentSymbol, venue = currentVenue, tf = currentTF;
   try{
-    const r = await fetch(`/api/volume?symbol=${encodeURIComponent(sym)}&venue=${encodeURIComponent(venue)}`, {cache:'no-store'});
+    const shown = (tf==='D'||tf==='W')?200:150;   // same count fetchChart() asks for
+    // the oldest candle on screen: the profile is clipped to it, so the cluster covers
+    // exactly the candles the user is looking at
+    const since = (lastCandles&&lastCandles.length)?lastCandles[0].time:'';
+    const r = await fetch(`/api/volume?symbol=${encodeURIComponent(sym)}&venue=${encodeURIComponent(venue)}&tf=${encodeURIComponent(tf)}&bars=${shown}&since=${since}`, {cache:'no-store'});
     const d = await r.json();
-    if(d && d.status==='ok' && currentSymbol===sym){
+    if(d && d.status==='ok' && currentSymbol===sym && currentTF===tf){
       window._volume = d; _volAt = Date.now();
       if(window._strategy==='volume') renderVolumeSignal(d);
       scheduleZoneDraw();
@@ -1211,36 +1262,68 @@ function drawVolume(){
   if(!gB||!gM||!gL) return;
   const w=box.clientWidth,h=box.clientHeight;
   if(!w||!h){clearVolumeLayer();return;}
+  const _lg=document.getElementById('lg-note');
+  if(_lg){
+    const _est=(d.split||'').indexOf('estimated')>=0;
+    const _txt=`clusters ${d.tf||''} · ${d.bars_used||0} bars · ${_est?'split est.':'real split'}`;
+    if(_lg.textContent!==_txt) _lg.textContent=_txt;
+  }
   if(svg.getAttribute('width')!=String(w)){
     svg.setAttribute('width',w);svg.setAttribute('height',h);svg.setAttribute('viewBox',`0 0 ${w} ${h}`);
   }
   const ts=chart.timeScale();
   const plotW=(typeof ts.width==='function'?ts.width():w-64);
 
-  // the cluster sits on the candles it was measured from: right edge at the live bar,
-  // left edge back by the number of bars the profile used (clamped to the plot)
-  let xR=plotW-4;
-  const lastT=(typeof lastCandles!=='undefined'&&lastCandles&&lastCandles.length)?lastCandles[lastCandles.length-1].time:null;
-  if(lastT!=null){const x=ts.timeToCoordinate(lastT);if(x!=null)xR=Math.min(plotW-4,x+9);}
+  // The cluster is pinned to the candles it was measured from. The server sends the
+  // first and last bar time of the profile, in the same timeframe as the chart, so the
+  // two bars map straight to pixels: left edge on the first bar, right edge on the last.
   let spacing=7;
   try{const o=(typeof ts.options==='function')?ts.options():null;if(o&&o.barSpacing)spacing=o.barSpacing;}catch(e){}
+  const half=Math.max(2,spacing/2);
+  let xL=null,xR=null;
+  const fromT=(d.from!=null)?Number(d.from):null, toT=(d.to!=null)?Number(d.to):null;
+  if(fromT!=null&&toT!=null&&typeof ts.timeToCoordinate==='function'){
+    const a=ts.timeToCoordinate(fromT), b=ts.timeToCoordinate(toT);
+    if(a!=null&&isFinite(a)) xL=a-half;
+    if(b!=null&&isFinite(b)) xR=b+half;
+  }
+  const lastT=(typeof lastCandles!=='undefined'&&lastCandles&&lastCandles.length)?lastCandles[lastCandles.length-1].time:null;
+  // the live candle is newer than the last closed bar from the feed: run the box to it
+  if(lastT!=null&&(toT==null||Number(lastT)>toT)){const x=ts.timeToCoordinate(lastT);if(x!=null&&isFinite(x))xR=x+half;}
+  if(xR==null) xR=plotW-4;
+  xR=Math.min(plotW-2,xR);
   const nBars=Math.max(20,Number(d.bars_used)||120);
-  let xL=Math.max(1.5, xR - nBars*spacing);
+  if(xL==null) xL=xR-nBars*spacing;
   if(xR-xL<80){xL=Math.max(1.5,xR-80);}
+  xL=Math.max(1.5,xL);
   const bw=xR-xL;
 
   // price rows, top of book first
   const rows=(d.rows||[]).slice().sort((a,b)=>b.top-a.top);
   const pocTop=(d.poc&&d.poc.top!=null)?d.poc.top:null;
   const maxTot=Math.max(1,...rows.map(r=>r.total||0));
+  // Two venues never agree on the exact wick, so a row measured from one feed can sit a
+  // few points above the highest candle the other feed draws. Clamp every row to the
+  // candles on screen: the cluster then lives inside the candle range, never floating.
+  let cLo=null,cHi=null;
+  if(typeof lastCandles!=='undefined'&&lastCandles&&lastCandles.length){
+    cLo=Infinity;cHi=-Infinity;
+    for(const c of lastCandles){if(c.low<cLo)cLo=c.low;if(c.high>cHi)cHi=c.high;}
+  }
   const geo=[];
   for(let i=0;i<rows.length;i++){
     const r=rows[i];
     const y1=candleSeries.priceToCoordinate(r.top), y2=candleSeries.priceToCoordinate(r.bot);
     if(y1==null||y2==null) continue;
-    const top=Math.min(y1,y2), hh=Math.max(1.2,Math.abs(y2-y1));
-    if(top>h+3||top+hh<-3) continue;
-    geo.push({r,top,hh});
+    let top=Math.min(y1,y2), bot=Math.max(y1,y2);
+    if(cLo!=null){
+      const cy1=candleSeries.priceToCoordinate(cHi), cy2=candleSeries.priceToCoordinate(cLo);
+      if(cy1!=null&&cy2!=null){ const lim1=Math.min(cy1,cy2), lim2=Math.max(cy1,cy2);
+        top=Math.max(top,lim1); bot=Math.min(bot,lim2); }
+    }
+    if(bot-top<0.9) continue;
+    if(top>h+3||bot<-3) continue;
+    geo.push({r,top,hh:bot-top});
   }
 
   _pool(gB,_VL.bands,geo.length,'rect');
@@ -1255,18 +1338,18 @@ function drawVolume(){
     b.setAttribute('y',g.top.toFixed(1));
     b.setAttribute('width',bw.toFixed(1));
     b.setAttribute('height',g.hh.toFixed(1));
-    b.setAttribute('fill',pos?'rgba(13,148,136,0.13)':'rgba(239,68,68,0.12)');
+    b.setAttribute('fill',pos?'rgba(13,148,136,0.10)':'rgba(239,68,68,0.09)');
     b.setAttribute('stroke',isPoc?'#f59e0b':'none');
     b.setAttribute('stroke-width',isPoc?'1.6':'0');
     // volume meter hugging the left edge of the cluster
-    const m=_VL.meters[i], ml=Math.max(1.5,bw*0.24*((r.total||0)/maxTot));
+    const m=_VL.meters[i], ml=Math.max(1.5,bw*0.18*((r.total||0)/maxTot));
     if(m.getAttribute('data-role')!=='meter') m.setAttribute('data-role','meter');
     m.setAttribute('x',(xL+1).toFixed(1));
     m.setAttribute('y',g.top.toFixed(1));
     m.setAttribute('width',ml.toFixed(1));
     m.setAttribute('height',g.hh.toFixed(1));
-    m.setAttribute('fill',pos?'rgba(13,148,136,0.55)':'rgba(239,68,68,0.48)');
-    if(g.hh>=9.5&&bw>120) labels.push({g,isPoc});
+    m.setAttribute('fill',pos?'rgba(13,148,136,0.42)':'rgba(239,68,68,0.36)');
+    if(g.hh>=11&&bw>140) labels.push({g,isPoc});
   }
   _pool(gL,_VL.labels,labels.length,'text');
   for(let i=0;i<labels.length;i++){
@@ -1489,7 +1572,7 @@ applyTheme();document.getElementById('sound-btn')&&(document.getElementById('sou
 initClicks();document.addEventListener('DOMContentLoaded',initClicks);setTimeout(initClicks,500);
 setTimeout(()=>{initChart();if(currentSymbol==='BTCUSD'){const b=document.querySelector('.sym-btn[data-sym="BTCUSD"]');if(b)b.classList.add('active');const g=document.querySelector('.sym-btn[data-sym="XAUUSD"]');if(g)g.classList.remove('active');document.querySelector('.brand-sub').textContent='Bitcoin · 15m / 5m';}else{fetchDashboard();}fetchChart(currentTF);fetchLive();fetchFastPrice();},800);
 setInterval(updateTimeSmooth,500);updateTimeSmooth();
-setView(window._view||'all');startPriceStream();setInterval(fetchFastPrice,1500);setInterval(fetchOtherPrice,12000);setInterval(fetchZones,30000);setInterval(()=>{if(window._strategy==='volume')fetchVolume();},20000);setInterval(fetchLive,10000);setInterval(()=>{if(currentSymbol!=='BTCUSD')fetchDashboard();},15000);
+setView(window._view||'chart');fitScreen();setTimeout(fitScreen,300);setTimeout(fitScreen,1200);startPriceStream();setInterval(fetchFastPrice,1500);setInterval(fetchOtherPrice,12000);setInterval(fetchZones,30000);setInterval(()=>{if(window._strategy==='volume')fetchVolume();},20000);setInterval(fetchLive,10000);setInterval(()=>{if(currentSymbol!=='BTCUSD')fetchDashboard();},15000);
 document.getElementById('venue-select')?.addEventListener('change',e=>setVenue(e.target.value));
 loadVenues().then(()=>{if(currentSymbol==='BTCUSD')fetchBtcCompare();else fetchTVCompare();});updateSymTabs();fetchOtherPrice();renderZoneAlerts();fetchZones();
 setInterval(()=>{fetch('/health').catch(()=>{});},240000);
