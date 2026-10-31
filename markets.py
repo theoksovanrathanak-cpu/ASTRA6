@@ -25,12 +25,12 @@ MARKETS = {
     "XAGUSD": {"name": "Silver",      "group": "Metals",  "src": "yahoo", "yahoo": "SI=F",     "dec": 3, "unit": "$",  "vol": True},
     "XPTUSD": {"name": "Platinum",    "group": "Metals",  "src": "yahoo", "yahoo": "PL=F",     "dec": 1, "unit": "$",  "vol": True},
     "XPDUSD": {"name": "Palladium",   "group": "Metals",  "src": "yahoo", "yahoo": "PA=F",     "dec": 1, "unit": "$",  "vol": True},
-    "EURUSD": {"name": "Euro / Dollar", "group": "Forex", "src": "yahoo", "yahoo": "EURUSD=X", "dec": 5, "unit": "",   "vol": False},
-    "GBPUSD": {"name": "Pound / Dollar", "group": "Forex", "src": "yahoo", "yahoo": "GBPUSD=X", "dec": 5, "unit": "",  "vol": False},
-    "USDJPY": {"name": "Dollar / Yen", "group": "Forex",  "src": "yahoo", "yahoo": "USDJPY=X", "dec": 3, "unit": "",   "vol": False},
+    "EURUSD": {"name": "EUR/USD", "group": "Forex", "src": "yahoo", "yahoo": "EURUSD=X", "dec": 5, "unit": "",   "vol": False},
+    "GBPUSD": {"name": "GBP/USD", "group": "Forex", "src": "yahoo", "yahoo": "GBPUSD=X", "dec": 5, "unit": "",  "vol": False},
+    "USDJPY": {"name": "USD/JPY", "group": "Forex",  "src": "yahoo", "yahoo": "USDJPY=X", "dec": 3, "unit": "",   "vol": False},
     "ES":     {"name": "S&P 500",     "group": "Futures", "src": "yahoo", "yahoo": "ES=F",     "dec": 2, "unit": "",   "vol": True},
     "NQ":     {"name": "Nasdaq 100",  "group": "Futures", "src": "yahoo", "yahoo": "NQ=F",     "dec": 2, "unit": "",   "vol": True},
-    "CL":     {"name": "Crude Oil WTI", "group": "Futures", "src": "yahoo", "yahoo": "CL=F",   "dec": 2, "unit": "$",  "vol": True},
+    "CL":     {"name": "WTI Crude", "group": "Futures", "src": "yahoo", "yahoo": "CL=F",   "dec": 2, "unit": "$",  "vol": True},
 }
 GROUPS = ["Metals", "Forex", "Futures"]
 
