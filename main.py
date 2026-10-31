@@ -4074,6 +4074,52 @@ _TICK_LOCK = threading.Lock()
 _TICK_STARTED = set()
 
 
+_LIVE_SRC = {"gold": None, "btc": None}
+
+
+def _swiss_gold():
+    """Swissquote public quotes: real bid/ask that actually ticks (no key needed)."""
+    import requests as _req
+    r = _req.get("https://forex-data-feed.swissquote.com/public-quotes/bboquotes/instrument/XAU/USD",
+                 timeout=4, headers={"User-Agent": "ASTRA6/1.0"})
+    if r.status_code != 200:
+        return None
+    row = r.json()[0]["spreadProfilePrices"][0]
+    bid, ask = float(row["bid"]), float(row["ask"])
+    return {"mid": round((bid + ask) / 2, 3), "price": round((bid + ask) / 2, 3),
+            "bid": bid, "ask": ask, "venue": "SWISSQUOTE:XAUUSD",
+            "source": "Swissquote public quotes - REAL live bid/ask",
+            "timestamp": time.time(), "real": True}
+
+
+def _binance_btc():
+    """Binance book ticker: the same venue TradingView reads, streamed directly."""
+    import requests as _req
+    r = _req.get("https://data-api.binance.vision/api/v3/ticker/bookTicker?symbol=BTCUSDT",
+                 timeout=4, headers={"User-Agent": "ASTRA6/1.0"})
+    if r.status_code != 200:
+        return None
+    b = r.json()
+    bid, ask = float(b["bidPrice"]), float(b["askPrice"])
+    return {"mid": round((bid + ask) / 2, 2), "price": round((bid + ask) / 2, 2),
+            "bid": bid, "ask": ask, "venue": "BINANCE:BTCUSDT",
+            "source": "Binance ticker - REAL live bid/ask",
+            "timestamp": time.time(), "real": True}
+
+
+def fetch_live_tick(symbol):
+    """A price that moves. Falls back to the venue chain when the fast feed is down."""
+    sym = "BTCUSD" if str(symbol).upper().startswith("BTC") else "XAUUSD"
+    try:
+        fast = _binance_btc() if sym == "BTCUSD" else _swiss_gold()
+        if fast:
+            _LIVE_SRC[sym == "BTCUSD" and "btc" or "gold"] = fast.get("source")
+            return fast
+    except Exception as e:
+        print("live tick err", sym, e)
+    return fetch_btc_price(None) if sym == "BTCUSD" else fetch_fast_price(None)
+
+
 def _ticker_loop(key):
     """Refresh one symbol/venue pair a few times a second; one thread per key."""
     import io, contextlib
@@ -4083,7 +4129,7 @@ def _ticker_loop(key):
             # the fetch helpers print every price they see; on a free instance that is
             # pure log spam, so the ticker keeps them quiet
             with contextlib.redirect_stdout(io.StringIO()):
-                data = fetch_btc_price(venue) if symbol == "BTCUSD" else fetch_fast_price(venue)
+                data = fetch_live_tick(symbol)
             if data and (data.get("mid") or data.get("price")):
                 with _TICK_LOCK:
                     _TICK_CACHE[key] = {"data": data, "t": time.time()}
@@ -4128,8 +4174,10 @@ def stream_price(symbol: str = "XAUUSD", venue: str = None):
                 hit = _TICK_CACHE.get(key)
             if hit:
                 p = _stream_payload(sym, hit["data"])
-                stamp = (p["price"], p["bid"], p["ask"], p["venue"])
-                if stamp != last:
+                # push on the price that is actually shown. bid/ask jitter between
+                # spread profiles is not news and used to wake the screen for nothing.
+                stamp = round(float(p["price"]), 2) if p["price"] is not None else None
+                if stamp is not None and stamp != last:
                     last = stamp
                     yield f"data: {_json.dumps(p)}\n\n"
             if time.time() - beat > 10:
@@ -4145,6 +4193,12 @@ def stream_price(symbol: str = "XAUUSD", venue: str = None):
 
 @app.get("/api/btc/price")
 def btc_price(venue: str = None, email: str = "free@astra6.com"):
+    try:
+        tick = _binance_btc()         # real-time from the venue itself
+        if tick:
+            return {"status": "ok", **tick, "user": email}
+    except Exception as e:
+        print("btc fast tick failed", e)
     px = fetch_btc_price(venue)
     if not px:
         return {"status": "error", "error": "btc_feed_unavailable", "real": False, "user": email}
@@ -4195,6 +4249,12 @@ def price_venues(email: str = "free@astra6.com"):
 @app.get("/api/xauusd/price")
 def fast_price(venue: str = None, email: str = "free@astra6.com"):
     """Ultra-fast price - no candles, only bid/ask - for smooth 1s updates"""
+    try:
+        tick = _swiss_gold()          # real-time, ~450 ms, ticks several times a second
+        if tick:
+            return {"status": "ok", **tick, "user": email}
+    except Exception as e:
+        print("gold fast tick failed", e)
     price = fetch_fast_price(venue)
     if not price:
         if _price_cache["data"]:
