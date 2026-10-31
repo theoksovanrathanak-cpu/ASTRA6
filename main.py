@@ -4024,8 +4024,17 @@ def fetch_btc_candles(granularity="M15", count=150, venue="BINANCE:BTCUSDT"):
 ZONE_TF = os.getenv("ZONE_TF", "M15")
 
 def _zone_candles(symbol: str, venue: str = None, tf: str = "M15", count: int = 500):
-    if str(symbol).upper().startswith("BTC"):
+    sym_up = str(symbol).upper()
+    if sym_up.startswith("BTC"):
         return fetch_btc_candles(tf, count, venue or os.getenv("BTC_VENUE", "BINANCE:BTCUSDT"))[0]
+    if sym_up not in ("XAUUSD", "XAUS"):
+        try:
+            import markets as MKT
+            rows, _src, _err = MKT.candles(sym_up, tf, count)
+            return rows or []
+        except Exception as e:
+            print("zone candles", sym_up, e)
+            return []
     res = fetch_candles(tf, count, None)
     return res[0] if res else []
 
@@ -4074,6 +4083,81 @@ def get_zones(symbol: str = "XAUUSD", venue: str = None, email: str = "free@astr
 _VOL_CACHE = {}
 
 
+# === the market roster: metals, forex and futures (gold keeps its own path) ===
+@app.get("/api/markets")
+def api_markets():
+    """Every market with a real price. Gold quotes from the same feed the header uses."""
+    try:
+        import markets as MKT
+        b = MKT.board()
+        fp = fetch_fast_price() or {}
+        for it in b["markets"]:
+            if it["id"] == "XAUUSD" and fp.get("mid"):
+                it["price"] = round(float(fp["mid"]), 2)
+                it["source"] = fp.get("source") or it.get("source")
+                it["age_min"] = 0.0
+        return b
+    except Exception as e:
+        return {"status": "error", "error": str(e), "markets": []}
+
+
+@app.get("/api/market/price")
+def api_market_price(symbol: str = "XAGUSD"):
+    """One market, one real price."""
+    try:
+        import markets as MKT
+        mid = str(symbol).upper()
+        if mid == "XAUUSD":
+            fp = fetch_fast_price() or {}
+            if fp.get("mid"):
+                return {"status": "ok", "symbol": mid, "price": round(float(fp["mid"]), 2),
+                        "bid": fp.get("bid"), "ask": fp.get("ask"), "dec": 2, "unit": "$",
+                        "change_pct": fp.get("change_pct"), "source": fp.get("source"),
+                        "real": True}
+        q = MKT.quote(mid)
+        if not q:
+            return {"status": "error", "error": "feed_unavailable", "symbol": mid, "real": True}
+        m = MKT.meta(mid) or {}
+        return {"status": "ok", "symbol": mid, "price": q["price"], "dec": q["dec"],
+                "unit": m.get("unit", ""), "change_pct": q["change_pct"],
+                "age_min": q["age_min"], "source": q["source"], "real": True}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+
+@app.get("/api/market/chart")
+def api_market_chart(symbol: str = "XAGUSD", granularity: str = "M15", count: int = 150):
+    """Real OHLCV for any non-gold market, with the same staleness fields as gold."""
+    try:
+        import markets as MKT
+        mid = str(symbol).upper()
+        count = max(20, min(int(count or 150), 1000))
+        if mid == "XAUUSD":
+            d = history(granularity=granularity, count=count)
+            return d
+        rows, src, err = MKT.candles(mid, granularity, count)
+        if not rows:
+            return {"status": "error", "error": err or "feed_unavailable", "symbol": mid,
+                    "candles": [], "real": True,
+                    "note": "No fabricated candles - the feed is not answering"}
+        stale, age = MKT.is_stale(rows, granularity)
+        m = MKT.meta(mid) or {}
+        return {"status": "ok", "symbol": mid, "granularity": MKT.norm_tf(granularity),
+                "count": len(rows), "candles": rows, "source": src,
+                "dec": m.get("dec", 2), "unit": m.get("unit", ""),
+                "stale": stale, "last_bar_age_min": age, "real": True}
+    except Exception as e:
+        return {"status": "error", "error": str(e), "candles": []}
+
+
+@app.get("/api/market/list")
+def api_market_list():
+    try:
+        import markets as MKT
+        return {"status": "ok", "groups": MKT.GROUPS, "markets": MKT.market_list(), "real": True}
+    except Exception as e:
+        return {"status": "error", "error": str(e), "markets": []}
+
 @app.get("/api/volume")
 def get_volume(symbol: str = "XAUUSD", venue: str = None, rows: int = 48,
                min_pct: float = 10.0, tf: str = "M15", bars: int = 200,
@@ -4093,13 +4177,28 @@ def get_volume(symbol: str = "XAUUSD", venue: str = None, rows: int = 48,
         since = 0
     tf_key = VOL.normalise_tf(tf)
     bars = max(40, min(600, int(bars or 200)))
-    key = f"{str(symbol).upper()}|{venue or ''}|{rows}|{min_pct}|{tf_key}|{bars}|{since}"
+    sym_up = str(symbol).upper()
+    key = f"{sym_up}|{venue or ''}|{rows}|{min_pct}|{tf_key}|{bars}|{since}"
     now = time.time()
     hit = _VOL_CACHE.get(key)
     if hit and now - hit["t"] < 10:
         return hit["d"]
     try:
-        if str(symbol).upper().startswith("BTC"):
+        if sym_up not in ("XAUUSD", "XAUS") and not sym_up.startswith("BTC"):
+            import markets as MKT
+            vrows, vsrc = MKT.volume_rows(sym_up, tf_key, bars)
+            if not vrows:
+                return {"status": "error", "error": vsrc or "no_volume", "symbol": sym_up,
+                        "note": ("This market has no centralised volume - there is no honest "
+                                 "cluster to draw." if vsrc == "no_volume" else "Feed unavailable"),
+                        "real": True}
+            raw = [{"time": int(c["time"]), "open": c["open"], "high": c["high"],
+                    "low": c["low"], "close": c["close"], "volume": float(c["volume"]),
+                    "buy": None, "sell": None} for c in vrows]
+            raw = VOL.split_estimate(raw)      # real total volume, split estimated from candle shape
+            split_note = "estimated split (close-location) from real exchange volume"
+            src = f"{vsrc} {tf_key} · real volume"
+        elif str(symbol).upper().startswith("BTC"):
             interval = VOL.TF_BINANCE.get(tf_key, "15m")
             try:
                 raw = VOL.fetch_btc_klines(interval, bars)
@@ -4152,7 +4251,8 @@ def push_scan_once():
     if not PUSH.configured() or not PUSH.subscribers():
         return 0
     sent = 0
-    for sym, venue in (("XAUUSD", "XAUS"), ("BTCUSD", "BINANCE:BTCUSDT")):
+    # the markets that have a real volume to read a cluster from
+    for sym, venue in (("XAUUSD", "XAUS"), ("XAGUSD", "COMEX"), ("ES", "CME"), ("CL", "NYMEX")):
         try:
             d = get_volume(symbol=sym, venue=venue, tf="M15", bars=150)
             sig = (d or {}).get("signal") or {}

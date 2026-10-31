@@ -50,6 +50,14 @@ function grab(name) {
   throw new Error('unbalanced function ' + name);
 }
 
+// the market registry, copied out of the page so the pure functions can use it
+const MKT = (() => {
+  const m = html.match(/const MKT=\{[\s\S]*?\n\};/);
+  if (!m) throw new Error('market registry missing');
+  return eval('(' + m[0].replace('const MKT=', '').replace(/;$/, '') + ')');
+})();
+globalThis.MKT = MKT;
+
 const store = {};
 const els = {};
 function mkEl(id) {
@@ -115,7 +123,7 @@ eval([
   'journalHtml', 'openJournal', 'openSheet', 'closeSheet', 'calHtml', 'newsHtml',
   'renderCalStrip', 'renderNewsStrip',
   'jnKeyOf', 'jnByDay', 'jnCalHtml', 'jnListHtml', 'jnMonth', 'jnPickDay', 'jnRepaint',
-  'marketOpenNow', 'setNet', 'candlesLate', 'nextOpenLocal', 'paintEventLive',
+  'marketOpenNow', 'setNet', 'candlesLate', 'nextOpenLocal', 'paintEventLive', 'mkMeta',
 ].map(n => grab(n)).join('\n'));
 ['recordZoneAlert', 'renderZoneAlerts', 'zoneAlerts', 'latestTrade',
  'openMenu', 'closeMenu', 'toggleMenu', 'setView', 'endIntro', 'playIntro',
@@ -124,7 +132,7 @@ eval([
  'journalHtml', 'openJournal', 'openSheet', 'closeSheet', 'calHtml', 'newsHtml',
  'renderCalStrip', 'renderNewsStrip',
  'jnKeyOf', 'jnByDay', 'jnCalHtml', 'jnListHtml', 'jnMonth', 'jnPickDay', 'jnRepaint',
- 'marketOpenNow', 'setNet', 'candlesLate', 'nextOpenLocal', 'paintEventLive'].forEach(n => { global[n] = eval(n); });
+ 'marketOpenNow', 'setNet', 'candlesLate', 'nextOpenLocal', 'paintEventLive', 'mkMeta'].forEach(n => { global[n] = eval(n); });
 // the calendar keeps its month/day in module scope in the page; give the harness the same
 global._jnM = new Date(2026, 10, 1);
 global._jnDay = null;
@@ -171,7 +179,8 @@ section('hamburger menu');
   ok('scroll locked', document.body.style.overflow === 'hidden');
   toggleMenu();
   ok('closes', !menu.classList.contains('open') && document.body.style.overflow === '');
-  ok('market switch lives in the drawer', html.indexOf('data-sym="XAUUSD"') > html.indexOf('id="menu"'));
+  ok('the market list is built into the drawer', html.indexOf('id="market-switch"') > html.indexOf('id="menu"')
+     && /function renderMarketSwitch/.test(html));
   ok('timeframes stay off the drawer', html.indexOf('id="tf-buttons"') < 0);
   ok('timeframes sit on the chart itself',
      html.indexOf('id="tf-float"') > html.indexOf('id="chart-section"') &&
@@ -311,7 +320,11 @@ section('nothing opens by itself');
   ok('nothing polls the chart while it is closed', /if\(chart\)fetchChart\(currentTF\)/.test(html));
   ok('hero and chart are hidden on home', /body\[data-view="home"\] #chart-section/.test(css));
   ok('footer is hidden on home', /body\[data-view="home"\] \.foot\{display:none\}/.test(css));
-  ok('home shows both markets', html.includes('id="home-px-XAUUSD"') && html.includes('id="home-px-BTCUSD"'));
+  ok('the welcome shows metals, forex and futures', html.includes('id="home-px-XAUUSD"')
+     && html.includes('id="home-px-EURUSD"') && html.includes('id="home-px-ES"'));
+  ok('bitcoin is gone from the page', !/BTCUSD|BITCOIN|Bitcoin/.test(html.replace(/bitcoin is gone[^<]*/,'')));
+  ok('the welcome subtitle names the three desks', /metals · forex · futures/.test(html));
+  ok('the welcome has no price header', /body\[data-view="home"\] \.hd \.price-block/.test(html));
   ok('home tells you the chart is in the menu', /tap the <b>menu<\/b> → <b>Chart<\/b>/.test(html));
   ok('menu has a Home choice', /data-view="home"/.test(html));
   ok('Home starts active in the menu', /class="tf-btn active" data-view="home"/.test(html));
@@ -570,7 +583,11 @@ section('the drawer stays clean');
 section('the page says when the data stops');
 {
   const at = s => new Date(s).getTime();
-  ok('bitcoin never closes', marketOpenNow('BTCUSD', at('2026-10-31T12:00:00Z')));
+  ok('the metals shut at the weekend', !marketOpenNow('XAGUSD', at('2026-10-31T12:00:00Z')));
+  ok('forex reopens Sunday 22:00', marketOpenNow('EURUSD', at('2026-11-01T22:30:00Z')));
+  ok('futures open later on Sunday than forex', !marketOpenNow('ES', at('2026-11-01T22:30:00Z'))
+     && marketOpenNow('ES', at('2026-11-01T23:30:00Z')));
+  ok('futures trade on a Friday morning', marketOpenNow('NQ', at('2026-10-30T09:00:00Z')));
   ok('gold is shut on Saturday', !marketOpenNow('XAUUSD', at('2026-10-31T12:00:00Z')));
   ok('gold is shut on Sunday morning', !marketOpenNow('XAUUSD', at('2026-11-01T12:00:00Z')));
   ok('gold opens Sunday 22:00 UTC', marketOpenNow('XAUUSD', at('2026-11-01T22:30:00Z')));
@@ -592,7 +609,7 @@ section('the page says when the data stops');
   ok('a paused gold feed is flagged while the market is open', candlesLate(1356, 'M15', 'XAUUSD', new Date('2026-10-30T12:00:00Z').getTime()) === true);
   ok('two fresh bars are not flagged', candlesLate(12, 'M15', 'XAUUSD', new Date('2026-10-30T12:00:00Z').getTime()) === false);
   ok('a closed market is not a fault', candlesLate(1356, 'M15', 'XAUUSD', new Date('2026-10-31T12:00:00Z').getTime()) === false);
-  ok('bitcoin is watched around the clock', candlesLate(50, 'M15', 'BTCUSD', new Date('2026-10-31T12:00:00Z').getTime()) === true);
+  ok('a futures chart is watched during its session', candlesLate(50, 'M15', 'ES', new Date('2026-10-30T12:00:00Z').getTime()) === true);
   ok('the chip pulls the same rule', /candlesLate\(_ca,currentTF,sym\)/.test(grab('netWatch')));
   ok('a closed chart offers the reopening time', /reopens '\+nxt/.test(grab('setCandleAge')));
   ok('the reopening time is a real local date', nextOpenLocal('XAUUSD', new Date('2026-10-31T12:00:00Z').getTime()).length > 5);

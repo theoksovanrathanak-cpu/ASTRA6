@@ -4,9 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ASTRA6</title>
-<meta name="description" content="ASTRA6 — live gold and bitcoin, volume-cluster and daily-VWAP signals. Free, no sign-in.">
+<meta name="description" content="ASTRA6 — live metals, forex and futures with volume-cluster and daily-VWAP signals. Free, no sign-in.">
 <meta property="og:title" content="ASTRA6">
-<meta property="og:description" content="Live gold and bitcoin. Volume clusters, daily VWAP, RENDER zones.">
+<meta property="og:description" content="Live metals, forex and futures. Volume clusters, daily VWAP, RENDER zones.">
 <meta property="og:url" content="https://astra6render.com">
 <meta name="theme-color" content="#0b1220">
 <link rel="icon" href="/logo.png">
@@ -757,6 +757,10 @@ body::after{
 .net-chip[data-state="live"]{box-shadow:0 0 0 3px rgba(15,157,103,.12),0 0 18px -6px rgba(15,157,103,.55)}
 .net-chip[data-state="warn"]{box-shadow:0 0 0 3px rgba(200,134,13,.12),0 0 18px -6px rgba(200,134,13,.6)}
 
+/* the welcome is a welcome: no prices, no ticker, no status while it is on screen */
+body[data-view="home"] .hd .price-block,
+body[data-view="home"] .hd .hd-now{display:none}
+body[data-view="home"] .hd .hd-in{justify-content:space-between}
 /* ---------- surfaces: a lit edge, a soft lift ---------- */
 .card,.foot{
   background-color:var(--surface);background-image:var(--wash);
@@ -851,8 +855,19 @@ body[data-view="home"] .wrap{position:relative;overflow:hidden}
   -webkit-background-clip:text;background-clip:text;
 }
 .home-sub{letter-spacing:.14em}
-.home-tiles{gap:12px;align-items:stretch}
+.home-tiles{gap:10px;align-items:stretch;display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
 .home-tile>.tile-k{align-self:flex-start}
+.home-tile{padding:12px 10px 11px}
+.home-tile .tile-v{font-size:16px;letter-spacing:-.4px}
+.home-tile .tile-k{font-size:8.5px;letter-spacing:.04em;line-height:1.3}
+.home-tile .tile-ico{width:20px;height:20px;flex:0 0 20px;border-radius:7px}
+.home-tile .tile-ico svg{width:13px;height:13px}
+.home-tile .tile-hd{gap:5px}
+.home-tile .tile-tag{font-size:8px;letter-spacing:.04em}
+@media(max-width:380px){
+  .home-tile .tile-v{font-size:14px}
+  .home-tile .tile-k{font-size:8px}
+}
 .home-tile{
   position:relative;overflow:hidden;border-radius:16px;padding:15px 13px 14px;
   background-color:var(--surface);background-image:var(--wash);
@@ -877,7 +892,10 @@ body[data-view="home"] .wrap{position:relative;overflow:hidden}
 }
 .tile-ico svg{width:15px;height:15px;display:block}
 .tile-ico.gold{background:linear-gradient(150deg,#ffe08a,#f2a20c 70%,#c2780a);color:#4a2c00}
-.tile-ico.btc{background:linear-gradient(150deg,#c9bdff,#7c5cff 62%,#4f46e5);color:#ffffff}
+.tile-ico.fx{background:linear-gradient(150deg,#a5f3fc,#22d3ee 62%,#0891b2);color:#083344}
+.tile-ico.fut{background:linear-gradient(150deg,#d9f99d,#84cc16 62%,#4d7c0f);color:#1a2e05}
+[data-theme="dark"] .tile-ico.fx{color:#04222b}
+[data-theme="dark"] .tile-ico.fut{color:#132004}
 [data-theme="dark"] .tile-ico.gold{color:#2a1800}
 .tile-v{font-size:19px;letter-spacing:-.5px}
 .home-tiles .home-tile:first-child .tile-v{
@@ -932,6 +950,24 @@ body[data-view="home"] .wrap{position:relative;overflow:hidden}
   box-shadow:0 12px 26px -14px rgba(124,92,255,.9),inset 0 1px 0 rgba(255,255,255,.24);
 }
 .sym-btn.active .sym-tag{color:rgba(255,255,255,.82)}
+
+/* the market list: three desks, ten instruments, two to a row */
+#market-switch{display:flex;flex-direction:column;gap:11px}
+.mkt-group{display:flex;flex-direction:column;gap:5px}
+.mkt-g{font-size:8.5px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:var(--muted)}
+.mkt-row{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.mkt-row .sym-btn{flex-direction:row;align-items:center;justify-content:space-between;gap:6px;
+  padding:7px 9px;border:1px solid var(--line);border-radius:9px;background:var(--line-soft);
+  color:var(--ink);cursor:pointer;min-width:0;text-align:left}
+.mkt-row .sym-btn .sym-tag{font-size:10px;font-weight:700;color:var(--ink-2);letter-spacing:.01em;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mkt-row .sym-btn .sym-px{font-size:10.5px;font-weight:800;color:var(--ink);flex:0 0 auto}
+.mkt-row .sym-btn:hover{border-color:color-mix(in srgb,var(--a-violet) 34%,var(--line))}
+.mkt-row .sym-btn.active{border-color:transparent}
+.mkt-row .sym-btn.active .sym-tag,
+.mkt-row .sym-btn.active .sym-px{color:#fff}
+.mkt-row .sym-btn.active .sym-px{text-shadow:0 1px 0 rgba(0,0,0,.18)}
+@media(max-width:360px){.mkt-row{grid-template-columns:1fr}}
 
 /* ---------- pills and buttons ---------- */
 .tf-btn.active{
@@ -1014,7 +1050,7 @@ body[data-view="home"] .home>*:nth-child(4){animation-delay:.18s}
     <div class="intro-ring"></div>
     <div class="intro-mark"><span>A6</span><i class="intro-shine"></i></div>
     <div class="intro-title">WELCOME TO <b>ASTRA</b></div>
-    <div class="intro-sub">gold · bitcoin · volume clusters</div>
+    <div class="intro-sub">metals · forex · futures</div>
     <div class="intro-bar"><i></i></div>
     <div class="intro-tap">
       <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
@@ -1031,7 +1067,7 @@ body[data-view="home"] .home>*:nth-child(4){animation-delay:.18s}
       <div class="brand-mark">A6</div>
       <div>
         <div class="brand-name">ASTRA6</div>
-        <div class="brand-sub" id="brand-sub">Gold · volume</div>
+        <div class="brand-sub" id="brand-sub">Gold · Metals</div>
       </div>
     </div>
 
@@ -1116,14 +1152,7 @@ body[data-view="home"] .home>*:nth-child(4){animation-delay:.18s}
 
   <div class="menu-sec">
     <div class="menu-label">Market</div>
-    <div class="sym-switch" role="group" aria-label="Market">
-      <button class="sym-btn active" data-sym="XAUUSD" onclick="setSymbol('XAUUSD');closeMenu()">
-        <span class="sym-tag">GOLD · XAUUSD</span><span class="sym-px mono" id="px-XAUUSD">—</span>
-      </button>
-      <button class="sym-btn" data-sym="BTCUSD" onclick="setSymbol('BTCUSD');closeMenu()">
-        <span class="sym-tag">BITCOIN · BTCUSD</span><span class="sym-px mono" id="px-BTCUSD">—</span>
-      </button>
-    </div>
+    <div id="market-switch" role="group" aria-label="Market"></div>
   </div>
 
   <div class="menu-sec">
@@ -1134,7 +1163,7 @@ body[data-view="home"] .home>*:nth-child(4){animation-delay:.18s}
     <div class="menu-hint" id="strategy-hint">volume clusters · daily VWAP</div>
   </div>
 
-  <div class="menu-sec">
+  <div class="menu-sec" id="venue-sec">
     <div class="menu-label">Price source</div>
     <select id="venue-select" aria-label="Price source" class="menu-select"><option value="OANDA:XAUUSD">OANDA</option></select>
     <div class="menu-hint" id="tv-compare">TradingView: loading…</div>
@@ -1175,17 +1204,24 @@ body[data-view="home"] .home>*:nth-child(4){animation-delay:.18s}
     <div class="home-mark-wrap"><div class="home-mark">A6</div></div>
     <div>
       <div class="home-title">ASTRA6</div>
-      <div class="home-sub">gold · bitcoin · volume clusters</div>
+      <div class="home-sub">metals · forex · futures</div>
     </div>
     <div class="home-tiles">
-      <div class="home-tile">
-        <div class="tile-hd"><span class="tile-ico gold" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><circle cx="12" cy="12" r="8.4"/><circle cx="12" cy="12" r="3.6" fill="currentColor" stroke="none" opacity=".85"/><path d="M8.7 6.4 10 4.7" opacity=".7"/></svg></span><span class="tile-k">GOLD · XAUUSD</span></div>
-        <span class="tile-v mono" id="home-px-XAUUSD">$--.--</span><span class="tile-tag" id="home-tag-XAUUSD"></span>
-      </div>
-      <div class="home-tile">
-        <div class="tile-hd"><span class="tile-ico btc" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5.5h4.6a3.2 3.2 0 0 1 0 6.4H9zM9 11.9h5.2a3.3 3.3 0 0 1 0 6.6H9z"/><path d="M9 5.5v13M11.4 3.4v2.1M14 3.4v2.1M11.4 18.5v2.1M14 18.5v2.1" stroke-width="1.7"/></svg></span><span class="tile-k">BITCOIN · BTCUSD</span></div>
-        <span class="tile-v mono" id="home-px-BTCUSD">$--.--</span><span class="tile-tag" id="home-tag-BTCUSD"></span>
-      </div>
+      <button class="home-tile" type="button" onclick="openMarket('XAUUSD')">
+        <div class="tile-hd"><span class="tile-ico gold" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><circle cx="12" cy="12" r="8.4"/><circle cx="12" cy="12" r="3.6" fill="currentColor" stroke="none" opacity=".85"/><path d="M8.7 6.4 10 4.7" opacity=".7"/></svg></span><span class="tile-k">GOLD</span></div>
+        <span class="tile-v mono" id="home-px-XAUUSD">—</span>
+        <span class="tile-tag" id="home-tag-XAUUSD"></span>
+      </button>
+      <button class="home-tile" type="button" onclick="openMarket('EURUSD')">
+        <div class="tile-hd"><span class="tile-ico fx" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h13l-3.2-3.2M20 16H7l3.2 3.2"/></svg></span><span class="tile-k">EUR / USD</span></div>
+        <span class="tile-v mono" id="home-px-EURUSD">—</span>
+        <span class="tile-tag" id="home-tag-EURUSD"></span>
+      </button>
+      <button class="home-tile" type="button" onclick="openMarket('ES')">
+        <div class="tile-hd"><span class="tile-ico fut" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16.5 9.5 11l3.5 3.5L20 7"/><path d="M15.5 7H20v4.5"/></svg></span><span class="tile-k">S&P 500</span></div>
+        <span class="tile-v mono" id="home-px-ES">—</span>
+        <span class="tile-tag" id="home-tag-ES"></span>
+      </button>
     </div>
     <div class="home-hint">
       <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
@@ -1293,8 +1329,25 @@ body[data-view="home"] .home>*:nth-child(4){animation-delay:.18s}
 let chart=null,candleSeries=null,lastCandles=[],currentTF=localStorage.getItem('astra6_tf')||'M15',lastPrice=0,priceUpdateCount=0,soundOn=localStorage.getItem('astra6_sound')!=='0';
 let THEME=localStorage.getItem('astra6_theme')||'dark';
 let currentVenue=localStorage.getItem('astra6_venue')||'OANDA:XAUUSD';
-let currentVenueBtc=localStorage.getItem('astra6_venue_btc')||'BINANCE:BTCUSDT';
+let _unusedVenue=null;      // gold is the only venue-priced market now
+// The markets ASTRA6 trades. Gold is the flagship and keeps its own feed; the rest
+// come from the market layer. No bitcoin anywhere.
+const MKT={
+  XAUUSD:{name:'Gold',      group:'Metals', dec:2, unit:'$', vol:true,  venue:true},
+  XAGUSD:{name:'Silver',    group:'Metals', dec:3, unit:'$', vol:true},
+  XPTUSD:{name:'Platinum',  group:'Metals', dec:1, unit:'$', vol:true},
+  XPDUSD:{name:'Palladium', group:'Metals', dec:1, unit:'$', vol:true},
+  EURUSD:{name:'EUR/USD',   group:'Forex',  dec:5, unit:'',  vol:false},
+  GBPUSD:{name:'GBP/USD',   group:'Forex',  dec:5, unit:'',  vol:false},
+  USDJPY:{name:'USD/JPY',   group:'Forex',  dec:3, unit:'',  vol:false},
+  ES:    {name:'S&P 500',   group:'Futures',dec:2, unit:'',  vol:true},
+  NQ:    {name:'Nasdaq 100',group:'Futures',dec:2, unit:'',  vol:true},
+  CL:    {name:'WTI Crude', group:'Futures',dec:2, unit:'$', vol:true}
+};
+const MKT_GROUPS=['Metals','Forex','Futures'];
+function mkMeta(sym){return MKT[sym]||MKT.XAUUSD;}
 let currentSymbol=localStorage.getItem('astra6_symbol')||'XAUUSD';
+if(!MKT[currentSymbol]){currentSymbol='XAUUSD';localStorage.setItem('astra6_symbol','XAUUSD');}
 function getToken(){return localStorage.getItem('astra6_token')||sessionStorage.getItem('astra6_token')||window.token||'';}
 function setToken(t){if(t){localStorage.setItem('astra6_token',t);sessionStorage.setItem('astra6_token',t);window.token=t;}else{localStorage.removeItem('astra6_token');sessionStorage.removeItem('astra6_token');window.token='';}}
 function authHeaders(){const t=getToken();return t?{'Authorization':'Bearer '+t}:{};}
@@ -1677,7 +1730,7 @@ function journalHtml(){
    +'<div><b class="mono">'+open+'</b><span>open</span></div></div>';
   h+='<div id="jn-cal">'+jnCalHtml()+'</div>';
   h+='<div class="sheet-sec">Log a trade</div><div class="jn-form">'
-   +'<label class="jn-f"><span>Market</span><select id="jn-sym"><option value="XAUUSD">GOLD · XAUUSD</option><option value="BTCUSD">BITCOIN · BTCUSD</option></select></label>'
+   +'<label class="jn-f"><span>Market</span><select id="jn-sym"><option value="XAUUSD">GOLD · XAUUSD</option><option value="XAGUSD">SILVER · XAGUSD</option><option value="EURUSD">EUR/USD</option><option value="GBPUSD">GBP/USD</option><option value="USDJPY">USD/JPY</option><option value="ES">S&amp;P 500</option><option value="NQ">NASDAQ 100</option><option value="CL">CRUDE OIL</option></select></label>'
    +'<label class="jn-f"><span>Side</span><select id="jn-side"><option value="BUY">BUY</option><option value="SELL">SELL</option></select></label>'
    +'<label class="jn-f"><span>Entry</span><input id="jn-entry" inputmode="decimal" placeholder="0.00"></label>'
    +'<label class="jn-f"><span>Stop</span><input id="jn-stop" inputmode="decimal" placeholder="0.00"></label>'
@@ -1768,6 +1821,60 @@ function toggleMenu(){
   if(intro && !intro.classList.contains('gone')) endIntro();
   m.classList.contains('open')?closeMenu():openMenu();
 }
+function renderMarketSwitch(){
+  const box=document.getElementById('market-switch');
+  if(!box) return;
+  let html='';
+  MKT_GROUPS.forEach(g=>{
+    const ids=Object.keys(MKT).filter(k=>MKT[k].group===g);
+    html+='<div class="mkt-group"><span class="mkt-g">'+g+'</span><div class="mkt-row">'
+        + ids.map(id=>{
+            const m=MKT[id];
+            const on=(id===currentSymbol)?' active':'';
+            return `<button class="sym-btn${on}" data-sym="${id}" onclick="setSymbol('${id}');closeMenu()">
+              <span class="sym-tag">${m.name}</span><span class="sym-px mono" id="px-${id}">—</span></button>`;
+          }).join('')
+        + '</div></div>';
+  });
+  box.innerHTML=html;
+}
+// every market's real price, straight from the server's board
+async function fetchBoard(){
+  try{
+    const r=await fetch('/api/markets',{cache:'no-store'});
+    const d=await r.json();
+    if(d.status!=='ok'||!d.markets) return;
+    d.markets.forEach(it=>{
+      const el=document.getElementById('px-'+it.id);
+      if(el&&it.price!=null){
+        const f=(it.unit==='$'?'$':'')+Number(it.price).toLocaleString('en-US',
+                 {minimumFractionDigits:it.dec,maximumFractionDigits:it.dec});
+        el.textContent=f;
+      }
+      const tile=document.getElementById('home-px-'+it.id);
+      if(tile&&it.price!=null){
+        const f=(it.unit==='$'?'$':'')+Number(it.price).toLocaleString('en-US',
+                 {minimumFractionDigits:it.dec,maximumFractionDigits:it.dec});
+        tile.textContent=f;
+        const tag=document.getElementById('home-tag-'+it.id);
+        if(tag){
+          const open=marketOpenNow(it.id);
+          if(!open){ tag.textContent='closed'; tag.style.color='var(--muted)'; }
+          else{
+            const chg=(it.change_pct==null)?'live':`${it.change_pct>=0?'+':''}${it.change_pct.toFixed(2)}%`;
+            tag.textContent=chg;
+            tag.style.color=it.change_pct>0?'var(--up)':(it.change_pct<0?'var(--down)':'var(--muted)');
+          }
+        }
+      }
+    });
+  }catch(e){console.log('board err',e);}
+}
+function openMarket(sym){
+  setSymbol(sym);
+  setView('chart');
+  if(typeof closeMenu==='function') closeMenu();
+}
 function openMenu(){
   if(typeof loadCalendar==='function'){ loadCalendar(); loadNews(); }
   if(typeof tgLoad==='function') tgLoad();
@@ -1853,19 +1960,13 @@ function setTimeframe(tf){currentTF=tf;if(typeof closeMenu==='function')closeMen
 
 function updateSymTabs(){
   document.querySelectorAll('.sym-btn').forEach(b=>b.classList.toggle('active',b.dataset.sym===currentSymbol));
-  const _bsel=document.getElementById('brand-sub'); const _btc=currentSymbol==='BTCUSD';
-  if(_bsel)_bsel.textContent=_btc?'Bitcoin':'Gold';
+  const _bsel=document.getElementById('brand-sub');
+  if(_bsel) _bsel.textContent=mkMeta(currentSymbol).name+' · '+mkMeta(currentSymbol).group;
   const chartTitle=document.querySelector('.card-title');
   if(chartTitle&&/Price chart/i.test(chartTitle.textContent))chartTitle.textContent='Price chart · '+currentSymbol;
 }
 function setTabPrice(sym,price){if(!price)return;['px-','home-px-'].forEach(pre=>{const el=document.getElementById(''+pre+sym);if(el)el.textContent=fmtPx(price);});}
-async function fetchOtherPrice(){
-  const other=currentSymbol==='BTCUSD'?'XAUUSD':'BTCUSD';
-  try{
-    if(other==='BTCUSD'){const r=await fetch('/api/btc/price');const d=await r.json();if(d.status==='ok')setTabPrice('BTCUSD',d.mid);}
-    else{const r=await fetch('/api/xauusd/fast-price?venue=OANDA:XAUUSD');const d=await r.json();if(d.status==='ok')setTabPrice('XAUUSD',d.price);}
-  }catch(e){}
-}
+async function fetchOtherPrice(){ await fetchBoard(); }
 
 function isDark(){return THEME==='dark';}
 function chartPalette(){
@@ -1925,9 +2026,22 @@ function updateLegend(bar,time){
               `<span style="color:${isDark()?'#787b86':'#6b7280'}">C</span> <b class="${cls}">${fmtPx(b.close)}</b>`;
   o.querySelectorAll('b').forEach(e=>e.style.color=up?d.up:d.dn);
 }
-function symConf(){return currentSymbol==='BTCUSD'?{price:'/api/btc/price',chart:'/api/btc/chart',venues:'/api/btc/venues',gc:'COINBASE:BTCUSD',dec:2,unit:'BTC'}:{price:'/api/xauusd/fast-price',chart:'/api/xauusd/history',venues:'/api/xauusd/venues',gc:currentVenue,dec:2,unit:'XAU'};}
-function fmtPx(v){const d=symConf().dec;return '$'+(Number(v)||0).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});}
-async function fetchChart(tf){tf=tf||currentTF;tf=tf.replace('D1','D').replace('W1','W');const count=(tf==='D'||tf==='W')?200:150;const cfg=symConf();const _sym=currentSymbol,_ven=currentVenue,_tf=tf;try{const url=currentSymbol==='BTCUSD'?`${cfg.chart}?granularity=${tf}&count=${count}&venue=${encodeURIComponent(currentVenue)}`:`${cfg.chart}?granularity=${tf}&count=${count}&venue=${encodeURIComponent(currentVenue)}`;const r=await fetch(url);const d=await r.json();
+function symConf(){
+  const m=mkMeta(currentSymbol);
+  if(currentSymbol==='XAUUSD')
+    return {price:'/api/xauusd/fast-price',chart:'/api/xauusd/history',venues:'/api/xauusd/venues',
+            gc:currentVenue,dec:m.dec,unit:m.unit,gold:true,vol:true};
+  return {price:'/api/market/price?symbol='+encodeURIComponent(currentSymbol),
+          chart:'/api/market/chart?symbol='+encodeURIComponent(currentSymbol),
+          venues:null,gc:currentSymbol,dec:m.dec,unit:m.unit,gold:false,vol:m.vol};
+}
+function fmtPx(v,digits){
+  const m=mkMeta(currentSymbol), d=(digits==null?m.dec:digits);
+  const n=Number(v)||0;
+  return (m.unit==='$'?'$':'')+n.toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
+}
+async function fetchChart(tf){tf=tf||currentTF;tf=tf.replace('D1','D').replace('W1','W');const count=(tf==='D'||tf==='W')?200:150;const cfg=symConf();const _sym=currentSymbol,_ven=currentVenue,_tf=tf;try{const _sep=cfg.chart.indexOf('?')>=0?'&':'?';
+const url=cfg.chart+_sep+`granularity=${tf}&count=${count}`+(cfg.venues?`&venue=${encodeURIComponent(currentVenue)}`:'');const r=await fetch(url);const d=await r.json();
     // a slow gold reply must never paint over a BTC chart
     if(_sym!==currentSymbol||_ven!==currentVenue||_tf!==currentTF)return;
     const srcEl=document.getElementById('chart-source');if(d.status==='ok'&&d.candles&&d.candles.length&&candleSeries){const data=d.candles.map(c=>{let t=typeof c.time==='number'?Math.floor(c.time):Math.floor(new Date(c.time).getTime()/1000);if(t>1e12)t=Math.floor(t/1000);return {time:t,open:c.open,high:c.high,low:c.low,close:c.close};}).filter(c=>c.time>0).sort((a,b)=>a.time-b.time);const seen=new Set();const clean=data.filter(c=>{if(seen.has(c.time))return false;seen.add(c.time);return true;});
@@ -1941,7 +2055,7 @@ try{candleSeries.setData(clean);lastCandles=clean;
 // fallback both come through here, so behaviour can never drift between them.
 function applyTick(d){
   if(!d||d.status==='error') return false;
-  const newPrice = currentSymbol==='BTCUSD' ? (d.mid!=null?d.mid:d.price) : (d.price!=null?d.price:d.mid);
+  const newPrice = (d.price!=null?d.price:d.mid);
   if(newPrice==null||!isFinite(newPrice)) return false;
   const priceEl=document.getElementById('price');
   if(priceEl){
@@ -1959,14 +2073,11 @@ function applyTick(d){
   if(sigPrice&&sigPrice.textContent==='$--')sigPrice.textContent=fmtPx(newPrice);
   lastPrice=newPrice; priceUpdateCount++; _lastTickAt=Date.now(); _netFails=0;
 
-  const bid=currentSymbol==='BTCUSD'?null:(d.live_price?d.live_price.bid:d.bid);
-  const ask=currentSymbol==='BTCUSD'?null:(d.live_price?d.live_price.ask:d.ask);
-  if(currentSymbol==='BTCUSD'){
+  const bid=(d.live_price?d.live_price.bid:d.bid);
+  const ask=(d.live_price?d.live_price.ask:d.ask);
+  if(!bid&&!ask&&d.change_pct!=null){
     const ba0=document.getElementById('bidask');
-    if(ba0){
-      const chg0=d.change_pct!=null?`${d.change_pct>=0?'+':''}${Number(d.change_pct).toFixed(2)}%`:'—';
-      ba0.textContent=`${(d.venue||'BINANCE:BTCUSDT').replace(':',' · ')} · ${chg0} (24h)`;
-    }
+    if(ba0) ba0.textContent=`${d.change_pct>=0?'+':''}${Number(d.change_pct).toFixed(2)}% today · ${mkMeta(currentSymbol).group.toLowerCase()}`;
   }
   if(bid&&ask){
     const ba=document.getElementById('bidask');
@@ -1999,12 +2110,15 @@ function stopPriceStream(){
 // quiet the page says so and heals itself by polling, then by rebuilding the stream.
 let _lastTickAt=0, _netFails=0, _lastKick=0, _netState='';
 function marketOpenNow(sym, when){
-  if(sym==='BTCUSD') return true;                 // crypto never closes
+  // futures reopen an hour later on Sunday and after the daily settlement break
+  const fut = mkMeta(sym).group==='Futures';
+  const openSun = fut ? 23*60 : 22*60;
   const d=when?new Date(when):new Date(), day=d.getUTCDay(), m=d.getUTCHours()*60+d.getUTCMinutes();
   if(day===6) return false;                       // Saturday
-  if(day===0) return m>=22*60;                    // Sunday opens 22:00 UTC
-  if(day===5) return m<21*60;                     // Friday closes 21:00 UTC
-  return !(m>=21*60 && m<22*60);                  // daily break
+  if(day===0) return m>=openSun;                  // Sunday open
+  if(day===5) return m<21*60;                     // Friday close 21:00 UTC
+  if(fut) return !(m>=21*60 && m<22*60);          // futures: one short break
+  return !(m>=21*60 && m<22*60);                  // metals + forex: daily break
 }
 function setNet(state,text,title){
   const chip=document.getElementById('net-chip'), t=document.getElementById('net-text');
@@ -2071,10 +2185,10 @@ enableTilt();
 function netWatch(){
   const sym=currentSymbol, open=marketOpenNow(sym);
   const age=_lastTickAt?Math.round((Date.now()-_lastTickAt)/1000):null;
-  ['XAUUSD','BTCUSD'].forEach(sy=>{
+  ['XAUUSD','EURUSD','ES'].forEach(sy=>{
     const tag=document.getElementById('home-tag-'+sy);
     if(!tag) return;
-    const txt=marketOpenNow(sy)?'':'closed · last quote';
+    const txt=marketOpenNow(sy)?'':'closed';
     if(tag.textContent!==txt) tag.textContent=txt;
   });
   setCandleAge({last_bar_age_min:window._candleAgeMin});
@@ -2095,6 +2209,11 @@ function netWatch(){
 setInterval(netWatch,2000);
 
 function startPriceStream(){
+  // only gold has the sub-second SSE feed; every other market polls its real quote
+  if(currentSymbol!=='XAUUSD'){
+    try{ if(priceStream){priceStream.close();} }catch(e){}
+    priceStream=null; streamOk=false; return;
+  }
   const key=currentSymbol+'|'+currentVenue;
   if(key===streamKey&&priceStream&&priceStream.readyState===0) return;
   stopPriceStream();
@@ -2108,7 +2227,7 @@ function startPriceStream(){
       streamOk=true;
       let d=null; try{d=JSON.parse(ev.data);}catch(e){return;}
       if(!d) return;
-      if((d.symbol==='BTCUSD'?'BTCUSD':'XAUUSD')!==currentSymbol) return;   // belongs to the other tab
+      if((d.symbol||'XAUUSD')!==currentSymbol) return;   // belongs to another market
       applyTick(d);
     };
     es.onerror=()=>{
@@ -2123,66 +2242,53 @@ async function fetchFastPrice(){
   if(streamOk && _lastTickAt && Date.now()-_lastTickAt < 5000) return;
   const cfg=symConf(); const _sym=currentSymbol,_ven=currentVenue;
   try{
-    const r=await fetch(cfg.price+'?venue='+encodeURIComponent(_ven)).catch(()=>null);
+    const r=await fetch(cfg.price+(cfg.venues?'?venue='+encodeURIComponent(_ven):'')).catch(()=>null);
     if(!r){ _netFails++; return; }        // a dead network counts too, not just a bad reply
     const d=await r.json();
     if(_sym!==currentSymbol||_ven!==currentVenue)return;   // stale reply from the previous symbol/venue
     if(applyTick(d) && priceUpdateCount%15===0){
-      if(currentSymbol==='BTCUSD')fetchBtcCompare();else fetchTVCompare();
+      fetchTVCompare();
     }
   }catch(e){ _netFails++; console.log('fast price err',e); }
 }
 
-async function loadVenues(){try{const cfg=symConf();const r=await fetch(cfg.venues);const d=await r.json();const sel=document.getElementById('venue-select');if(!sel||d.status!=='ok')return;let opts;if(currentSymbol==='BTCUSD'){opts=(d.venues||[]).filter(v=>v.price).map(v=>`<option value="${v.id}">${v.id.replace(':BTCUSD','').replace(':BTCUSDT','')}</option>`).join('');}else{opts=(d.venues||[]).filter(v=>v.price).map(v=>`<option value="${v.id}">${v.id==='XAUS'?'xaus.com spot':'TradingView · '+v.label}</option>`).join('');}if(opts){sel.innerHTML=opts;const def=currentSymbol==='BTCUSD'?'BINANCE:BTCUSDT':(d.primary||'OANDA:XAUUSD');const has=[...sel.options].some(o=>o.value===currentVenue);sel.value=has?currentVenue:def;currentVenue=sel.value;}}catch(e){console.log('venues err',e);}}
-function setVenue(v){currentVenue=v;window._volume=null;startPriceStream();if(window._strategy==='volume')setTimeout(fetchVolume,300);if(currentSymbol==='BTCUSD'){currentVenueBtc=v;localStorage.setItem('astra6_venue_btc',v);}else{localStorage.setItem('astra6_venue',v);}lastPrice=0;lastCandles=[];fetchFastPrice();fetchChart(currentTF);if(currentSymbol==='BTCUSD')fetchBtcCompare();else fetchTVCompare();}
-function setSymbol(sym){if(sym===currentSymbol)return;currentSymbol=sym;window._volume=null;startPriceStream();if(window._strategy==='volume')setTimeout(fetchVolume,300);localStorage.setItem('astra6_symbol',sym);const isBtc=sym==='BTCUSD';
-  currentVenue=isBtc?currentVenueBtc:(localStorage.getItem('astra6_venue_gold')||'OANDA:XAUUSD');
-  if(!isBtc)localStorage.setItem('astra6_venue_gold',currentVenue);
+async function loadVenues(){
+  const sel=document.getElementById('venue-select');
+  const cfg=symConf();
+  if(!sel) return;
+  // only gold is quoted per venue; the other markets have a single real source
+  const sec=document.getElementById('venue-sec');
+  if(!cfg.venues){ if(sec) sec.style.display='none'; return; }
+  if(sec) sec.style.display='';
+  try{
+    const r=await fetch(cfg.venues);const d=await r.json();
+    if(!sel||d.status!=='ok')return;
+    const opts=(d.venues||[]).filter(v=>v.price).map(v=>`<option value="${v.id}">${v.id==='XAUS'?'xaus.com spot':'TradingView · '+v.label}</option>`).join('');
+    if(opts){sel.innerHTML=opts;const def=(d.primary||'OANDA:XAUUSD');const has=[...sel.options].some(o=>o.value===currentVenue);sel.value=has?currentVenue:def;currentVenue=sel.value;}
+  }catch(e){console.log('venues err',e);}
+}
+function setVenue(v){currentVenue=v;window._volume=null;startPriceStream();if(window._strategy==='volume')setTimeout(fetchVolume,300);localStorage.setItem('astra6_venue',v);localStorage.setItem('astra6_venue_gold',v);lastPrice=0;lastCandles=[];fetchFastPrice();fetchChart(currentTF);fetchTVCompare();}
+function setSymbol(sym){
+  if(!MKT[sym]) sym='XAUUSD';
+  if(sym===currentSymbol) return;
+  currentSymbol=sym;window._volume=null;startPriceStream();if(window._strategy==='volume')setTimeout(fetchVolume,300);localStorage.setItem('astra6_symbol',sym);
+  const m=mkMeta(sym);
+  if(sym==='XAUUSD') currentVenue=(localStorage.getItem('astra6_venue_gold')||'OANDA:XAUUSD');
   document.querySelectorAll('.sym-btn').forEach(b=>b.classList.toggle('active',b.dataset.sym===sym));
-  const _bs=document.getElementById('brand-sub'); if(_bs)_bs.textContent=isBtc?'Bitcoin':'Gold';
-  const _hs=document.getElementById('hd-sym'); if(_hs)_hs.textContent=isBtc?'BTCUSD':'XAUUSD';
+  const _bs=document.getElementById('brand-sub'); if(_bs)_bs.textContent=m.name+' · '+m.group;
+  const _hs=document.getElementById('hd-sym'); if(_hs)_hs.textContent=sym;
   updateSymTabs();fetchOtherPrice();window._zones=null;drawZones();renderZoneAlerts();renderZoneStats(null);fetchZones();lastPrice=0;lastCandles=[];priceUpdateCount=0;
   document.getElementById('price').textContent='$--.--';
   document.getElementById('bidask').textContent='BID -- / ASK --';
   loadVenues().then(()=>{fetchFastPrice();fetchChart(currentTF);});
-  if(isBtc)fetchBtcCompare();else fetchTVCompare();
+  if(sym==='XAUUSD') fetchTVCompare();
   renderZoneStats(null);
 }
 
 function ema(arr,n){const k=2/(n+1);let e=arr[0];for(let i=1;i<arr.length;i++)e=arr[i]*k+e*(1-k);return e;}
 function rsi(arr,n){n=n||14;if(arr.length<n+1)return 50;let g=0,l=0;for(let i=1;i<=n;i++){const d=arr[i]-arr[i-1];if(d>=0)g+=d;else l-=d;}g/=n;l/=n;for(let i=n+1;i<arr.length;i++){const d=arr[i]-arr[i-1];g=(g*(n-1)+(d>0?d:0))/n;l=(l*(n-1)+(d<0?-d:0))/n;}if(l===0)return 100;const rs=g/l;return 100-100/(1+rs);}
-function renderBtcSignal(candles){
-  try{
-    const closes=candles.map(c=>c.close);if(closes.length<30)return;
-    const px=lastPrice||closes[closes.length-1], e20=ema(closes.slice(-60),20), e50=ema(closes,50), r=rsi(closes,14);
-    const macd=ema(closes.slice(-60),12)-ema(closes.slice(-60),26);
-    let votes=0;
-    if(px>e20)votes++;else votes--;
-    if(e20>e50)votes++;else votes--;
-    if(r>52)votes++;else if(r<48)votes--;
-    if(macd>0)votes++;else votes--;
-    const type=votes>=2?'BUY':votes<=-2?'SELL':'HOLD';
-    const conf=Math.min(92,50+Math.abs(votes)*10);
-    const s={type:type,price:px,confidence:conf,winrate_est:Math.round(conf*0.86),timestamp:Date.now()/1000,
-      time_str:new Date().toLocaleString(),strategy:'BTCUSD · real candle technicals',
-      sl:type==='BUY'?px*(1-0.004):type==='SELL'?px*(1+0.004):null,
-      tp1:type==='BUY'?px*(1+0.006):type==='SELL'?px*(1-0.006):null,
-      tp2:type==='BUY'?px*(1+0.012):type==='SELL'?px*(1-0.012):null,
-      reasons:[`EMA20 ${e20.toFixed(0)} vs EMA50 ${e50.toFixed(0)} · RSI ${r.toFixed(1)} · MACD ${macd.toFixed(1)} — computed from live BTCUSD candles`],preview:true};
-    const keep=window._lastSignal&&window._lastSignal.type;
-    if(document.getElementById('current-signal-card').dataset.sym==='BTCUSD'||true){renderCurrent(s);}
-    document.getElementById('current-signal-card').dataset.sym='BTCUSD';
-    const ai=document.getElementById('sig-ai');
-    if(ai)ai.innerHTML=`<b>BTCUSD · real-candle technicals</b><br>EMA20 ${e20.toFixed(0)} · EMA50 ${e50.toFixed(0)}<br>RSI14 ${r.toFixed(1)} · MACD ${macd.toFixed(1)}<br><span style="font-size:10px;color:var(--muted)">Computed from live COINBASE:BTCUSD candles — no estimates, no fake data</span>`;
-    const sw=document.getElementById('sig-winrate');if(sw)sw.textContent='--';
-    const up=closes.filter((c,i)=>i>0&&c>closes[i-1]).length, dn=closes.filter((c,i)=>i>0&&c<closes[i-1]).length;
-
-  }catch(e){console.log('btc signal err',e);}
-}
-async function fetchBtcCompare(){try{const r=await fetch('/api/btc/venues').catch(()=>null);if(!r)return;const d=await r.json();const el=document.getElementById('tv-compare');if(!el||d.status!=='ok'||!d.venues.length)return;
-const a=d.venues.find(v=>v.id==='BINANCE:BTCUSDT')||d.venues[0],b=d.venues.find(v=>v.id==='COINBASE:BTCUSD');
-const dl=b?b.price-a.price:null;
-el.innerHTML=b?`<b>BINANCE</b> ${fmtPx(a.price)} · COINBASE Δ <b style="color:${Math.abs(dl)<150?'#10b981':'#ef4444'}">${dl>0?'+':''}${Number(dl).toFixed(0)}</b> <span style="color:#9ca3af">(venue difference, both real)</span>`:`<b>${a.id}</b> · REAL crypto feed`;}catch(e){console.log('btc compare err',e);}}
+// (the bitcoin technicals panel and its venue compare were removed with the
+//  bitcoin market itself - gold, silver, forex and futures only)
 async function fetchTVCompare(){try{const r=await fetch('/api/xauusd/tradingview').catch(()=>null);if(!r)return;const d=await r.json();const el=document.getElementById('tv-compare');if(!el||d.status!=='ok')return;
 const o=d.venues.find(v=>v.venue==='OANDA:XAUUSD')||d.venues[0];if(!o)return;
 const v=d.our_venue||(o.venue.split(':')[0]);const xd=d.xaus_delta;
@@ -2190,8 +2296,8 @@ el.innerHTML=xd===null||xd===undefined?`<b>${v}</b> · REAL live bid/ask`:`<b>${
 }catch(e){console.log('tv compare err',e);}}
 
 async function fetchLive(){try{const r=await fetch('/api/xauusd/live').catch(()=>null);if(!r)return;const d=await r.json();if(d.status==='ok'&&priceUpdateCount===0){document.getElementById('price').textContent='$'+d.price.toFixed(2);lastPrice=d.price;}}catch(e){console.log('fetchLive err',e);}}
-async function fetchDashboard(){if(true){return;}if(currentSymbol==='BTCUSD'){document.getElementById('refresh-btn').textContent='Refresh';fetchBtcCompare();fetchFastPrice();fetchChart(currentTF);return;}const btn=document.getElementById('refresh-btn');if(btn)btn.textContent='…';try{const [curR,alertsR,winrateR]=await Promise.all([fetch('/api/signals/current'),fetch('/api/signals/alerts?limit=15'),fetch('/api/signals/winrate').catch(()=>null)]);const cur=await curR.json();console.log('cur',cur);const alerts=await alertsR.json();if(cur.status==='ok'&&cur.signal)renderCurrent(cur.signal);else renderCurrent({type:'HOLD',price:lastPrice||0,confidence:56,winrate_est:50,timestamp:Date.now()/1000,preview:true,reasons:['No signal - REAL live price']});if(alerts.status==='ok')renderAlerts(alerts.alerts);if(winrateR&&winrateR.ok){const wr=await winrateR.json();if(wr.status==='ok'){document.getElementById('real-winrate').textContent=(wr.winrate||0)+'%';document.getElementById('real-stats').textContent=`${wr.wins||0}W / ${wr.losses||0}L • ${wr.total_evaluated||0} closed`;}}}catch(e){console.log('dashboard err',e);}if(btn)btn.textContent='Refresh';}
-function updateTimeSmooth(){const lt=document.getElementById('live-time');if(lt){const now=new Date();lt.textContent=now.toLocaleTimeString('en-US',{hour12:false})+' • '+now.toLocaleDateString();}const ms=document.getElementById('market-status');if(ms){const now=new Date();const day=now.getUTCDay();const utcHour=now.getUTCHours();const isWeekend=(day===6&&utcHour>=22)||(day===0&&utcHour<22)||day===0;const closed=currentSymbol==='BTCUSD'?false:isWeekend;ms.textContent=closed?'CLOSED':'LIVE';ms.style.color=closed?'var(--red)':'var(--green)';const dt=document.getElementById('market-dot');if(dt)dt.className='dot'+(closed?' closed':'');}}
+async function fetchDashboard(){if(true){return;}if(currentSymbol==='XAGUSD'){document.getElementById('refresh-btn').textContent='Refresh';fetchFastPrice();fetchChart(currentTF);return;}const btn=document.getElementById('refresh-btn');if(btn)btn.textContent='…';try{const [curR,alertsR,winrateR]=await Promise.all([fetch('/api/signals/current'),fetch('/api/signals/alerts?limit=15'),fetch('/api/signals/winrate').catch(()=>null)]);const cur=await curR.json();console.log('cur',cur);const alerts=await alertsR.json();if(cur.status==='ok'&&cur.signal)renderCurrent(cur.signal);else renderCurrent({type:'HOLD',price:lastPrice||0,confidence:56,winrate_est:50,timestamp:Date.now()/1000,preview:true,reasons:['No signal - REAL live price']});if(alerts.status==='ok')renderAlerts(alerts.alerts);if(winrateR&&winrateR.ok){const wr=await winrateR.json();if(wr.status==='ok'){document.getElementById('real-winrate').textContent=(wr.winrate||0)+'%';document.getElementById('real-stats').textContent=`${wr.wins||0}W / ${wr.losses||0}L • ${wr.total_evaluated||0} closed`;}}}catch(e){console.log('dashboard err',e);}if(btn)btn.textContent='Refresh';}
+function updateTimeSmooth(){const lt=document.getElementById('live-time');if(lt){const now=new Date();lt.textContent=now.toLocaleTimeString('en-US',{hour12:false})+' • '+now.toLocaleDateString();}const ms=document.getElementById('market-status');if(ms){const now=new Date();const day=now.getUTCDay();const utcHour=now.getUTCHours();const isWeekend=(day===6&&utcHour>=22)||(day===0&&utcHour<22)||day===0;const closed=isWeekend;ms.textContent=closed?'CLOSED':'LIVE';ms.style.color=closed?'var(--red)':'var(--green)';const dt=document.getElementById('market-dot');if(dt)dt.className='dot'+(closed?' closed':'');}}
 function toggleSound(){soundOn=!soundOn;localStorage.setItem('astra6_sound',soundOn?'1':'0');const b=document.getElementById('sound-btn');if(b){b.style.opacity=soundOn?'1':'.4';b.title=soundOn?'Alert sound on':'Alert sound off';}}
 function beep(){if(!soundOn)return;try{const A=window.AudioContext||window.webkitAudioContext;if(!A)return;const c=new A();const o=c.createOscillator(),g=c.createGain();o.type='sine';o.frequency.value=880;g.gain.setValueAtTime(.06,c.currentTime);g.gain.exponentialRampToValueAtTime(.0005,c.currentTime+.22);o.connect(g);g.connect(c.destination);o.start();o.stop(c.currentTime+.24);setTimeout(()=>{try{c.close();}catch(e){}},400);}catch(e){}}
 function layerRow(k,v,extra){return `<div style="display:flex;justify-content:space-between;gap:12px;padding:5px 0;border-bottom:1px solid var(--line-soft)"><span style="color:var(--muted)">${k}</span><span style="text-align:right"><b>${v}</b>${extra?` <span style="color:var(--muted)">${extra}</span>`:''}</span></div>`;}
@@ -2692,11 +2798,12 @@ function initClicks(){
 }
 applyTheme();document.getElementById('sound-btn')&&(document.getElementById('sound-btn').style.opacity=soundOn?'1':'.4');
 initClicks();document.addEventListener('DOMContentLoaded',initClicks);setTimeout(initClicks,500);
-setTimeout(()=>{if(currentSymbol==='BTCUSD'){const b=document.querySelector('.sym-btn[data-sym="BTCUSD"]');if(b)b.classList.add('active');const g=document.querySelector('.sym-btn[data-sym="XAUUSD"]');if(g)g.classList.remove('active');document.querySelector('.brand-sub').textContent='Bitcoin · 15m / 5m';}else{fetchDashboard();}fetchLive();fetchFastPrice();},800);
+setTimeout(()=>{renderMarketSwitch();fetchBoard();fetchDashboard();fetchLive();fetchFastPrice();},800);
 setInterval(updateTimeSmooth,500);updateTimeSmooth();
-setView('home');fitScreen();jnStats();loadCalendar();loadNews();netWatch();tgLoad();setTimeout(fitScreen,300);setTimeout(fitScreen,1200);startPriceStream();setInterval(fetchFastPrice,1500);setInterval(fetchOtherPrice,12000);setInterval(fetchZones,30000);setInterval(()=>{if(window._strategy==='volume')fetchVolume();},20000);setInterval(fetchLive,10000);setInterval(()=>{if(currentSymbol!=='BTCUSD')fetchDashboard();},15000);
+setView('home');fitScreen();jnStats();loadCalendar();loadNews();netWatch();tgLoad();setTimeout(fitScreen,300);setTimeout(fitScreen,1200);startPriceStream();setInterval(fetchFastPrice,1500);setInterval(fetchOtherPrice,12000);
+setInterval(()=>{renderMarketSwitch();},60000);setInterval(fetchZones,30000);setInterval(()=>{if(window._strategy==='volume')fetchVolume();},20000);setInterval(fetchLive,10000);setInterval(()=>{fetchDashboard();},15000);
 document.getElementById('venue-select')?.addEventListener('change',e=>setVenue(e.target.value));
-loadVenues().then(()=>{if(currentSymbol==='BTCUSD')fetchBtcCompare();else fetchTVCompare();});updateSymTabs();fetchOtherPrice();renderZoneAlerts();fetchZones();
+loadVenues().then(()=>{if(currentSymbol==='XAUUSD')fetchTVCompare();});updateSymTabs();fetchOtherPrice();renderZoneAlerts();renderMarketSwitch();fetchZones();
 setInterval(()=>{fetch('/health').catch(()=>{});},240000);
 setInterval(paintEventLive,20000);setInterval(()=>{if(document.getElementById('menu').classList.contains('open'))tgLoad();},60000);
 setInterval(()=>{if(chart)fetchChart(currentTF);},30000);
