@@ -339,19 +339,23 @@ def signal(candles, vwap, rows, poc, atr, min_pct=10.0, vwap_series_in=None):
     # 1 ATR and had nothing to do with the box drawn on the chart. Now it is the row
     # edge plus a small buffer - the level that invalidates the cluster - kept between
     # 0.7 and 1.5 ATR so tick noise cannot stop it out and the target stays reachable.
+    # The stop belongs to the box on the chart. It sits just outside that box, scaled
+    # to the box's own height, with a floor so tick noise cannot clip it - the level in
+    # the alert is the level drawn on the chart, not an arbitrary ATR multiple.
     row_edge = cur["bot"] if side == 1 else cur["top"]
-    struct_risk = abs(price - (row_edge - side * 0.2 * a))
-    risk = min(max(struct_risk, 0.7 * a), 1.5 * a)
+    row_h = max(cur["top"] - cur["bot"], 0.2 * a)
+    struct_risk = abs(price - (row_edge - side * (0.20 * row_h + 0.05 * a)))
+    risk = min(max(struct_risk, 0.5 * a), 1.5 * a)
     sl = price - side * risk
     if risk <= 0:
         out.update({"type": "HOLD", "reason": "degenerate risk"})
         return out
-    tp1 = price + side * 0.75 * risk
+    tp1 = price + side * 1.0 * risk          # first target: a clean 1R, half off
 
     # ---- target: the next genuine row edge, always beyond TP1 and never a long shot ----
     # Before, the nearest row above could be one tick away, so TP2 sometimes came out
     # BEHIND TP1 (0.39R). Now it has to clear TP1 and is capped at 2.5R.
-    tp_min = 1.05 * risk
+    tp_min = 1.4 * risk
     tp_max = 2.5 * risk
     if side == 1:
         edges = [r["bot"] - price for r in rows if r["bot"] > cur["top"]]
@@ -367,6 +371,7 @@ def signal(candles, vwap, rows, poc, atr, min_pct=10.0, vwap_series_in=None):
     _tp1, _tp2 = round(tp1, 2), round(tp2, 2)
     _risk = abs(_entry - _sl) or risk
     _r = round(abs(_tp2 - _entry) / _risk, 2)
+    _r1 = round(abs(_tp1 - _entry) / _risk, 2)
     out.update({
         "type": "BUY" if side == 1 else "SELL",
         "entry": _entry, "sl": _sl,
@@ -377,7 +382,8 @@ def signal(candles, vwap, rows, poc, atr, min_pct=10.0, vwap_series_in=None):
         "reason": (f"Cluster {cur['bot']:.2f}-{cur['top']:.2f} · "
                    f"{'above' if side == 1 else 'below'} VWAP {vwap:.2f} · "
                    f"delta {'+' if cur['delta'] >= 0 else ''}{cur['delta']:.2f} · "
-                   f"stop {_risk/a:.1f} ATR past the cluster · target {_r:.1f}R"),
+                   f"stop {abs(_sl-_entry):.2f} pts past the {cur['bot']:.2f}-{cur['top']:.2f} box "
+                   f"({_risk/a:.1f} ATR) · tp1 {_r1:.1f}R · tp2 {_r:.1f}R"),
     })
     return out
 

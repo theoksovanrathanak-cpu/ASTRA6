@@ -226,6 +226,8 @@ section('3D welcome');
   ok('prompt points at the menu', html.includes('tap the menu to open'));
   ok('replay available in the menu', html.includes('Replay welcome'));
   ok('no session gate', !html.includes("sessionStorage.getItem('astra6_intro')"));
+  ok('nothing pops the welcome open by itself', /bootIntro[\s\S]{0,300}classList\.add\('gone'\)/.test(html)
+     && !/bootIntro[\s\S]{0,300}playIntro\(\);/.test(html));
 }
 
 section('chart fills the device');
@@ -344,10 +346,11 @@ p=s['entry']; r=s['risk']
 tp1=abs(s['tp1']-p); tp2=abs(s['tp2']-p)
 checks=[]
 checks.append(('signal fires', s['type'] in ('BUY','SELL')))
-checks.append(('stop is 0.6-1.6 ATR from entry', 0.6 <= r/atr <= 1.6))
+checks.append(('stop is 0.45-1.6 ATR from entry, anchored to the box', 0.45 <= r/atr <= 1.6))
 checks.append(('tp2 clears tp1', tp2 > tp1))
-checks.append(('target is 1.0-2.6R', 1.0 <= tp2/r <= 2.6))
+checks.append(('target is 1.3-2.6R', 1.3 <= tp2/r <= 2.6))
 checks.append(('reported R matches the levels', abs(s['r'] - tp2/r) < 0.03))
+checks.append(('reason names the box and both targets', 'box' in s['reason'] and 'tp1' in s['reason']))
 quiet=[{'time':1+i*900,'open':100+i*0.001,'high':100.02+i*0.001,'low':99.99+i*0.001,
         'close':100.01+i*0.001,'volume':5,'buy':3,'sell':2} for i in range(150)]
 rq,pq,sq=V.clusters(quiet,48,10.0)

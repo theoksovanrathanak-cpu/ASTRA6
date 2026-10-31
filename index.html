@@ -940,8 +940,12 @@ function playIntro(){
 (function bootIntro(){
   const el=document.getElementById('intro');
   if(!el)return;
+  // Nothing plays by itself any more: the site opens on Home and the welcome is
+  // opened from the menu (Replay welcome) when the user wants it.
+  el.classList.add('gone');
+  el.style.display='none';
+  document.body.classList.remove('intro-open');
   document.addEventListener('keydown',(e)=>{if(e.key==='Escape')endIntro();});
-  playIntro();
 })();
 
 // ---------- economic calendar: one panel, real events only ----------
