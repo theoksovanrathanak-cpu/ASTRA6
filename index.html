@@ -392,8 +392,8 @@ button,select{font-family:inherit}
       </div>
       <div class="tf-row" id="strategy-row" style="margin-top:6px">
         <span style="font-size:10.5px;font-weight:700;letter-spacing:.06em;color:#64748b;text-transform:uppercase;align-self:center;margin-right:2px">Strategy</span>
-        <button class="tf-btn active" data-strategy="render">RENDER</button><button class="tf-btn" data-strategy="volume">VOLUME</button>
-        <span id="strategy-hint" style="font-size:11px;color:#64748b;align-self:center;margin-left:4px">15m target · 5m entry</span>
+        <button class="tf-btn" data-strategy="render">RENDER</button><button class="tf-btn active" data-strategy="volume">VOLUME</button>
+        <span id="strategy-hint" style="font-size:11px;color:#64748b;align-self:center;margin-left:4px">volume clusters · daily VWAP</span>
       </div>
     </div>
     <div class="chart-shell">
@@ -653,10 +653,11 @@ function showLayer(which){
 }
 
 // ---------- strategy switch: RENDER boxes  |  VOLUME clusters ----------
-window._strategy = localStorage.getItem('astra6_strategy') || 'render';
+// v2 key = one-time reset to the new default so existing visitors see the volume strategy
+window._strategy = localStorage.getItem('astra6_strategy_v2') || 'volume';
 function setStrategy(s){
   window._strategy = s;
-  localStorage.setItem('astra6_strategy', s);
+  localStorage.setItem('astra6_strategy_v2', s);
   document.querySelectorAll('[data-strategy]').forEach(b=>b.classList.toggle('active', b.dataset.strategy===s));
   const hint=document.getElementById('strategy-hint');
   if(hint) hint.textContent = s==='volume' ? 'volume clusters · daily VWAP' : '15m target · 5m entry';
@@ -762,11 +763,11 @@ function drawVolume(){
   const d=window._volume;
   const on = window._strategy==='volume';
   if(!on||!d||!d.vwap_series||d.vwap_series.length<2||!chart||!candleSeries||!box){
-    if(svg.childNodes.length) svg.innerHTML='';
+    if(svg.innerHTML) svg.innerHTML='';
     return;
   }
   const w=box.clientWidth,h=box.clientHeight;
-  if(!w||!h){ if(svg.childNodes.length) svg.innerHTML=''; return; }
+  if(!w||!h){ if(svg.innerHTML) svg.innerHTML=''; return; }
   if(svg.getAttribute('width')!=String(w)){
     svg.setAttribute('width',w); svg.setAttribute('height',h); svg.setAttribute('viewBox',`0 0 ${w} ${h}`);
   }
@@ -778,7 +779,7 @@ function drawVolume(){
     pts.push(`${pts.length?'L':'M'}${x.toFixed(1)},${y.toFixed(1)}`);
     ys.push({x,y,v:p.value});
   }
-  if(pts.length<2){ if(svg.childNodes.length) svg.innerHTML=''; return; }
+  if(pts.length<2){ if(svg.innerHTML) svg.innerHTML=''; return; }
   let out=`<path d="${pts.join(' ')}" fill="none" stroke="#eab308" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" opacity="0.95"></path>`;
   // dot + tag on the live end of the VWAP
   const last=ys[ys.length-1];
@@ -814,15 +815,15 @@ function zoneColor(side){return side==='demand'?(isDark()?'38,166,154':'16,185,1
 function drawZones(){
   const svg=document.getElementById('zone-layer'); if(!svg) return;
   if(window._strategy==='volume'){
-    if(svg.childNodes.length) svg.innerHTML='';
+    if(svg.innerHTML) svg.innerHTML='';
     drawVolume();
     return;
   }
   drawVolume();
   const Z=window._zones||{}, box=document.getElementById('oanda_chart');
-  if(!chart||!candleSeries||!box){if(svg.childNodes.length)svg.innerHTML='';return;}
+  if(!chart||!candleSeries||!box){if(svg.innerHTML)svg.innerHTML='';return;}
   const targets=Z.zones||[], entries=Z.entries||[];
-  if(!targets.length&&!entries.length){if(svg.childNodes.length)svg.innerHTML='';return;}
+  if(!targets.length&&!entries.length){if(svg.innerHTML)svg.innerHTML='';return;}
   const w=box.clientWidth,h=box.clientHeight;
   if(svg.getAttribute('width')!=String(w)){svg.setAttribute('width',w);svg.setAttribute('height',h);svg.setAttribute('viewBox',`0 0 ${w} ${h}`);}
   const ts=chart.timeScale();
