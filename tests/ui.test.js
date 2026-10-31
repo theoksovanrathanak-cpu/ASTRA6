@@ -115,6 +115,7 @@ eval([
   'journalHtml', 'openJournal', 'openSheet', 'closeSheet', 'calHtml', 'newsHtml',
   'renderCalStrip', 'renderNewsStrip',
   'jnKeyOf', 'jnByDay', 'jnCalHtml', 'jnListHtml', 'jnMonth', 'jnPickDay', 'jnRepaint',
+  'marketOpenNow', 'setNet', 'candlesLate',
 ].map(n => grab(n)).join('\n'));
 ['recordZoneAlert', 'renderZoneAlerts', 'zoneAlerts', 'latestTrade',
  'openMenu', 'closeMenu', 'toggleMenu', 'setView', 'endIntro', 'playIntro',
@@ -122,7 +123,8 @@ eval([
  'esc', 'ago', 'evClock', 'evDay', 'jnLoad', 'jnSave', 'jnR', 'jnStats', 'jnAdd', 'jnDel',
  'journalHtml', 'openJournal', 'openSheet', 'closeSheet', 'calHtml', 'newsHtml',
  'renderCalStrip', 'renderNewsStrip',
- 'jnKeyOf', 'jnByDay', 'jnCalHtml', 'jnListHtml', 'jnMonth', 'jnPickDay', 'jnRepaint'].forEach(n => { global[n] = eval(n); });
+ 'jnKeyOf', 'jnByDay', 'jnCalHtml', 'jnListHtml', 'jnMonth', 'jnPickDay', 'jnRepaint',
+ 'marketOpenNow', 'setNet', 'candlesLate'].forEach(n => { global[n] = eval(n); });
 // the calendar keeps its month/day in module scope in the page; give the harness the same
 global._jnM = new Date(2026, 10, 1);
 global._jnDay = null;
@@ -560,6 +562,35 @@ section('the drawer stays clean');
     .map(t => menu.indexOf(t));
   ok('the menu reads in a sane order', order.every((v, i) => v > 0 && (i === 0 || v > order[i - 1])), order);
   ok('setTimeframe still finds its buttons', /querySelectorAll\('\[data-tf\]'\)/.test(grab('setTimeframe')));
+}
+
+section('the page says when the data stops');
+{
+  const at = s => new Date(s).getTime();
+  ok('bitcoin never closes', marketOpenNow('BTCUSD', at('2026-10-31T12:00:00Z')));
+  ok('gold is shut on Saturday', !marketOpenNow('XAUUSD', at('2026-10-31T12:00:00Z')));
+  ok('gold is shut on Sunday morning', !marketOpenNow('XAUUSD', at('2026-11-01T12:00:00Z')));
+  ok('gold opens Sunday 22:00 UTC', marketOpenNow('XAUUSD', at('2026-11-01T22:30:00Z')));
+  ok('gold trades on Friday morning', marketOpenNow('XAUUSD', at('2026-10-30T09:00:00Z')));
+  ok('gold closes Friday 21:00 UTC', !marketOpenNow('XAUUSD', at('2026-10-30T21:30:00Z')));
+  ok('the daily break is closed', !marketOpenNow('XAUUSD', at('2026-10-28T21:30:00Z')));
+  ok('the rest of the week is open', marketOpenNow('XAUUSD', at('2026-10-28T12:00:00Z')));
+  ok('the header carries the state', html.includes('id="net-chip"') && html.includes('id="net-text"'));
+  ok('the tiles admit a closed market', html.includes('id="home-tag-XAUUSD"'));
+  ok('a stale clock is retried instead of freezing', /age>10/.test(grab('netWatch')) && /fetchFastPrice\(\)/.test(grab('netWatch')));
+  ok('a silent stream no longer switches polling off', /streamOk && _lastTickAt && Date.now\(\)-_lastTickAt < 5000/.test(grab('fetchFastPrice')));
+  ok('every tick stamps the clock', /_lastTickAt=Date.now\(\)/.test(grab('applyTick')));
+  ok('the chart labels a closed market', /marketOpenNow\(currentSymbol\)\?'':'market closed/.test(grab('fetchChart')));
+  ok('the watchdog runs on a timer', /setInterval\(netWatch,2000\)/.test(html));
+  ok('failed calls are counted for the chip', /_netFails\+\+/.test(grab('fetchFastPrice')));
+  ok('the chart measures its own candles', /candlesLate\(age,currentTF,currentSymbol\)/.test(grab('setCandleAge')));
+  ok('the chart carries a staleness pill', html.includes('id="chart-stale"'));
+  // 1356 minutes = the gold outage of 30 Oct
+  ok('a paused gold feed is flagged while the market is open', candlesLate(1356, 'M15', 'XAUUSD', new Date('2026-10-30T12:00:00Z').getTime()) === true);
+  ok('two fresh bars are not flagged', candlesLate(12, 'M15', 'XAUUSD', new Date('2026-10-30T12:00:00Z').getTime()) === false);
+  ok('a closed market is not a fault', candlesLate(1356, 'M15', 'XAUUSD', new Date('2026-10-31T12:00:00Z').getTime()) === false);
+  ok('bitcoin is watched around the clock', candlesLate(50, 'M15', 'BTCUSD', new Date('2026-10-31T12:00:00Z').getTime()) === true);
+  ok('the chip pulls the same rule', /candlesLate\(_ca,currentTF,sym\)/.test(grab('netWatch')));
 }
 
 console.log(`\n${fail ? '\x1b[31m' : '\x1b[32m'}${pass} passed, ${fail} failed\x1b[0m`);

@@ -3695,7 +3695,8 @@ def live(email: str = "free@astra6.com"):
         "source": (live_price or {}).get("source"),
         "candles_source": last_candle_source("M15"),
         "real": True,
-        "user": email
+        "user": email,
+        **candle_staleness(candles, "M15")
     }
 
 # === GoCharting integration - REAL candles served in UDF format, ready for their SDK widget ===
@@ -4316,7 +4317,8 @@ def btc_chart(granularity: str = "M15", count: int = 150, venue: str = None, ema
     return {"status": "ok", "symbol": "BTCUSD", "granularity": granularity, "count": len(candles),
             "latest_price": candles[-1]["close"], "candles": candles,
             "source": "xaus.com bitcoin OHLCV · live bar: TradingView", "real": True,
-            "venue": (px or {}).get("venue"), "user": email}
+            "venue": (px or {}).get("venue"), "user": email,
+            **candle_staleness(candles, granularity)}
 
 @app.get("/api/btc/venues")
 def btc_venues(email: str = "free@astra6.com"):
@@ -4377,6 +4379,26 @@ def fast_price(venue: str = None, email: str = "free@astra6.com"):
         "user": email
     }
 
+
+# === candle freshness - the chart must never freeze quietly ===
+_TF_MIN = {"M1":1,"M5":5,"M15":15,"M30":30,"H1":60,"H4":240,"D":1440,"D1":1440,"W":10080,"W1":10080}
+
+def candle_staleness(candles, granularity):
+    """How old is the newest bar? A feed that stops delivering must say so, not freeze."""
+    try:
+        from datetime import datetime as _dt
+        t = candles[-1].get("time")
+        if isinstance(t, str):
+            t = _dt.fromisoformat(t.replace("Z", "+00:00")).timestamp()
+        t = float(t)
+        if t > 1e11:                      # milliseconds -> seconds
+            t /= 1000.0
+        age_min = round((time.time() - t) / 60.0, 1)
+    except Exception:
+        return {"stale": False, "last_bar_age_min": None}
+    tf_min = _TF_MIN.get(str(granularity).upper(), 15)
+    return {"stale": age_min > max(tf_min * 3, 20), "last_bar_age_min": age_min}
+
 @app.get("/api/xauusd/history")
 def history(granularity: str = "M15", count: int = 100, venue: str = None, email: str = "free@astra6.com"):
     """REAL OHLCV candles only - xaus.com XAU/USD spot first, yfinance GC=F fallback. No fabricated candles."""
@@ -4400,7 +4422,8 @@ def history(granularity: str = "M15", count: int = 100, venue: str = None, email
         "source": src,
         "venue": (fetch_fast_price(venue) or {}).get("venue"),
         "real": True,
-        "user": email
+        "user": email,
+        **candle_staleness(candles, granularity)
     }
 
 # === TradingView venue feed - REAL bid/ask/mid per venue, public scanner, no key ===
