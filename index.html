@@ -368,6 +368,76 @@ body[data-view="signal"] #hero-signal{position:relative}
 .foot-d{font-size:11px;color:var(--muted);margin-top:1px}
 .legal{font-size:10px;color:#a2a9b6;text-align:right;max-width:40ch;line-height:1.5}
 
+/* ---------- fundamentals + journal sheets ---------- */
+.sheet-scrim{position:fixed;inset:0;background:rgba(2,6,23,.55);opacity:0;pointer-events:none;transition:opacity .18s ease;z-index:80}
+.sheet-scrim.on{opacity:1;pointer-events:auto}
+.sheet{
+  position:fixed;left:50%;bottom:0;transform:translate(-50%,103%);width:min(600px,100%);
+  max-height:min(86vh,820px);background:var(--surface);border:1px solid var(--line);border-bottom:0;
+  border-radius:16px 16px 0 0;z-index:81;display:flex;flex-direction:column;
+  box-shadow:0 -24px 60px rgba(2,6,23,.4);transition:transform .24s cubic-bezier(.4,0,.2,1);
+}
+.sheet.open{transform:translate(-50%,0)}
+.sheet-hd{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 16px;border-bottom:1px solid var(--line-soft);flex:0 0 auto}
+.sheet-title{font-size:14px;font-weight:800;letter-spacing:-.2px}
+.sheet-body{overflow-y:auto;padding:14px 16px 26px;display:flex;flex-direction:column;gap:10px}
+.sheet-sec{font-size:9.5px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-top:6px}
+.sheet-note{font-size:10.5px;color:var(--muted);line-height:1.5;border-top:1px solid var(--line-soft);padding-top:9px;margin-top:6px}
+
+.fund-strip{display:flex;flex-direction:column;gap:5px}
+.fund-row{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--ink-2);background:var(--line-soft);
+  border-radius:8px;padding:6px 8px;overflow:hidden}
+.fund-row .fund-x{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.fund-t{flex:0 0 auto;font-size:9px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:#fff;
+  background:var(--hold);border-radius:4px;padding:2px 5px}
+.fund-t.hi{background:var(--down)}
+.fund-t.md{background:var(--gold);color:#1a1204}
+.fund-hero{background:linear-gradient(180deg,var(--down-bg),var(--tint-end) 75%);border:1px solid var(--down-line);
+  border-radius:12px;padding:12px 13px}
+.fund-hero-k{font-size:9.5px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:var(--down)}
+.fund-hero-t{font-size:14.5px;font-weight:750;letter-spacing:-.2px;margin-top:3px}
+.fund-hero-m{font-size:11px;color:var(--ink-2);margin-top:4px}
+.fund-day{font-size:10px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);margin:8px 0 2px}
+.ev{display:grid;grid-template-columns:52px 30px minmax(0,1fr) auto;gap:8px;align-items:center;
+  padding:7px 9px;border-radius:9px;border:1px solid var(--line-soft);background:#fcfcfd;font-size:11.5px}
+[data-theme="dark"] .ev{background:var(--hold-bg)}
+.ev.hi{border-color:var(--down-line)}
+.ev-time{font-size:10.5px;color:var(--muted)}
+.ev-cur{font-size:9.5px;font-weight:800;color:var(--ink-2);letter-spacing:.4px}
+.ev-t{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ev.hi .ev-t{font-weight:700}
+.ev-n{font-size:10px;color:var(--muted);white-space:nowrap}
+.nw{display:flex;flex-direction:column;gap:2px;text-decoration:none;color:inherit;padding:8px 10px;
+  border:1px solid var(--line-soft);border-radius:9px;background:#fcfcfd}
+[data-theme="dark"] .nw{background:var(--hold-bg)}
+.nw:hover{background:var(--line-soft)}
+.nw-src{font-size:9px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--brand,#2962ff)}
+.nw-t{font-size:12px;line-height:1.4;font-weight:600}
+.nw-time{font-size:9.5px;color:var(--muted)}
+
+.jn-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.jn-f{display:flex;flex-direction:column;gap:4px}
+.jn-f span{font-size:9.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted)}
+.jn-f input,.jn-f select,.jn-f textarea{
+  width:100%;height:34px;border:1px solid var(--line);border-radius:8px;background:var(--surface);
+  color:var(--ink);font-size:12.5px;padding:0 9px;font-family:inherit;
+}
+.jn-f textarea{height:auto;min-height:56px;padding:7px 9px;resize:vertical}
+.jn-wide{grid-column:1/-1}
+.jn-acts{display:flex;gap:8px;grid-column:1/-1}
+.jn-row{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line-soft);
+  border-radius:9px;background:#fcfcfd;font-size:11.5px}
+[data-theme="dark"] .jn-row{background:var(--hold-bg)}
+.jn-side{flex:0 0 auto;font-size:9px;font-weight:800;letter-spacing:.4px;padding:3px 6px;border-radius:5px;color:#fff}
+.jn-side.buy{background:var(--up)} .jn-side.sell{background:var(--down)}
+.jn-m{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.jn-m b{font-weight:750}
+.jn-r{flex:0 0 auto;font-weight:800}
+.jn-r.up{color:var(--up)} .jn-r.dn{color:var(--down)}
+.jn-del{flex:0 0 auto;border:0;background:transparent;color:var(--muted);font-size:15px;cursor:pointer;line-height:1}
+.jn-del:hover{color:var(--down)}
+.jn-empty{font-size:11.5px;color:var(--muted);text-align:center;padding:14px 6px;line-height:1.5}
+
 /* ---------- home: nothing opens by itself ---------- */
 .home{display:none}
 body[data-view="home"] .home{display:flex}
@@ -558,6 +628,24 @@ body[data-view="signal"] .wrap{
   </div>
 
   <div class="menu-sec">
+    <div class="menu-label">Fundamentals</div>
+    <div class="fund-strip" id="fund-strip">
+      <div class="fund-row"><span class="fund-x">calendar loading…</span></div>
+    </div>
+    <button class="chip" style="width:100%;justify-content:center" onclick="openFundamentals()">News &amp; calendar</button>
+  </div>
+
+  <div class="menu-sec">
+    <div class="menu-label">Trade journal</div>
+    <div class="menu-stats">
+      <div><b class="mono" id="jn-trades">0</b><span>trades</span></div>
+      <div><b class="mono" id="jn-win">--</b><span>win rate</span></div>
+      <div><b class="mono" id="jn-r">0.0R</b><span>total R</span></div>
+    </div>
+    <button class="chip" style="width:100%;justify-content:center" onclick="openJournal()">Open journal</button>
+  </div>
+
+  <div class="menu-sec">
     <div class="menu-label">Market</div>
     <div class="sym-switch" role="group" aria-label="Market">
       <button class="sym-btn active" data-sym="XAUUSD" onclick="setSymbol('XAUUSD');closeMenu()">
@@ -609,6 +697,15 @@ body[data-view="signal"] .wrap{
 
   <div class="menu-ft">Free · no sign-in · not financial advice</div>
 </aside>
+
+<div class="sheet-scrim" id="sheet-scrim" onclick="closeSheet()"></div>
+<section class="sheet" id="sheet" aria-hidden="true" aria-label="Panel">
+  <div class="sheet-hd">
+    <div class="sheet-title" id="sheet-title">Panel</div>
+    <button class="menu-x" onclick="closeSheet()" aria-label="Close">×</button>
+  </div>
+  <div class="sheet-body" id="sheet-body"></div>
+</section>
 
 <main class="wrap">
 
@@ -769,6 +866,198 @@ function playIntro(){
   playIntro();
 })();
 
+// ---------- fundamentals: the real calendar + the real headlines ----------
+// Nothing here is written by ASTRA6. The calendar comes from TradingView (ForexFactory
+// as backup) and the headlines from public RSS. Each item shows its source and its own
+// time; if a feed is down the panel says so instead of inventing a story.
+let _fund=null, _fundAt=0, _fundBusy=false;
+function esc(x){return String(x==null?'':x).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function ago(ts){const s=Math.max(0,Math.floor(Date.now()/1000-ts));
+  if(s<90)return 'just now'; if(s<3600)return Math.floor(s/60)+' min ago';
+  if(s<86400)return Math.floor(s/3600)+' h ago'; return Math.floor(s/86400)+' d ago';}
+function evClock(ts){return new Date(ts*1000).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});}
+function evDay(ts){return new Date(ts*1000).toLocaleDateString([],{weekday:'short',day:'2-digit',month:'short'});}
+async function loadFundamentals(force){
+  if(_fundBusy) return _fund;
+  if(!force && _fund && Date.now()-_fundAt < 5*60*1000) return _fund;
+  _fundBusy=true;
+  try{
+    const r=await fetch('/api/fundamentals?limit=24',{cache:'no-store'});
+    const d=await r.json();
+    if(d && d.status==='ok'){ _fund=d; _fundAt=Date.now(); renderFundStrip(d); }
+  }catch(e){ console.log('fundamentals err',e); }
+  _fundBusy=false;
+  return _fund;
+}
+function renderFundStrip(d){
+  const box=document.getElementById('fund-strip'); if(!box) return;
+  const nh=d.next_high, news=(d.news||[]).slice(0,2);
+  let h='';
+  if(nh) h+='<div class="fund-row"><span class="fund-t hi">'+esc(nh.currency)+'</span><span class="fund-x">'
+         +esc(nh.title)+' · '+esc(evDay(nh.time))+' '+esc(evClock(nh.time))+'</span></div>';
+  else h+='<div class="fund-row"><span class="fund-x">no high-impact event scheduled</span></div>';
+  for(const n of news)
+    h+='<div class="fund-row"><span class="fund-t">'+esc(n.source)+'</span><span class="fund-x">'+esc(n.title)+'</span></div>';
+  box.innerHTML=h;
+}
+function fundHtml(d){
+  if(!d || d.status!=='ok')
+    return '<div class="jn-empty">The news feeds are unreachable right now.<br>Nothing is invented - open this again in a minute.</div>';
+  const cal=d.calendar||[], news=d.news||[], nh=d.next_high;
+  let h='';
+  if(nh){
+    const m=[];
+    if(nh.forecast) m.push('forecast '+esc(nh.forecast)+(nh.unit||''));
+    if(nh.previous) m.push('previous '+esc(nh.previous)+(nh.unit||''));
+    h+='<div class="fund-hero"><div class="fund-hero-k">next high impact · '+esc(nh.currency)+'</div>'
+     +'<div class="fund-hero-t">'+esc(nh.title)+'</div>'
+     +'<div class="fund-hero-m mono">'+esc(evDay(nh.time))+' '+esc(evClock(nh.time))+(m.length?' · '+m.join(' · '):'')+'</div></div>';
+  }
+  h+='<div class="sheet-sec">Economic calendar · high and medium impact</div>';
+  if(!cal.length) h+='<div class="jn-empty">No events returned right now.</div>';
+  let day='';
+  for(const e of cal){
+    const dd=evDay(e.time);
+    if(dd!==day){ day=dd; h+='<div class="fund-day">'+esc(dd)+'</div>'; }
+    const nums=[];
+    if(e.forecast) nums.push('f '+esc(e.forecast)+(e.unit||''));
+    if(e.previous) nums.push('p '+esc(e.previous)+(e.unit||''));
+    h+='<div class="ev '+(e.impact==='High'?'hi':'md')+'"><span class="ev-time mono">'+esc(evClock(e.time))+'</span>'
+     +'<span class="ev-cur">'+esc(e.currency)+'</span><span class="ev-t">'+esc(e.title)+'</span>'
+     +'<span class="ev-n mono">'+nums.join(' · ')+'</span></div>';
+  }
+  h+='<div class="sheet-sec">Latest headlines</div>';
+  if(!news.length) h+='<div class="jn-empty">No headlines returned right now.</div>';
+  for(const n of news){
+    h+='<a class="nw" href="'+esc(n.url)+'" target="_blank" rel="noopener"><span class="nw-src">'+esc(n.source)+'</span>'
+     +'<span class="nw-t">'+esc(n.title)+'</span><span class="nw-time mono">'+esc(ago(n.time))+'</span></a>';
+  }
+  h+='<div class="sheet-note">Sources: '+esc(d.calendar_source||'')+' · '+esc((d.news_sources||[]).join(' · '))
+   +'. Times are in your own timezone. Nothing here is written or summarised by ASTRA6.</div>';
+  return h;
+}
+async function openFundamentals(){
+  openSheet('Fundamentals','<div class="jn-empty">Loading the real calendar and headlines…</div>');
+  const d=await loadFundamentals(true);
+  const b=document.getElementById('sheet-body'); if(b) b.innerHTML=fundHtml(d);
+}
+
+// ---------- trade journal: yours, kept on this device ----------
+function jnLoad(){try{const a=JSON.parse(localStorage.getItem('astra6_journal')||'[]');return Array.isArray(a)?a:[];}catch(e){return [];}}
+function jnSave(a){try{localStorage.setItem('astra6_journal',JSON.stringify(a.slice(0,300)));}catch(e){}jnStats();}
+function jnR(t){
+  if(!t) return null;
+  const entry=Number(t.entry), stop=Number(t.stop);
+  if(!isFinite(entry)||!isFinite(stop)) return null;
+  const risk=Math.abs(entry-stop); if(!risk) return null;
+  if(t.exit===null||t.exit===undefined||t.exit==='') return null;
+  const exit=Number(t.exit); if(!isFinite(exit)) return null;
+  return (t.side==='BUY'? exit-entry : entry-exit)/risk;
+}
+function jnStats(){
+  const a=jnLoad(), closed=a.filter(t=>jnR(t)!=null);
+  const wins=closed.filter(t=>jnR(t)>0).length;
+  const tot=closed.reduce((s,t)=>s+jnR(t),0);
+  const set=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v;};
+  set('jn-trades',String(a.length));
+  set('jn-win',closed.length?Math.round(wins/closed.length*100)+'%':'--');
+  set('jn-r',(tot>=0?'+':'')+tot.toFixed(1)+'R');
+  return {a,closed,wins,tot};
+}
+function jnAdd(){
+  const g=id=>document.getElementById(id);
+  const err=g('jn-err');
+  const sym=g('jn-sym')?g('jn-sym').value:'XAUUSD';
+  const side=g('jn-side')?g('jn-side').value:'BUY';
+  const entry=parseFloat(g('jn-entry')?g('jn-entry').value:'');
+  const stop=parseFloat(g('jn-stop')?g('jn-stop').value:'');
+  const exitRaw=g('jn-exit')?(g('jn-exit').value||'').trim():'';
+  const note=g('jn-note')?(g('jn-note').value||'').trim().slice(0,180):'';
+  if(!isFinite(entry)||!isFinite(stop)){if(err)err.textContent='Entry and stop must both be numbers.';return;}
+  if(entry===stop){if(err)err.textContent='Entry and stop cannot be the same price.';return;}
+  const exit=exitRaw===''?null:parseFloat(exitRaw);
+  if(exit!==null&&!isFinite(exit)){if(err)err.textContent='Exit must be a number, or empty for an open trade.';return;}
+  const a=jnLoad();
+  a.unshift({id:Date.now(),sym,side,entry,stop,exit,note,at:Math.floor(Date.now()/1000)});
+  jnSave(a);
+  openJournal();
+}
+function jnDel(id){
+  jnSave(jnLoad().filter(t=>String(t.id)!==String(id)));
+  openJournal();
+}
+function jnUseSignal(){
+  const d=window._volume||{}, s=d.signal||{};
+  const set=(id,v)=>{const el=document.getElementById(id);if(el&&v!=null&&v!=='')el.value=v;};
+  set('jn-sym',currentSymbol);
+  if(s.type==='BUY'||s.type==='SELL') set('jn-side',s.type);
+  set('jn-entry',s.entry); set('jn-stop',s.sl);
+  const err=document.getElementById('jn-err');
+  if(err) err.textContent=(s.entry==null?'No live signal right now - type the levels yourself.':'Filled from the current signal.');
+}
+function journalHtml(){
+  const st=jnStats(), a=st.a;
+  const closed=st.closed, tot=st.tot;
+  const avg=closed.length?tot/closed.length:0;
+  const open=a.length-closed.length;
+  let h='<div class="menu-stats" style="justify-content:space-between;gap:10px">'
+   +'<div><b class="mono">'+a.length+'</b><span>trades</span></div>'
+   +'<div><b class="mono">'+(closed.length?Math.round(st.wins/closed.length*100)+'%':'--')+'</b><span>win rate</span></div>'
+   +'<div><b class="mono" style="color:'+(tot>=0?'var(--up)':'var(--down)')+'">'+(tot>=0?'+':'')+tot.toFixed(1)+'R</b><span>total R</span></div>'
+   +'<div><b class="mono">'+(closed.length?((avg>=0?'+':'')+avg.toFixed(2)):'--')+'</b><span>avg R</span></div>'
+   +'<div><b class="mono">'+open+'</b><span>open</span></div></div>';
+  h+='<div class="sheet-sec">Log a trade</div><div class="jn-form">'
+   +'<label class="jn-f"><span>Market</span><select id="jn-sym"><option value="XAUUSD">GOLD · XAUUSD</option><option value="BTCUSD">BITCOIN · BTCUSD</option></select></label>'
+   +'<label class="jn-f"><span>Side</span><select id="jn-side"><option value="BUY">BUY</option><option value="SELL">SELL</option></select></label>'
+   +'<label class="jn-f"><span>Entry</span><input id="jn-entry" inputmode="decimal" placeholder="0.00"></label>'
+   +'<label class="jn-f"><span>Stop</span><input id="jn-stop" inputmode="decimal" placeholder="0.00"></label>'
+   +'<label class="jn-f"><span>Exit · empty = open</span><input id="jn-exit" inputmode="decimal" placeholder="optional"></label>'
+   +'<label class="jn-f jn-wide"><span>Note</span><textarea id="jn-note" placeholder="why you took it"></textarea></label>'
+   +'<div class="jn-acts"><button class="btn btn-dark btn-sm" onclick="jnAdd()">Save trade</button>'
+   +'<button class="btn btn-sm" onclick="jnUseSignal()">Use live signal</button></div>'
+   +'<div class="jn-wide" id="jn-err" style="font-size:11px;color:var(--down);min-height:15px"></div></div>';
+  h+='<div class="sheet-sec">Your trades</div>';
+  if(!a.length) h+='<div class="jn-empty">No trades yet.<br>Log one and it stays on this device.</div>';
+  for(const t of a){
+    const r=jnR(t);
+    const rtxt=r==null?'open':((r>=0?'+':'')+r.toFixed(2)+'R');
+    const cls=r==null?'':(r>0?'up':'dn');
+    const px=t.exit==null?esc(t.entry)+' → open':esc(t.entry)+' → '+esc(t.exit);
+    h+='<div class="jn-row"><span class="jn-side '+(t.side==='BUY'?'buy':'sell')+'">'+esc(t.side)+'</span>'
+     +'<span class="jn-m"><b>'+esc(t.sym)+'</b> <span class="mono" style="color:var(--muted)">'+px+' · stop '+esc(t.stop)+'</span>'
+     +(t.note?'<br><span style="color:var(--muted)">'+esc(t.note)+'</span>':'')+'</span>'
+     +'<span class="jn-r '+cls+'">'+rtxt+'</span>'
+     +'<button class="jn-del" onclick="jnDel('+JSON.stringify(t.id)+')" aria-label="Delete">×</button></div>';
+  }
+  h+='<div class="sheet-note">Stored only in this browser. Nothing is sent anywhere.</div>';
+  return h;
+}
+function openJournal(){ openSheet('Trade journal', journalHtml()); }
+
+// ---------- one sheet for both panels ----------
+function openSheet(title,html){
+  const sh=document.getElementById('sheet'), sc=document.getElementById('sheet-scrim'), b=document.getElementById('sheet-body');
+  if(!sh) return;
+  const t=document.getElementById('sheet-title'); if(t) t.textContent=title;
+  if(b) b.innerHTML=html||'';
+  sh.classList.add('open'); sh.setAttribute('aria-hidden','false');
+  if(sc) sc.classList.add('on');
+  const m=document.getElementById('menu');
+  if(m && m.classList.contains('open')) closeMenu();
+}
+function closeSheet(){
+  const sh=document.getElementById('sheet'), sc=document.getElementById('sheet-scrim');
+  if(sh){ sh.classList.remove('open'); sh.setAttribute('aria-hidden','true'); }
+  if(sc) sc.classList.remove('on');
+}
+document.addEventListener('keydown',e=>{
+  if(e.key!=='Escape') return;
+  const sh=document.getElementById('sheet');
+  if(sh && sh.classList.contains('open')){ closeSheet(); return; }
+  const m=document.getElementById('menu');
+  if(m && m.classList.contains('open')) closeMenu();
+});
+
 // ---- view: chart, signal, or both ----
 window._view = 'home';   // nothing opens by itself: the chart is a menu choice
 function setView(v){
@@ -821,6 +1110,7 @@ function toggleMenu(){
   m.classList.contains('open')?closeMenu():openMenu();
 }
 function openMenu(){
+  if(typeof loadFundamentals==='function' && (!_fundAt || Date.now()-_fundAt>5*60*1000)) loadFundamentals();
   const m=document.getElementById('menu'), s=document.getElementById('scrim'), b=document.getElementById('burger');
   if(m)m.classList.add('open');
   if(s)s.classList.add('on');
@@ -1641,7 +1931,7 @@ applyTheme();document.getElementById('sound-btn')&&(document.getElementById('sou
 initClicks();document.addEventListener('DOMContentLoaded',initClicks);setTimeout(initClicks,500);
 setTimeout(()=>{if(currentSymbol==='BTCUSD'){const b=document.querySelector('.sym-btn[data-sym="BTCUSD"]');if(b)b.classList.add('active');const g=document.querySelector('.sym-btn[data-sym="XAUUSD"]');if(g)g.classList.remove('active');document.querySelector('.brand-sub').textContent='Bitcoin · 15m / 5m';}else{fetchDashboard();}fetchLive();fetchFastPrice();},800);
 setInterval(updateTimeSmooth,500);updateTimeSmooth();
-setView('home');fitScreen();setTimeout(fitScreen,300);setTimeout(fitScreen,1200);startPriceStream();setInterval(fetchFastPrice,1500);setInterval(fetchOtherPrice,12000);setInterval(fetchZones,30000);setInterval(()=>{if(window._strategy==='volume')fetchVolume();},20000);setInterval(fetchLive,10000);setInterval(()=>{if(currentSymbol!=='BTCUSD')fetchDashboard();},15000);
+setView('home');fitScreen();jnStats();loadFundamentals();setTimeout(fitScreen,300);setTimeout(fitScreen,1200);startPriceStream();setInterval(fetchFastPrice,1500);setInterval(fetchOtherPrice,12000);setInterval(fetchZones,30000);setInterval(()=>{if(window._strategy==='volume')fetchVolume();},20000);setInterval(fetchLive,10000);setInterval(()=>{if(currentSymbol!=='BTCUSD')fetchDashboard();},15000);
 document.getElementById('venue-select')?.addEventListener('change',e=>setVenue(e.target.value));
 loadVenues().then(()=>{if(currentSymbol==='BTCUSD')fetchBtcCompare();else fetchTVCompare();});updateSymTabs();fetchOtherPrice();renderZoneAlerts();fetchZones();
 setInterval(()=>{fetch('/health').catch(()=>{});},240000);

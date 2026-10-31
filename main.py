@@ -4088,6 +4088,22 @@ def get_volume(symbol: str = "XAUUSD", venue: str = None, rows: int = 48,
         return {"status": "error", "error": str(e), "real": True, "user": email}
 
 
+@app.get("/api/fundamentals")
+def get_fundamentals(limit: int = 24):
+    """Real market-moving news: economic calendar + live headlines from public feeds.
+
+    Nothing is written by this server: the calendar comes from TradingView (ForexFactory
+    as backup) and the headlines from ForexLive / CoinDesk / BBC / CNBC RSS. Every item
+    carries its source and its own timestamp.
+    """
+    try:
+        import news as NEWS
+        return NEWS.fundamentals(limit=max(5, min(40, int(limit or 24))))
+    except Exception as e:
+        print("fundamentals err", e)
+        return {"status": "error", "error": str(e), "real": True}
+
+
 # === live price push (SSE) ===================================================
 # The poller hit the server every 1.5 s and the server cached for 0.8 s, so a price
 # change could take 2.3 s to reach the screen. Instead one ticker thread keeps each

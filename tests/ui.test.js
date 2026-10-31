@@ -15,18 +15,37 @@ function grab(name) {
   let i = html.indexOf('function ' + name + '(');
   if (i < 0) i = html.indexOf('async function ' + name + '(');
   if (i < 0) throw new Error('missing function ' + name);
-  let depth = 0, started = false, inStr = null, esc = false;
+  let depth = 0, started = false, inStr = null, esc = false, prev = '';
   for (let j = i; j < html.length; j++) {
-    const c = html[j];
+    const c = html[j], n = html[j + 1];
     if (inStr) {
       if (esc) esc = false;
       else if (c === '\\') esc = true;
       else if (c === inStr) inStr = null;
       continue;
     }
+    // line and block comments: an apostrophe in a comment used to break this scanner
+    if (c === '/' && n === '/') { const e = html.indexOf('\n', j); j = e < 0 ? html.length : e; continue; }
+    if (c === '/' && n === '*') { const e = html.indexOf('*/', j + 2); j = e < 0 ? html.length : e + 1; continue; }
     if (c === '"' || c === "'" || c === '`') { inStr = c; continue; }
+    // regex literal: a slash where a value is expected, e.g. .replace(/[&<>"']/g, ...)
+    if (c === '/' && /[(,=:[!&|?{};+\-*%<>~^]|^$/.test(prev)) {
+      let k = j + 1, inClass = false;
+      for (; k < html.length; k++) {
+        const ch = html[k];
+        if (ch === '\\') { k++; continue; }
+        if (ch === '[') inClass = true;
+        else if (ch === ']') inClass = false;
+        else if (ch === '/' && !inClass) break;
+      }
+      j = k;
+      while (/[a-z]/i.test(html[j + 1] || '')) j++;   // flags
+      prev = '/';
+      continue;
+    }
     if (c === '{') { depth++; started = true; }
     else if (c === '}') { depth--; if (started && depth === 0) return html.slice(i, j + 1); }
+    if (!/\s/.test(c)) prev = c;
   }
   throw new Error('unbalanced function ' + name);
 }
@@ -92,10 +111,14 @@ eval([
   'firedKeys', 'markFired', 'zoneAlerts', 'recordZoneAlert', 'latestTrade', 'renderZoneAlerts',
   'openMenu', 'closeMenu', 'toggleMenu', 'setView', 'endIntro', 'playIntro',
   'drawVolume', 'syncHdH', 'setTabPrice',
+  'esc', 'ago', 'evClock', 'evDay', 'jnLoad', 'jnSave', 'jnR', 'jnStats', 'jnAdd', 'jnDel',
+  'journalHtml', 'openJournal', 'openSheet', 'closeSheet', 'fundHtml', 'renderFundStrip',
 ].map(n => grab(n)).join('\n'));
 ['recordZoneAlert', 'renderZoneAlerts', 'zoneAlerts', 'latestTrade',
  'openMenu', 'closeMenu', 'toggleMenu', 'setView', 'endIntro', 'playIntro',
- 'drawVolume', 'syncHdH', 'setTabPrice'].forEach(n => { global[n] = eval(n); });
+ 'drawVolume', 'syncHdH', 'setTabPrice',
+ 'esc', 'ago', 'evClock', 'evDay', 'jnLoad', 'jnSave', 'jnR', 'jnStats', 'jnAdd', 'jnDel',
+ 'journalHtml', 'openJournal', 'openSheet', 'closeSheet', 'fundHtml', 'renderFundStrip'].forEach(n => { global[n] = eval(n); });
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => { if (cond) { pass++; console.log('  \x1b[32m✓\x1b[0m', name); } else { fail++; console.log('  \x1b[31m✗\x1b[0m', name, extra === undefined ? '' : JSON.stringify(extra)); } };
@@ -322,6 +345,118 @@ print('OK' if not bad else 'FAIL '+','.join(bad))
   ok('stops sit just past the cluster, targets stay near', out === 'OK', out);
   ok('the chart levels quote the ladder numbers', /latestTrade\(currentSymbol\)/.test(grab('drawVolumeLevels')) &&
      /sg\.entry=_lv\.entry/.test(grab('drawVolumeLevels')));
+}
+
+section('fundamentals live in the menu');
+{
+  ok('menu has a fundamentals section', /menu-label">Fundamentals</.test(html));
+  ok('menu shows the next high-impact event', html.includes('id="fund-strip"'));
+  ok('menu opens the full panel', /onclick="openFundamentals\(\)"/.test(html));
+  ok('the panel is a sheet, not a new page', html.includes('id="sheet"') && html.includes('id="sheet-body"'));
+  const payload = {
+    status: 'ok',
+    calendar_source: 'TradingView economic calendar',
+    news_sources: ['ForexLive', 'CoinDesk'],
+    next_high: { time: 1793600000, title: 'ISM Manufacturing PMI', currency: 'US', impact: 'High', forecast: '54.7', previous: '54.5', unit: '' },
+    calendar: [
+      { time: 1793600000, title: 'ISM Manufacturing PMI', currency: 'US', impact: 'High', forecast: '54.7', previous: '54.5', unit: '' },
+      { time: 1793603600, title: 'Building Permits', currency: 'AU', impact: 'Medium', forecast: '2.1', previous: '-6.1', unit: '%' },
+    ],
+    news: [{ time: 1793590000, title: 'Bitcoin & gold move <b>together</b>', url: 'https://example.com/a?x=1&y=2', source: 'CoinDesk', kind: 'crypto' }],
+  };
+  const h = fundHtml(payload);
+  ok('shows the next high impact event', h.includes('ISM Manufacturing PMI'));
+  ok('shows forecast and previous', h.includes('forecast 54.7') && h.includes('previous 54.5'));
+  ok('lists every event with its currency', h.includes('AU') && h.includes('Building Permits'));
+  ok('links the headline to its source', h.includes('https://example.com/a?x=1&amp;y=2'));
+  ok('names the source of every item', h.includes('CoinDesk'));
+  ok('escapes feed text', !/<b>together<\/b>/.test(h) && h.includes('&lt;b&gt;'));
+  ok('names the feeds it used', h.includes('TradingView economic calendar') && h.includes('ForexLive'));
+  ok('a dead feed says so, it does not invent news', /unreachable/.test(fundHtml(null)));
+}
+
+section('trade journal');
+{
+  ok('menu has a journal section', /menu-label">Trade journal</.test(html));
+  ok('menu shows journal stats', html.includes('id="jn-trades"') && html.includes('id="jn-win"') && html.includes('id="jn-r"'));
+  ok('journal opens from the menu', /onclick="openJournal\(\)"/.test(html));
+  ok('journal maths: BUY win is +2R', jnR({ side: 'BUY', entry: 100, stop: 95, exit: 110 }) === 2);
+  ok('journal maths: BUY loss is -1R', jnR({ side: 'BUY', entry: 100, stop: 95, exit: 95 }) === -1);
+  ok('journal maths: SELL win is +2R', jnR({ side: 'SELL', entry: 100, stop: 105, exit: 90 }) === 2);
+  ok('journal maths: open trade has no R', jnR({ side: 'BUY', entry: 100, stop: 95, exit: null }) === null);
+  ok('journal maths: zero risk is ignored', jnR({ side: 'BUY', entry: 100, stop: 100, exit: 110 }) === null);
+  ok('journal maths: string prices work', jnR({ side: 'BUY', entry: '100', stop: '98', exit: '103' }) === 1.5);
+  localStorage.setItem('astra6_journal', JSON.stringify([
+    { id: 1, sym: 'XAUUSD', side: 'BUY', entry: 3870, stop: 3865, exit: 3880, note: 'clean cluster' },
+    { id: 2, sym: 'BTCUSD', side: 'SELL', entry: 78000, stop: 79000, exit: 79000, note: '' },
+    { id: 3, sym: 'XAUUSD', side: 'BUY', entry: 3900, stop: 3890, exit: null, note: 'still running' },
+  ]));
+  const st = jnStats();
+  ok('three trades counted', document.getElementById('jn-trades').textContent === '3');
+  ok('win rate is 50% of the two closed', document.getElementById('jn-win').textContent === '50%');
+  ok('total R adds up', document.getElementById('jn-r').textContent === '+1.0R', document.getElementById('jn-r').textContent);
+  const body = journalHtml();
+  ok('journal lists the trades', body.includes('XAUUSD') && body.includes('BTCUSD'));
+  ok('open trades are labelled open', body.includes('open'));
+  ok('journal can prefill from the live signal', /jnUseSignal/.test(html) && /window\._volume/.test(html));
+  ok('journal is local only', /Stored only in this browser/.test(body));
+  jnSave(jnLoad().filter(t => t.id !== 2));
+  ok('delete removes one trade', jnLoad().length === 2);
+  localStorage.removeItem('astra6_journal');
+  ok('empty journal explains itself', /No trades yet/.test(journalHtml()));
+}
+
+section('news parsing (offline, canned feeds)');
+{
+  const { execSync } = require('child_process');
+  const out = execSync(`cd ${root} && python3 -c "
+import sys, json, types
+sys.path.insert(0,'.')
+import news
+
+class FakeResp:
+    def __init__(self, payload): self._p = payload; self.content = payload if isinstance(payload, bytes) else b''; self.status_code = 200
+    def raise_for_status(self): pass
+    def json(self): return self._p
+
+import datetime, email.utils, time
+now = datetime.datetime.now(datetime.timezone.utc)
+d_near = (now + datetime.timedelta(hours=5)).strftime('%Y-%m-%dT%H:%M:%S.000Z')
+d_far  = (now + datetime.timedelta(hours=20)).strftime('%Y-%m-%dT%H:%M:%S.000Z')
+tv = {'result': [
+  {'date': d_far,  'country':'US','importance':1,  'title':'ISM Manufacturing PMI','forecast':54.7,'previous':54.5,'unit':None},
+  {'date': d_near, 'country':'AU','importance':0,  'title':'Building Permits','forecast':2.1,'previous':-6.1,'unit':'%'},
+  {'date': d_near, 'country':'AU','importance':-1, 'title':'Low noise','forecast':None,'previous':None,'unit':None}]}
+pd1 = email.utils.formatdate(time.time()-3600, usegmt=True)
+pd2 = email.utils.formatdate(time.time()-7200, usegmt=True)
+rss = ('<rss><channel>'
+  '<item><title>Gold jumps as dollar slips</title><link>https://example.com/g</link><pubDate>'+pd1+'</pubDate></item>'
+  '<item><title>Gold jumps as dollar slips</title><link>https://example.com/g2</link><pubDate>'+pd2+'</pubDate></item>'
+  '</channel></rss>').encode()
+
+def fake_get(url, **kw):
+    if 'economic-calendar' in url: return FakeResp(tv)
+    if 'faireconomy' in url: raise RuntimeError('429')
+    return FakeResp(rss)
+news.requests.get = fake_get
+news._cache['cal'] = {'t':0.0,'d':None,'src':None}
+news._cache['news'] = {'t':0.0,'d':None,'sources':[]}
+d = news.fundamentals(limit=5)
+checks = []
+checks.append(('two events kept, low impact dropped', len(d['calendar'])==2))
+checks.append(('events come out in time order', d['calendar'][0]['time'] <= d['calendar'][1]['time']))
+checks.append(('medium impact mapped', d['calendar'][0]['impact']=='Medium'))
+checks.append(('high impact mapped', d['calendar'][1]['impact']=='High'))
+checks.append(('unit carried through', d['calendar'][0]['unit']=='%'))
+checks.append(('numbers kept as text', d['calendar'][1]['forecast']=='54.7'))
+checks.append(('next high impact found', d['next_high'] and d['next_high']['title']=='ISM Manufacturing PMI'))
+checks.append(('duplicate headline removed', len(d['news'])==1))
+checks.append(('source named', d['news'][0]['source']=='ForexLive'))
+checks.append(('calendar source named', 'TradingView' in d['calendar_source']))
+bad=[n for n,okv in checks if not okv]
+print('OK' if not bad else 'FAIL '+','.join(bad))
+"`).toString().trim();
+  ok('calendar and headlines parse, dedupe and label', out === 'OK', out);
 }
 
 console.log(`\n${fail ? '\x1b[31m' : '\x1b[32m'}${pass} passed, ${fail} failed\x1b[0m`);
