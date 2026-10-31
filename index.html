@@ -2048,7 +2048,16 @@ const url=cfg.chart+_sep+`granularity=${tf}&count=${count}`+(cfg.venues?`&venue=
 const _key=currentSymbol+'|'+tf,_same=(window._chartKey===_key);window._chartKey=_key;
 let _vr=null;try{if(_same)_vr=chart.timeScale().getVisibleLogicalRange();}catch(e){}
 try{candleSeries.setData(clean);lastCandles=clean;
-  if(_vr)chart.timeScale().setVisibleLogicalRange(_vr);   // no jump every refresh
+  if(_vr) chart.timeScale().setVisibleLogicalRange(_vr);   // no jump every refresh
+  else{
+    // A market the user just opened shows from its first bar to its last. The range is
+    // set after the series has the data (a range set before setData is clamped to the
+    // old, empty scale and then restored forever), and re-asserted once the axis settles.
+    const _fit=()=>{try{chart.timeScale().setVisibleLogicalRange({from:-0.5,to:clean.length-0.5});}catch(e){}};
+    _fit();
+    requestAnimationFrame(_fit);
+    setTimeout(_fit,120);
+  }
 }catch(e){console.log('chart data err',e);}document.getElementById('chart-candle-count').textContent=`${clean.length} candles`;setTimeout(scheduleZoneDraw,60);if(window._strategy==='volume'&&typeof scheduleVolume==='function')scheduleVolume();updateLegend(null);setCandleAge(d);if(srcEl)srcEl.textContent=((marketOpenNow(currentSymbol)?'':'market closed · ')+(d.source||'REAL OHLCV')).replace('xaus.com /api/v1/chart XAU/USD (REAL OHLCV, spot-anchored)','XAUS spot · TradingView bar').replace('xaus.com /api/v1/chart XAU/USD (REAL spot OHLCV)','XAUS REAL spot').replace('yfinance GC=F (REAL futures OHLCV)','yfinance GC=F REAL');if(clean.length){const last=clean[clean.length-1];if(lastPrice===0){lastPrice=last.close;const p=document.getElementById('price');if(p&&p.textContent==='$--.--')p.textContent=fmtPx(last.close);}}let fb=document.getElementById('chart-price-fallback');if(fb&&lastPrice)fb.textContent=fmtPx(lastPrice);}else if(srcEl){srcEl.textContent=(!candleSeries?'chart library loading…':'feed reconnecting (no fake data)');setCandleAge(null);}}catch(e){console.log('chart fetch err',e);const s=document.getElementById('chart-source');if(s)s.textContent='feed reconnecting…';}}
 
 // One path for applying a price to the page: the SSE stream and the polling
