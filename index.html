@@ -73,6 +73,24 @@ button,select{font-family:inherit}
   radial-gradient(40% 40% at 70% 70%,rgba(234,179,8,.10),transparent 70%)}
 .intro-stage{position:relative;text-align:center;transform-style:preserve-3d;
   animation:introRoll 1.5s cubic-bezier(.2,.8,.25,1) both}
+.intro-ring{position:absolute;left:50%;top:52px;z-index:0;width:210px;height:210px;margin-left:-105px;margin-top:-105px;
+  border-radius:50%;transform-style:preserve-3d;
+  background:conic-gradient(from 0deg,rgba(41,98,255,0),rgba(41,98,255,.55),rgba(234,179,8,.45),rgba(41,98,255,0));
+  filter:blur(1px);opacity:0;
+  animation:introRing 2.2s cubic-bezier(.25,.8,.3,1) .1s both, introSpin 7s linear .1s infinite}
+.intro-ring::after{content:"";position:absolute;inset:14px;border-radius:50%;background:#05070d}
+.intro-mark{position:relative;z-index:2;overflow:hidden;transform-style:preserve-3d}
+.intro-mark span{position:relative;z-index:2}
+.intro-shine{position:absolute;inset:0;border-radius:inherit;z-index:1;
+  background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.55) 48%,transparent 62%);
+  transform:translateX(-130%);animation:introShine 1.5s ease .7s 2 both}
+@keyframes introRing{
+  0%{opacity:0;transform:rotateX(72deg) rotateZ(0) scale(.55)}
+  55%{opacity:.95}
+  100%{opacity:.55;transform:rotateX(64deg) rotateZ(0) scale(1)}
+}
+@keyframes introSpin{to{transform:rotateX(64deg) rotateZ(360deg)}}
+@keyframes introShine{0%{transform:translateX(-130%)}100%{transform:translateX(130%)}}
 .intro-mark{width:78px;height:78px;margin:0 auto 18px;border-radius:20px;
   display:grid;place-items:center;font:800 30px/1 ui-sans-serif,system-ui,sans-serif;color:#fff;
   background:linear-gradient(145deg,#2962ff,#0ea5e9 55%,#052e83);
@@ -97,11 +115,17 @@ button,select{font-family:inherit}
   45%{opacity:1}
   100%{transform:rotateX(0) rotateY(0) translateZ(0) scale(1);filter:blur(0);opacity:1}
 }
-@keyframes introPop{0%{transform:scale(.5) rotateY(70deg);opacity:0}100%{transform:scale(1) rotateY(0);opacity:1}}
+@keyframes introPop{
+  0%{transform:translateZ(-180px) scale(.55) rotateY(70deg) rotateX(-14deg);opacity:0}
+  70%{opacity:1}
+  100%{transform:translateZ(0) scale(1) rotateY(0) rotateX(0);opacity:1}
+}
 @keyframes introRise{0%{transform:translateY(14px);opacity:0}100%{transform:translateY(0);opacity:1}}
 @keyframes introSweep{0%{transform:translateX(-120%)}100%{transform:translateX(330%)}}
 @media(prefers-reduced-motion:reduce){
-  .intro-stage,.intro-mark,.intro-title,.intro-sub,.intro-bar,.intro-bar i{animation:none!important;opacity:1!important}
+  .intro-stage,.intro-mark,.intro-title,.intro-sub,.intro-bar,.intro-bar i,
+  .intro-ring,.intro-shine{animation:none!important;opacity:1!important}
+  .intro-ring{opacity:.35!important;transform:rotateX(64deg)}
   #intro{transition:opacity .2s ease}
 }
 .hd-clean{display:flex;align-items:center;justify-content:space-between;gap:14px}
@@ -384,7 +408,8 @@ body[data-view="signal"] #hero-signal{position:relative}
 
 <div id="intro" role="dialog" aria-label="Welcome to ASTRA6">
   <div class="intro-stage">
-    <div class="intro-mark">A6</div>
+    <div class="intro-ring"></div>
+    <div class="intro-mark"><span>A6</span><i class="intro-shine"></i></div>
     <div class="intro-title">WELCOME TO <b>ASTRA</b></div>
     <div class="intro-sub">gold · bitcoin · volume clusters</div>
     <div class="intro-bar"><i></i></div>
@@ -480,6 +505,7 @@ body[data-view="signal"] #hero-signal{position:relative}
       <button class="chip" id="refresh-btn" onclick="fetchDashboard();closeMenu()">Refresh</button>
       <button class="chip" onclick="toggleTheme()" aria-label="Switch theme"><svg id="theme-ico" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg><span>Theme</span></button>
       <button class="chip" id="sound-btn" onclick="toggleSound()">Sound</button>
+      <button class="chip" onclick="closeMenu();playIntro()">Replay welcome</button>
       <label class="chip" style="gap:6px"><span class="dot" id="market-dot"></span><span id="market-status">LIVE</span></label>
     </div>
   </div>
@@ -600,26 +626,38 @@ function authHeaders(){const t=getToken();return t?{'Authorization':'Bearer '+t}
 function endIntro(){
   const el=document.getElementById('intro');
   if(!el||el.classList.contains('gone'))return;
+  clearTimeout(window._introTimer);
   el.classList.add('gone');
-  setTimeout(()=>{el.remove();},650);
-  try{sessionStorage.setItem('astra6_intro','1');}catch(e){}
+  setTimeout(()=>{if(el.classList.contains('gone'))el.style.display='none';},650);
   // the chart sized itself while hidden behind the intro; re-measure now
   setTimeout(()=>{try{const c=document.getElementById('oanda_chart');
     if(c&&typeof chart!=='undefined'&&chart) chart.applyOptions({width:c.clientWidth,height:c.clientHeight||420});
     if(typeof scheduleZoneDraw==='function') scheduleZoneDraw();
   }catch(e){}},80);
 }
-(function bootIntro(){
+// Plays on every fresh page load - clicking the site link should always open on it.
+// (It used to be gated to once per browser session, so a second visit showed nothing.)
+function playIntro(){
   const el=document.getElementById('intro');
   if(!el)return;
-  let seen=false;
-  try{seen=sessionStorage.getItem('astra6_intro')==='1';}catch(e){}
-  if(seen){el.remove();return;}
+  el.classList.remove('gone');
+  el.style.display='';
+  // restart the animations from the top
+  const stage=el.querySelector('.intro-stage');
+  if(stage){stage.style.animation='none';void stage.offsetWidth;stage.style.animation='';}
+  const mark=el.querySelector('.intro-mark');
+  if(mark){mark.style.animation='none';void mark.offsetWidth;mark.style.animation='';}
+  clearTimeout(window._introTimer);
   const skip=document.getElementById('intro-skip');
   if(skip)skip.onclick=endIntro;
   el.onclick=(e)=>{if(e.target===el)endIntro();};
+  window._introTimer=setTimeout(endIntro,2600);
+}
+(function bootIntro(){
+  const el=document.getElementById('intro');
+  if(!el)return;
   document.addEventListener('keydown',(e)=>{if(e.key==='Escape')endIntro();});
-  setTimeout(endIntro,2600);
+  playIntro();
 })();
 
 // ---- view: chart, signal, or both ----
