@@ -4077,7 +4077,7 @@ _VOL_CACHE = {}
 @app.get("/api/volume")
 def get_volume(symbol: str = "XAUUSD", venue: str = None, rows: int = 48,
                min_pct: float = 10.0, tf: str = "M15", bars: int = 200,
-               since: int = 0, email: str = "free@astra6.com"):
+               since: str = "0", email: str = "free@astra6.com"):
     """
     Volume-at-price clusters + daily VWAP, and the signal they imply.
     BTCUSD: real Binance taker buy/sell. XAUUSD: real tick volume, estimated split.
@@ -4087,6 +4087,10 @@ def get_volume(symbol: str = "XAUUSD", venue: str = None, rows: int = 48,
     floating over a different set of bars.
     """
     import volume as VOL
+    try:
+        since = int(float(since or 0))       # "" or "abc" from an old page is not a crash
+    except Exception:
+        since = 0
     tf_key = VOL.normalise_tf(tf)
     bars = max(40, min(600, int(bars or 200)))
     key = f"{str(symbol).upper()}|{venue or ''}|{rows}|{min_pct}|{tf_key}|{bars}|{since}"
