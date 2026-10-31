@@ -1,39 +1,54 @@
 """
-ASTRA6 - High Winrate Elite Strategy - Gold Sniper
-Not normal SMA/RSI - Multi-confluence 70%+ winrate
+ASTRA6 - zone strategy backend (RENDER support/resistance engine)
 """
-try:
-    from ai_analysis import ai_model, get_ai_signal, extract_features
-    AI_AVAILABLE = True
-    print("✅ AI Analysis loaded from pythonidae")
-except Exception as e:
-    print(f"AI not available: {e}")
-    AI_AVAILABLE = False
-    ai_model = None
+import os as _os
 
-try:
-    from finance_web_analysis import get_combined_finance_web_signal, analyze_multi_asset_correlation, web_check_analysis, get_finance_database_symbols
-    FINANCE_WEB_AVAILABLE = True
-    print("✅ Finance+Web Analysis loaded from FinanceDatabase + web-check")
-except Exception as e:
-    print(f"Finance+Web not available: {e}")
-    FINANCE_WEB_AVAILABLE = False
+# The live strategy is the RENDER zone engine (zones.py).
+# The old AI / finance / tradingview / vibe layers import scikit-learn + pandas at
+# module load, which is most of the cold start on a 0.1-CPU free instance.
+# They are OFF by default; set ENABLE_LEGACY_LAYERS=1 to switch them back on.
+_LEGACY = _os.getenv("ENABLE_LEGACY_LAYERS", "0") == "1"
 
-try:
-    from tradingview_analysis import get_tradingview_combined_signal, analyze_tradingview_indicators, analyze_pine_script_patterns
-    TRADINGVIEW_AVAILABLE = True
-    print("✅ TradingView Analysis loaded from tradingview-mcp Bridge (84 tools)")
-except Exception as e:
-    print(f"TradingView not available: {e}")
-    TRADINGVIEW_AVAILABLE = False
+AI_AVAILABLE = False
+FINANCE_WEB_AVAILABLE = False
+TRADINGVIEW_AVAILABLE = False
+VIBE_TRADING_AVAILABLE = False
+ai_model = None
 
-try:
-    from vibe_trading_analysis import get_vibe_trading_combined_signal, analyze_shadow_account, analyze_qlib158_indicators, analyze_trading_limits
-    VIBE_TRADING_AVAILABLE = True
-    print("✅ Vibe-Trading Analysis loaded from HKUDS/Vibe-Trading (Shadow Account + Qlib158)")
-except Exception as e:
-    print(f"Vibe-Trading not available: {e}")
-    VIBE_TRADING_AVAILABLE = False
+def get_ai_signal(*a, **k):
+    return None
+
+def extract_features(*a, **k):
+    return None
+
+if _LEGACY:
+    try:
+        from ai_analysis import ai_model, get_ai_signal, extract_features
+        AI_AVAILABLE = True
+        print("AI Analysis loaded from pythonidae")
+    except Exception as e:
+        print(f"AI not available: {e}")
+    try:
+        from finance_web_analysis import (get_combined_finance_web_signal, analyze_multi_asset_correlation,
+                                          web_check_analysis, get_finance_database_symbols)
+        FINANCE_WEB_AVAILABLE = True
+        print("Finance+Web Analysis loaded")
+    except Exception as e:
+        print(f"Finance+Web not available: {e}")
+    try:
+        from tradingview_analysis import (get_tradingview_combined_signal, analyze_tradingview_indicators,
+                                          analyze_pine_script_patterns)
+        TRADINGVIEW_AVAILABLE = True
+        print("TradingView Analysis loaded")
+    except Exception as e:
+        print(f"TradingView not available: {e}")
+    try:
+        from vibe_trading_analysis import (get_vibe_trading_combined_signal, analyze_shadow_account,
+                                           analyze_qlib158_indicators, analyze_trading_limits)
+        VIBE_TRADING_AVAILABLE = True
+        print("Vibe-Trading Analysis loaded")
+    except Exception as e:
+        print(f"Vibe-Trading not available: {e}")
 
 from fastapi import FastAPI, Header, HTTPException, Depends, Request, Query
 from fastapi.staticfiles import StaticFiles
