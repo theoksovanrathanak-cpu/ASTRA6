@@ -132,34 +132,97 @@ def value_area(rows, poc, pct=0.70):
     return {"high": max(r["top"] for r in chosen), "low": min(r["bot"] for r in chosen)}
 
 
-def signal(candles, vwap, rows, poc, atr, min_pct=10.0):
+
+def _percentile(vals, q):
+    if not vals:
+        return None
+    s = sorted(vals)
+    k = max(0, min(len(s) - 1, int(len(s) * q)))
+    return s[k]
+
+
+def atr_series(candles, n=14):
+    """Wilder-style ATR for every bar, so we can rank volatility against itself."""
+    trs, out = [], []
+    for i, c in enumerate(candles):
+        if i == 0:
+            tr = c["high"] - c["low"]
+        else:
+            p = candles[i - 1]["close"]
+            tr = max(c["high"] - c["low"], abs(c["high"] - p), abs(c["low"] - p))
+        trs.append(tr)
+        out.append(sum(trs[-n:]) / n if len(trs) >= n else trs[-1])
+    return out
+
+
+def signal(candles, vwap, rows, poc, atr, min_pct=10.0, vwap_series_in=None):
     """
-    The strategy, stated plainly:
-        price in a high-volume row AND above VWAP AND row delta positive -> BUY
-        price in a high-volume row AND below VWAP AND row delta negative -> SELL
-    Stop goes just past the row, TP1 is the next cluster, TP2 is the POC/VWAP.
+    The rule set, tuned on real history (see backtest_volume.py):
+
+        BUY   price in a high-volume row, above VWAP by 0.25 ATR, VWAP rising,
+              row delta positive and at least 15% of the row, ATR not in the top 20%
+        SELL  the mirror image
+        stop  beyond the row AND at least 1 ATR away - never inside the cluster
+        TP1   0.75R, TP2 the next cluster in the direction of travel
     """
     if not candles or not rows:
         return {"type": "HOLD", "reason": "no volume data yet"}
     price = candles[-1]["close"]
     a = atr or (candles[-1]["high"] - candles[-1]["low"]) or price * 0.0005
 
+    out = {"price": round(price, 2), "atr": round(a, 4)}
+
     cur = next((r for r in rows if r["bot"] <= price <= r["top"]), None)
     if cur is None:
         nearest = min(rows, key=lambda r: abs((r["bot"] + r["top"]) / 2 - price))
-        return {"type": "HOLD", "price": round(price, 2),
-                "reason": f"Price outside every cluster — nearest node {(nearest['bot'] + nearest['top']) / 2:.2f}"}
+        out.update({"type": "HOLD",
+                    "reason": f"Price outside every cluster - nearest node {(nearest['bot'] + nearest['top']) / 2:.2f}"})
+        return out
 
-    strong = cur["total"] >= poc["total"] * min_pct / 100.0
-    above = vwap is not None and price > vwap
-    below = vwap is not None and price < vwap
-    out = {"price": round(price, 2), "row": {k: cur[k] for k in ("bot", "top", "buy", "sell", "total", "delta")},
-           "vwap": round(vwap, 2) if vwap else None,
-           "poc": {"price": round((poc["bot"] + poc["top"]) / 2, 2), "total": poc["total"]},
-           "poc_row": {"bot": poc["bot"], "top": poc["top"]}}
+    out.update({"row": {k: cur[k] for k in ("bot", "top", "buy", "sell", "total", "delta")},
+                "vwap": round(vwap, 2) if vwap else None,
+                "poc": {"price": round((poc["bot"] + poc["top"]) / 2, 2), "total": poc["total"]},
+                "poc_row": {"bot": poc["bot"], "top": poc["top"]}})
 
-    if not strong:
-        out.update({"type": "HOLD", "reason": "Price in a thin row — no cluster to trade against."})
+    # ---- gate 1: the row has to carry real volume ----
+    if cur["total"] < poc["total"] * min_pct / 100.0:
+        out.update({"type": "HOLD", "reason": "Price in a thin row - no cluster to trade against."})
+        return out
+
+    # ---- gate 2: volatility has to be normal for this instrument ----
+    aser = atr_series(candles, 14)
+    recent = [x for x in aser[-120:] if x]
+    if len(recent) >= 30:
+        lim = _percentile(recent, 0.80)
+        if lim and a > lim:
+            out.update({"type": "HOLD",
+                        "reason": f"ATR {a:.2f} is above its 80th percentile ({lim:.2f}) - too hot to hold."})
+            return out
+
+    # ---- gate 3: VWAP side, with a buffer so it can't flicker on the line ----
+    buf = 0.25 * a
+    above = vwap is not None and (price - vwap) >= buf
+    below = vwap is not None and (vwap - price) >= buf
+    if not above and not below:
+        out.update({"type": "HOLD",
+                    "reason": f"Too close to VWAP {vwap:.2f} - waiting for price to commit." if vwap
+                              else "VWAP unavailable."})
+        return out
+
+    # ---- gate 4: VWAP must be moving the same way as the trade ----
+    ser = vwap_series_in or vwap_series(candles)
+    if len(ser) > 10:
+        slope = ser[-1]["value"] - ser[-11]["value"]
+        if (above and slope <= 0) or (below and slope >= 0):
+            out.update({"type": "HOLD",
+                        "reason": f"VWAP is flat against the trade ({slope:+.2f} over 10 bars) - no edge."})
+            return out
+
+    # ---- gate 5: the row's own delta has to agree ----
+    ratio = abs(cur["delta"]) / max(cur["total"], 1e-9)
+    if ratio < 0.15:
+        out.update({"type": "HOLD",
+                    "reason": f"Row delta only {ratio*100:.0f}% of volume - buyers and sellers still fighting."})
         return out
 
     if above and cur["delta"] > 0:
@@ -169,24 +232,18 @@ def signal(candles, vwap, rows, poc, atr, min_pct=10.0):
     else:
         out.update({"type": "HOLD",
                     "reason": f"In cluster but {'above' if above else 'below'} VWAP with "
-                              f"{'positive' if cur['delta'] > 0 else 'negative'} delta — no edge."})
+                              f"{'positive' if cur['delta'] > 0 else 'negative'} delta - no edge."})
         return out
 
-    # next cluster in the direction of the trade
-    # stop past the row, but never tighter than 0.6 ATR (a $1 stop is not a stop)
-    min_risk = 0.6 * a
+    # ---- stop: outside the row and never tighter than 1 ATR ----
     if side == 1:
         nxt = [r for r in rows if r["bot"] > cur["top"]]
         tp_level = min(nxt, key=lambda r: r["bot"])["bot"] if nxt else (vwap or price + 2 * a)
-        sl = cur["bot"] - 0.15 * a
-        if price - sl < min_risk:
-            sl = price - min_risk
+        sl = min(cur["bot"] - 0.15 * a, price - 1.0 * a)
     else:
         nxt = [r for r in rows if r["top"] < cur["bot"]]
         tp_level = max(nxt, key=lambda r: r["top"])["top"] if nxt else (vwap or price - 2 * a)
-        sl = cur["top"] + 0.15 * a
-        if sl - price < min_risk:
-            sl = price + min_risk
+        sl = max(cur["top"] + 0.15 * a, price + 1.0 * a)
 
     risk = abs(price - sl)
     if risk <= 0:
@@ -200,10 +257,11 @@ def signal(candles, vwap, rows, poc, atr, min_pct=10.0):
         "tp1": round(tp1, 2), "tp2": round(tp2, 2),
         "risk": round(risk, 2),
         "r": round(abs(tp2 - price) / risk, 2),
-        "confidence": min(92, 55 + int(min(35, abs(cur["delta"]) / max(cur["total"], 1e-9) * 100 * 0.5))),
-        "reason": (f"{'Cluster' if True else ''} {cur['bot']:.2f}–{cur['top']:.2f} · "
+        "confidence": min(92, 55 + int(min(35, ratio * 100 * 0.5))),
+        "reason": (f"Cluster {cur['bot']:.2f}-{cur['top']:.2f} · "
                    f"{'above' if side == 1 else 'below'} VWAP {vwap:.2f} · "
-                   f"delta {'+' if cur['delta'] >= 0 else ''}{cur['delta']:.2f}"),
+                   f"delta {'+' if cur['delta'] >= 0 else ''}{cur['delta']:.2f} · "
+                   f"stop {risk/a:.1f} ATR"),
     })
     return out
 
@@ -242,7 +300,7 @@ def analyse(candles, rows=48, min_pct=10.0, bias_from="5m"):
         c, p = candles[i], candles[i - 1]
         trs.append(max(c["high"] - c["low"], abs(c["high"] - p["close"]), abs(c["low"] - p["close"])))
     atr = sum(trs[-14:]) / len(trs[-14:]) if trs else None
-    sig = signal(candles, vwap, cl, poc, atr, min_pct)
+    sig = signal(candles, vwap, cl, poc, atr, min_pct, vwap_series(candles))
     va = value_area(cl, poc)
     return {"status": "ok", "vwap_series": vwap_series(candles[-180:]),
             "vwap": round(vwap, 2) if vwap else None,

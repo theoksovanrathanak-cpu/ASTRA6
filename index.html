@@ -615,6 +615,7 @@ function setStrategy(s){
   const hint=document.getElementById('strategy-hint');
   if(hint) hint.textContent = s==='volume' ? 'volume clusters · daily VWAP' : '15m target · 5m entry';
   scheduleZoneDraw();
+  if(s!=='volume'){ clearVolumeLevels(); window._volLineKey=''; }
   if(s==='volume'){
     fetchVolume();
     if(window._volume) renderVolumeSignal(window._volume);
@@ -625,6 +626,7 @@ function setStrategy(s){
 }
 
 // ---------- volume clusters + daily VWAP ----------
+const VOL_COOLDOWN_MS = 15*60*1000;   // one alert per symbol per 15 minutes, at most
 window._volume = null;
 let _volPending=false, _volAt=0;
 async function fetchVolume(){
@@ -644,13 +646,24 @@ async function fetchVolume(){
 
 // the volume-cluster signal, shown in the same card as RENDER
 function renderVolumeSignal(d){
-  // the volume cluster is the signal: fire once per cluster, never twice
+  // the volume cluster is the signal. Three guards, because one was not enough:
+  //   1. the type has to change  (a signal that is merely still on is not news)
+  //   2. 15 minutes between alerts per symbol
+  //   3. the same price bucket never alerts twice
   try{
-    const sg=d.signal||{}, t=sg.type;
-    if((t==='BUY'||t==='SELL') && sg.row){
-      const key=currentSymbol+'|VOL|'+t+'|'+Number(sg.row.bot).toFixed(2)+'|'+Number(sg.row.top).toFixed(2);
-      if(!firedKeys().includes(key)){
+    const sg=d.signal||{}, t=sg.type||'HOLD';
+    const sym=currentSymbol;
+    const prevKey='astra6_vol_prev_'+sym, atKey='astra6_vol_at_'+sym;
+    const prev=localStorage.getItem(prevKey);
+    localStorage.setItem(prevKey,t);
+    if(t==='BUY'||t==='SELL'){
+      const bucket=Math.round((sg.price||0)/Math.max(0.25*(sg.atr||sg.risk||1),1e-9));
+      const key=sym+'|VOL|'+t+'|'+bucket;
+      const lastAt=Number(localStorage.getItem(atKey)||0);
+      const cooled=(Date.now()-lastAt)>=VOL_COOLDOWN_MS;
+      if(prev!==t && cooled && !firedKeys().includes(key)){
         markFired(key);
+        localStorage.setItem(atKey,String(Date.now()));
         recordZoneAlert(key,{type:t,entry:sg.entry||sg.price,price:sg.price,
                              confidence:sg.confidence||70,label:(sg.r!=null?sg.r+'R':null),
                              sl:sg.sl,tp1:sg.tp1});
@@ -714,9 +727,38 @@ function _pool(parent,pool,n,tag){
   return pool;
 }
 function clearVolumeLayer(){
+  clearVolumeLevels(); window._volLineKey='';
   ['vw-bands','vw-marks','vw-labels'].forEach(id=>{const g=document.getElementById(id);if(g)g.innerHTML='';});
   _VL.bands.length=0;_VL.meters.length=0;_VL.labels.length=0;
   _VL.path=null;_VL.dot=null;_VL.tag=null;
+}
+
+// price lines for the live trade: you should see the stop before it hits you
+let _volLines=[];
+function clearVolumeLevels(){
+  if(!candleSeries||!candleSeries.removePriceLine) return;
+  _volLines.forEach(l=>{try{candleSeries.removePriceLine(l);}catch(e){}});
+  _volLines=[];
+}
+function drawVolumeLevels(d){
+  const sg=(d&&d.signal)||{};
+  const want=(sg.type==='BUY'||sg.type==='SELL');
+  const key=want?[sg.type,sg.entry,sg.sl,sg.tp1,sg.tp2].join('|'):'';
+  if(window._volLineKey===key){return;}
+  window._volLineKey=key;
+  clearVolumeLevels();
+  if(!want||!candleSeries||!candleSeries.createPriceLine) return;
+  const add=(price,color,title,style)=>{
+    if(price==null) return;
+    try{
+      _volLines.push(candleSeries.createPriceLine({price:Number(price),color,lineWidth:1,
+        lineStyle:style,axisLabelVisible:true,title}));
+    }catch(e){}
+  };
+  add(sg.entry,'#64748b','entry '+sg.type,2);
+  add(sg.sl,'#ef4444','SL',0);
+  add(sg.tp1,'#10b981','TP1',1);
+  add(sg.tp2,'#059669','TP2',1);
 }
 
 function drawVolume(){
@@ -827,6 +869,8 @@ function drawVolume(){
   _VL.dot.setAttribute('cy',lastXY.y.toFixed(1));
   _VL.dot.setAttribute('r','2.6');
   _VL.dot.setAttribute('fill','#eab308');
+
+  drawVolumeLevels(d);
 
   if(!_VL.tag){_VL.tag=_svgEl('text');gM.appendChild(_VL.tag);}
   _VL.tag.setAttribute('x',Math.max(4,Math.min(plotW-4,lastXY.x+7)).toFixed(1));
