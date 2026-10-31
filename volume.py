@@ -485,9 +485,49 @@ def analyse(candles, rows=48, min_pct=10.0, bias_from="5m"):
     atr = sum(trs[-14:]) / len(trs[-14:]) if trs else None
     va = value_area(cl, poc)
     sig = signal(candles, vwap, cl, poc, atr, min_pct, vwap_series(candles), va=va)
+
+    # ---- the full order flow: every bar's aggression and the running total ----
+    # Each bar carries buy/sell (real taker split where the feed has it, close-location
+    # estimate otherwise - the API already says which). Cumulative delta is the sum:
+    # buyers lifting offers minus sellers hitting bids, from the session open to now.
+    dser, cvd = [], 0.0
+    for c in candles:
+        b = c.get("buy")
+        sl_ = c.get("sell")
+        if b is None or sl_ is None:
+            vol = float(c.get("volume") or 0)
+            hi, lo, cl_ = float(c["high"]), float(c["low"]), float(c["close"])
+            rng = (hi - lo) or 1e-9
+            b = vol * (cl_ - lo) / rng
+            sl_ = vol - b
+        d = float(b) - float(sl_)
+        cvd += d
+        dser.append({"time": int(c["time"]), "buy": round(float(b), 4),
+                     "sell": round(float(sl_), 4), "delta": round(d, 4),
+                     "volume": round(float(c.get("volume") or 0), 4),
+                     "cvd": round(cvd, 4)})
+
+    # unbalanced rows: one side clearly dominant at that price = a level worth knowing
+    imb = []
+    for r in cl:
+        tot = r["total"] or 1e-9
+        share = r["delta"] / tot
+        if abs(share) >= 0.35 and r["total"] >= (poc["total"] * 0.15 if poc else 0):
+            imb.append({"bot": r["bot"], "top": r["top"], "delta": r["delta"],
+                        "side": "buy" if share > 0 else "sell",
+                        "share": round(share, 3), "total": r["total"]})
+    imb = sorted(imb, key=lambda x: -abs(x["share"]))[:8]
+
+    tot_buy = sum(x["buy"] for x in dser)
+    tot_sell = sum(x["sell"] for x in dser)
     return {"status": "ok", "vwap_series": vwap_series(candles[-180:]),
             "vwap": round(vwap, 2) if vwap else None,
             "vwap_bars": used, "rows": cl, "poc": poc,
             "value_area": va, "row_size": step,
             "signal": sig, "atr": round(atr, 2) if atr else None,
-            "bars": n}
+            "bars": n,
+            "delta_series": dser[-300:],
+            "cvd": round(cvd, 2),
+            "buy_total": round(tot_buy, 2), "sell_total": round(tot_sell, 2),
+            "delta_total": round(tot_buy - tot_sell, 2),
+            "imbalance": imb}

@@ -321,16 +321,44 @@ body.intro-open{overflow:hidden}
 #oanda_chart{width:100%;height:420px;border-radius:10px;background:#fbfcfd;border:1px solid var(--line-soft);overflow:hidden;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px}
 .chart-shell{position:relative}
 .flow-line{
-  display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px;padding:7px 10px;border-radius:10px;
+  display:flex;flex-direction:column;gap:5px;width:100%;margin-top:8px;padding:8px 10px;border-radius:11px;
   font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10.5px;font-weight:700;color:var(--ink-2);
-  background:color-mix(in srgb,var(--surface) 82%,transparent);border:1px solid var(--line);line-height:1.35;
+  background:color-mix(in srgb,var(--surface) 86%,transparent);
+  border:1px solid color-mix(in srgb,var(--a-violet) 26%,var(--line));line-height:1.4;
+  text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent;
 }
+.flow-line:hover{border-color:color-mix(in srgb,var(--a-cyan) 46%,var(--line))}
 .flow-line[hidden]{display:none}
+.flow-line .of-row{display:flex;flex-wrap:wrap;align-items:center;gap:7px}
 .flow-line b{font-weight:900;letter-spacing:.03em}
 .flow-line .buy{color:#12b981}
 .flow-line .sell{color:#f4525f}
 .flow-line .hold{color:var(--muted)}
 .flow-line .flow-k{color:var(--muted);font-weight:700}
+.flow-line .of-chip{
+  display:inline-flex;align-items:center;gap:4px;padding:1px 6px;border-radius:6px;
+  background:color-mix(in srgb,var(--line) 55%,transparent);color:var(--ink-2);font-weight:800;
+}
+.flow-line .of-chip.up{color:#12b981}
+.flow-line .of-chip.dn{color:#f4525f}
+.flow-line .of-more{color:var(--muted);font-weight:700;font-size:9.5px;margin-left:auto}
+.of-ladder{display:flex;flex-direction:column;gap:2px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px}
+.of-ladder .of-l{display:grid;grid-template-columns:62px 1fr 46px 46px 52px;gap:6px;align-items:center;padding:3px 4px;border-radius:6px}
+.of-ladder .of-l.head{color:var(--muted);font-weight:800;font-size:9px;letter-spacing:.06em;text-transform:uppercase}
+.of-ladder .of-l.va{background:rgba(14,165,233,.10)}
+.of-ladder .of-l.poc{background:rgba(245,158,11,.14)}
+.of-ladder .of-l.imb{box-shadow:inset 2px 0 0 #f4525f}
+.of-ladder .of-l.imb.buy{box-shadow:inset 2px 0 0 #12b981}
+.of-ladder .of-px{font-weight:800;color:var(--ink)}
+.of-ladder .of-bar{height:7px;border-radius:99px;background:color-mix(in srgb,var(--line) 60%,transparent);overflow:hidden;display:flex}
+.of-ladder .of-bar i{display:block;height:100%}
+.of-ladder .of-b{color:#12b981;text-align:right}
+.of-ladder .of-s{color:#f4525f;text-align:right}
+.of-ladder .of-d{text-align:right;font-weight:800}
+.of-sum{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:10px}
+.of-sum div{padding:9px 10px;border-radius:10px;background:color-mix(in srgb,var(--surface) 70%,transparent);border:1px solid var(--line)}
+.of-sum .k{font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:800}
+.of-sum .v{font-family:ui-monospace,monospace;font-size:14px;font-weight:850;color:var(--ink);margin-top:2px}
 .swap-note{
   position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:7;pointer-events:none;
   padding:9px 16px;border-radius:99px;font-size:11.5px;font-weight:800;letter-spacing:.02em;
@@ -1405,9 +1433,15 @@ body[data-view="home"] .home>*:nth-child(4){animation-delay:.18s}
       </span>
       <span class="cc-txt">
         <span class="cc-t">How to trade this strategy</span>
-        <span class="cc-k">video · 1:15 · order flow, value area, entry &amp; exits</span>
+        <span class="cc-k">video · 2:00 with voice · order flow, value area, entry &amp; exits</span>
       </span>
     </button>
+  </div>
+
+  <div class="menu-sec">
+    <div class="menu-label">Order flow</div>
+    <div class="menu-hint" id="of-menu-mini" style="font-family:ui-monospace,monospace">reading the volume…</div>
+    <button class="chip" style="width:100%;justify-content:center;margin-top:8px" onclick="closeMenu();openOrderFlow()">Open the full ladder</button>
   </div>
 
   <div class="menu-sec">
@@ -1549,7 +1583,7 @@ body[data-view="home"] .home>*:nth-child(4){animation-delay:.18s}
       <div id="ind-panel" class="tool-panel" hidden role="dialog" aria-label="Indicators"></div>
       <div id="chart-menu" class="tool-panel" hidden role="dialog" aria-label="Chart type and tools"></div>
     </div>
-    <div id="flow-line" class="flow-line" hidden></div>
+    <button id="flow-line" class="flow-line" type="button" hidden onclick="openOrderFlow()" aria-label="Open the full order flow"></button>
     <div class="meta-row">
       <span>ASTRA6 chart · <span id="chart-info-tf">M15</span> · <span id="chart-candle-count">--</span> · <span class="ok" id="chart-source">connecting</span></span>
       <span class="zone-key"><i style="background:rgba(16,185,129,.35);border:1px solid #10b981"></i>buy zone
@@ -2421,18 +2455,19 @@ const IND_LIST=[
   ['ma20','MA 20 · SMA'],['ma50','MA 50 · SMA'],['ma200','MA 200 · SMA'],['ema20','EMA 20'],
   ['bb','Bollinger 20 · 2σ'],['vwap','Daily VWAP'],['vwapb','VWAP bands ±1σ'],['vol','Volume'],
   ['st','Supertrend 10 3'],
+  ['cvd','Order flow · CVD pane'],
   ['rsi','RSI 14 pane'],['macd','MACD 12 26 9 pane'],['stoch','Stochastic 14 3 3 pane'],['atr','ATR 14 pane']
 ];
-const PANE_KINDS=['rsi','macd','stoch','atr'];
-const PANE_H={rsi:92,macd:104,stoch:92,atr:88};
-const PANE_TITLE={rsi:'RSI 14',macd:'MACD 12 26 9',stoch:'Stoch 14 3 3',atr:'ATR 14'};
+const PANE_KINDS=['cvd','rsi','macd','stoch','atr'];
+const PANE_H={cvd:112,rsi:92,macd:104,stoch:92,atr:88};
+const PANE_TITLE={cvd:'Order flow · cumulative delta',rsi:'RSI 14',macd:'MACD 12 26 9',stoch:'Stoch 14 3 3',atr:'ATR 14'};
 const CTYPE_LIST=[['candles','Candles'],['bars','Bars'],['line','Line'],['area','Area'],['heikin','Heikin']];
 
 let drawTool='cursor',drawings=[],drawHidden=false,drawLocked=false,_dStart=null,_dPreview=null,_drawSym='',_drawRaf=0;
 let chartType=localStorage.getItem('astra6_ctype')||'candles';
 window._logScale=localStorage.getItem('astra6_log')==='1';
 const IND=Object.assign({ma20:false,ma50:false,ma200:false,ema20:false,bb:false,vwap:false,vwapb:false,vol:false,st:false,
-                        rsi:false,macd:false,stoch:false,atr:false},{vwap:true,vol:true},
+                        cvd:false,rsi:false,macd:false,stoch:false,atr:false},{vwap:true,vol:true,cvd:true},
   (function(){try{return JSON.parse(localStorage.getItem('astra6_ind')||'{}');}catch(e){return {};}})());
 let indSeries=[],paneRef={},_syncGuard=false;
 
@@ -3163,6 +3198,33 @@ function paintPane(kind,bars,closes){
     pr.line.setData(k);pr.sig.setData(d);
     const lbl=pr.div.querySelector('.sp-lbl');
     if(lbl&&k.length)lbl.textContent='Stoch 14 3 3 · '+k[k.length-1].value.toFixed(1);
+    return;
+  }
+  if(kind==='cvd'){
+    if(!pr.hist){
+      // two overlays in one pane: per-bar aggression (histogram) and the running total
+      pr.hist=pr.chart.addHistogramSeries({priceScaleId:'ofd',priceLineVisible:false,lastValueVisible:false,
+        priceFormat:{type:'volume'}});
+      pr.line=pr.chart.addLineSeries({priceScaleId:'ofc',color:'#22d3ee',lineWidth:1.7,
+        priceLineVisible:false,lastValueVisible:true,crosshairMarkerRadius:2});
+      try{
+        pr.chart.priceScale('ofd').applyOptions({scaleMargins:{top:0.62,bottom:0}});
+        pr.chart.priceScale('ofc').applyOptions({scaleMargins:{top:0.06,bottom:0.44}});
+      }catch(e){}
+    }
+    const ds=(window._volume&&window._volume.delta_series)||[];
+    const hd=[],ln=[];
+    for(const x of ds){
+      hd.push({time:x.time,value:x.delta,color:x.delta>=0?'rgba(18,185,129,.62)':'rgba(244,82,95,.62)'});
+      ln.push({time:x.time,value:x.cvd});
+    }
+    pr.hist.setData(hd); pr.line.setData(ln);
+    const lbl=pr.div.querySelector('.sp-lbl');
+    const lastD=ds.length?ds[ds.length-1]:null;
+    if(lbl&&lastD){
+      lbl.textContent='Order flow · CVD '+fmtVol(Math.abs(lastD.cvd))+(lastD.cvd<0?' sell':' buy')
+        +' · bar '+(lastD.delta>=0?'+':'')+fmtVol(Math.abs(lastD.delta));
+    }
     return;
   }
   if(kind==='atr'){
@@ -4239,9 +4301,17 @@ function paintFlowLine(d){
   if(!el) return;
   const s=(d&&d.signal)||{}, f=(d&&d.flow)||s.flow||{};
   const px=v=>fmtPx(v,mkMeta(currentSymbol).dec);
+  const mini=document.getElementById('of-menu-mini');
+  if(mini&&d){
+    const cvd=Number(d.cvd||0), dt=Number(d.delta_total||0);
+    mini.textContent='CVD '+(cvd<0?'-':'+')+fmtVol(Math.abs(cvd))+' · Δ '+(dt<0?'-':'+')+fmtVol(Math.abs(dt))
+      +' · '+((d.imbalance||[]).length)+' unbalanced levels';
+  }
   if(!s.type){ el.hidden=true; el.innerHTML=''; return; }
   if(s.type==='HOLD'){
-    el.innerHTML='<b class="hold">HOLD</b><span>'+((s.reason||'no edge right now').replace(/&/g,'&amp;').replace(/</g,'&lt;'))+'</span>';
+    el.innerHTML='<span class="of-row"><b class="hold">HOLD</b><span>'
+      +((s.reason||'no edge right now').replace(/&/g,'&amp;').replace(/</g,'&lt;'))
+      +'</span></span>'+orderFlowRow(d);
     el.hidden=false; return;
   }
   const cls=s.type==='BUY'?'buy':'sell';
@@ -4251,9 +4321,81 @@ function paintFlowLine(d){
     '<span class="flow-k">TP1</span> '+px(s.tp1),
     '<span class="flow-k">TP2</span> '+px(s.tp2),
     '<span class="flow-k">R</span> '+(s.r!=null?Number(s.r).toFixed(2):'—'),
-    (s.style?'<span class="flow-k">·</span> '+s.style:'')];
-  el.innerHTML=bits.join(' ');
+    (s.style?'<span class="of-chip">'+s.style+'</span>':'')];
+  el.innerHTML='<span class="of-row">'+bits.join(' ')+'</span>'+orderFlowRow(d);
   el.hidden=false;
+}
+// the flow numbers, in one compact row: CVD, the bar's aggression, the split, the levels
+function orderFlowRow(d){
+  if(!d) return '';
+  const cvd=Number(d.cvd||0), dt=Number(d.delta_total||0);
+  const bt=Number(d.buy_total||0), st=Number(d.sell_total||0), tot=bt+st;
+  const pct=v=>tot>0?Math.round(100*v/tot):0;
+  const ds=d.delta_series||[], lastBar=ds.length?ds[ds.length-1].delta:null;
+  const imb=(d.imbalance||[]).length;
+  const va=d.value_area?('VA '+fmtPx(d.value_area.low,mkMeta(currentSymbol).dec)+'–'+fmtPx(d.value_area.high,mkMeta(currentSymbol).dec)):'';
+  const chips=[
+    '<span class="of-chip '+(cvd<0?'dn':'up')+'">CVD '+(cvd<0?'-':'+')+fmtVol(Math.abs(cvd))+'</span>',
+    (lastBar!=null?'<span class="of-chip '+(lastBar<0?'dn':'up')+'">bar '+(lastBar<0?'-':'+')+fmtVol(Math.abs(lastBar))+'</span>':''),
+    '<span class="of-chip up">buy '+pct(bt)+'%</span>',
+    '<span class="of-chip dn">sell '+pct(st)+'%</span>',
+    (va?'<span class="of-chip">'+va+'</span>':''),
+    (imb?'<span class="of-chip">'+imb+' unbalanced</span>':'')
+  ];
+  return '<span class="of-row">'+chips.join('')+'<span class="of-more">tap for the full ladder ›</span></span>';
+}
+
+// ---------- the full order flow: cumulative delta, the ladder, the unbalanced levels ----------
+function openOrderFlow(){
+  const d=window._volume;
+  if(!d||d.status!=='ok'){
+    openSheet('Order flow','<div class="jn-empty">The order flow needs a volume feed. This market either has no centralised volume or the feed is reconnecting.</div>');
+    return;
+  }
+  const dec=mkMeta(currentSymbol).dec, px=v=>fmtPx(v,dec);
+  const ds=d.delta_series||[], rows=d.rows||[], imb=d.imbalance||[];
+  const cvd=Number(d.cvd||0), bt=Number(d.buy_total||0), st=Number(d.sell_total||0);
+  const tot=bt+st||1;
+  const est=(d.split||'').indexOf('estimated')>=0;
+  const va=d.value_area||{}, poc=d.poc||{};
+  const pocMid=(poc.bot!=null&&poc.top!=null)?(Number(poc.bot)+Number(poc.top))/2:null;
+  const maxTot=Math.max.apply(null,rows.map(r=>r.total||0).concat([1]));
+  const flag=r=>{
+    if(pocMid!=null&&Math.abs((Number(r.bot)+Number(r.top))/2-pocMid)<=(Number(d.row_size||0.01)/2+1e-9)) return 'poc';
+    if(va.low!=null&&Math.abs(Number(r.bot)-Number(va.low))<=(Number(d.row_size||0.01)+1e-9)) return 'va';
+    if(va.high!=null&&Math.abs(Number(r.top)-Number(va.high))<=(Number(d.row_size||0.01)+1e-9)) return 'va';
+    return '';
+  };
+  const imbalanceAt=r=>imb.find(x=>Math.abs(x.bot-Number(r.bot))<1e-6);
+  const sorted=rows.slice().sort((a,b)=>Number(b.bot)-Number(a.bot));
+  const ladder=sorted.map(r=>{
+    const ib=imbalanceAt(r), fl=flag(r);
+    const w=Math.max(1,Math.round(100*(r.total||0)/maxTot));
+    const bshare=Math.round(100*(r.buy||0)/Math.max(1e-9,(r.total||0)));
+    const dlt=Number(r.delta||0);
+    return '<div class="of-l '+fl+(ib?(' imb '+(ib.side==='buy'?'buy':'')):'')+'">'
+      +'<span class="of-px">'+px((Number(r.bot)+Number(r.top))/2)+'</span>'
+      +'<span class="of-bar"><i style="width:'+w+'%;background:linear-gradient(90deg,#12b981 '+bshare+'%,#f4525f '+bshare+'%)"></i></span>'
+      +'<span class="of-b">'+fmtVol(r.buy||0)+'</span>'
+      +'<span class="of-s">'+fmtVol(r.sell||0)+'</span>'
+      +'<span class="of-d" style="color:'+(dlt>=0?'#12b981':'#f4525f')+'">'+(dlt>=0?'+':'')+fmtVol(Math.abs(dlt))+'</span>'
+      +'</div>';
+  }).join('');
+  const body=
+     '<div class="of-sum">'
+      +'<div><div class="k">Cumulative delta</div><div class="v" style="color:'+(cvd>=0?'#12b981':'#f4525f')+'">'+(cvd>=0?'+':'-')+fmtVol(Math.abs(cvd))+'</div></div>'
+      +'<div><div class="k">Bars read</div><div class="v">'+ds.length+' · '+esc(d.tf||'')+'</div></div>'
+      +'<div><div class="k">Bought (est. aggressive)</div><div class="v" style="color:#12b981">'+fmtVol(bt)+' · '+Math.round(100*bt/tot)+'%</div></div>'
+      +'<div><div class="k">Sold (est. aggressive)</div><div class="v" style="color:#f4525f">'+fmtVol(st)+' · '+Math.round(100*st/tot)+'%</div></div>'
+     +'</div>'
+     +'<div style="font-size:10px;color:var(--muted);margin-bottom:10px;line-height:1.5">'
+       +(est?'Split is <b>estimated from the candle shape</b> over real tick volume.':'This feed gives a <b>real taker split</b>.')
+       +' Value area '+px(va.low||0)+'–'+px(va.high||0)
+       +(pocMid!=null?' · POC '+px(pocMid):'')+'.</div>'
+     +'<div class="of-ladder"><div class="of-l head"><span>price</span><span>volume</span><span>buy</span><span>sell</span><span>delta</span></div>'+ladder+'</div>'
+     +(imb.length?'<div style="margin-top:12px;font-size:10.5px;color:var(--muted);line-height:1.6"><b style="color:var(--ink)">Unbalanced levels</b><br>'
+        +imb.map(x=>px((Number(x.bot)+Number(x.top))/2)+' · '+(x.side==='buy'?'buyers':'sellers')+' '+Math.round(Math.abs(x.share)*100)+'% of that row').join('<br>')+'</div>':'');
+  openSheet('Order flow · '+currentSymbol, body);
 }
 
 // the compact card that floats on the chart: this market, its newest signal
@@ -4306,7 +4448,7 @@ function alertsOf(sym){
   }catch(e){ return []; }
 }
 function openCatalog(){
-  const body='<video class="cat-player" src="/astra6-orderflow.mp4" controls playsinline preload="metadata" poster=""></video>'
+  const body='<video class="cat-player" src="/astra6-orderflow.mp4" controls playsinline preload="metadata"></video>'
    +'<ol class="cat-steps">'
    +'<li><span class="n">1</span><span><b>Read the value area.</b> Clusters build the profile; POC is the most traded price and VAH/VAL are the 70% band. Yellow line = daily VWAP.</span></li>'
    +'<li><span class="n">2</span><span><b>A bounce off VAL is a BUY.</b> The wick goes below, the close comes back inside and the delta is positive. Stop goes under the wick.</span></li>'

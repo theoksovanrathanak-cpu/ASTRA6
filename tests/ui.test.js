@@ -805,9 +805,9 @@ section('one strategy, one price, more tools');
      && html.indexOf("['text','Text']") > 0 && html.indexOf("['position','Position']") > 0);
 
   const inds = html.slice(html.indexOf('const IND_LIST=['), html.indexOf('const PANE_KINDS='));
-  ok('fourteen indicators are on offer', (inds.match(/\['/g) || []).length === 13, String((inds.match(/\['/g)||[]).length));
+  ok('fourteen indicators are on offer', (inds.match(/\['/g) || []).length === 14, String((inds.match(/\['/g)||[]).length));
   ok('supertrend and vwap bands are there', inds.includes("'st'") && inds.includes("'vwapb'"));
-  ok('four panes are wired', /const PANE_KINDS=\['rsi','macd','stoch','atr'\]/.test(html));
+  ok('five panes are wired', /const PANE_KINDS=\['cvd','rsi','macd','stoch','atr'\]/.test(html));
 
   // the new maths
   const bars = Array.from({length: 40}, (_, i) => ({
@@ -894,6 +894,16 @@ print('|'.join([rej['type'], rej.get('style') or '-', rejh['type'], base['type']
     const st = require('fs').statSync(path.join(root, 'astra6-orderflow.mp4'));
     return st.size > 500000 && st.size < 20e6;
   })());
+  ok('the video has a narration track', /video · 2:00 with voice/.test(html));
+  ok('the full order flow is a sheet, reachable from the chart strip', /onclick="openOrderFlow\(\)"/.test(html)
+     && /function openOrderFlow\(/.test(html));
+  ok('the order flow sheet shows the ladder and the cumulative delta', /of-ladder/.test(html) && /Cumulative delta/.test(html));
+  ok('the API publishes the delta series and the unbalanced levels', (() => {
+    const py = require('fs').readFileSync(path.join(root, 'volume.py'), 'utf8');
+    return /"delta_series"/.test(py) && /"imbalance"/.test(py) && /"cvd"/.test(py);
+  })());
+  ok('cumulative delta is its own pane, on by default', /\['cvd','Order flow · CVD pane'\]/.test(html)
+     && /const PANE_TITLE=\{cvd:/.test(html) && /cvd:true\}/.test(html));
   ok('the strategy readout sits under the chart', /id="flow-line"/.test(html) && /function paintFlowLine/.test(html));
   ok('the readout prints entry, stop and both targets', /flow-k">SL<\/span>/.test(html) && /flow-k">TP2<\/span>/.test(html));
   ok('forex pairs are gone from the market table', !/'EUR\/USD'/.test(html) && !/'USD\/JPY'/.test(html) && !/'GBP\/USD'/.test(html));
