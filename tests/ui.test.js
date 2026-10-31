@@ -833,6 +833,22 @@ section('one strategy, one price, more tools');
     const f = taVWAPbands(flat);
     return Math.abs(f.up[39] - 100) < 1e-9 && Math.abs(f.dn[39] - 100) < 1e-9;
   })());
+
+  // ---- the device lock: OS face check + 4-digit PIN fallback ----
+  const lcss = html.slice(html.indexOf('<style>'), html.indexOf('</style>'));
+  ok('a lock screen covers the site', /<div id="lock"[^>]*role="dialog"[^>]*aria-modal="true"/.test(html));
+  ok('the lock has four PIN dots and a keypad', /id="lock-dots">(<i><\/i>){4}/.test(html)
+     && /id="lock-pad"/.test(html));
+  ok('a locked body hides the app', /body\.locked \.hd,body\.locked \.wrap/.test(lcss));
+  ok('the menu can lock the site again', /class="menu-lock"[^>]*onclick="lockNow\(\)"/.test(html));
+  ok('face check is a platform authenticator, user verified', /authenticatorAttachment:'platform'/.test(html)
+     && /userVerification:'required'/.test(html));
+  ok('the face check only asks, it never opens a camera', !/getUserMedia|video\.play|FaceDetector/.test(html));
+  ok('the PIN is stored as a salted hash, never as digits', /salt:salt,h:await lkMakeHash\(pin,salt\)/.test(html)
+     && /crypto\.subtle\.digest\('SHA-256'/.test(html));
+  ok('a device without a face check still gets in by PIN', /lkBioReady\(\).*lkOpen\('offer'\)|if\(await lkBioReady\(\)\)\{ lkOpen\('offer'\); return; \}/.test(html));
+  ok('locking again drops the session pass', /sessionStorage\.removeItem\(LK\.sess\)/.test(html));
+  ok('the session pass is what keeps it open', /sessionStorage\.setItem\(LK\.sess,'1'\)/.test(html));
 }
 console.log(`\n${fail ? '\x1b[31m' : '\x1b[32m'}${pass} passed, ${fail} failed\x1b[0m`);
 process.exit(fail ? 1 : 0);

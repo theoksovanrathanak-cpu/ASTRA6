@@ -576,10 +576,51 @@ body[data-view="home"] .wrap{
 .home-cta:hover{transform:translateY(-1px);box-shadow:0 16px 30px -14px rgba(124,92,255,.9),inset 0 1px 0 rgba(255,255,255,.4)}
 .home-cta:active{transform:translateY(1px)}
 .home-cta .cta-ico{display:inline-flex;opacity:.95}
+.menu-lock{
+  display:inline-flex;align-items:center;gap:7px;margin-top:8px;padding:8px 12px;border-radius:10px;cursor:pointer;
+  font-family:inherit;font-size:11.5px;font-weight:750;color:var(--ink-2);
+  background:color-mix(in srgb,var(--surface) 80%,transparent);border:1px solid var(--line);
+}
+.menu-lock:hover{color:var(--ink);border-color:color-mix(in srgb,var(--a-violet) 40%,var(--line))}
+.menu-lock svg{color:var(--a-violet)}
 .home-cta .cta-k{
   margin-left:auto;font-size:9.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;
   padding:4px 8px;border-radius:99px;background:rgba(255,255,255,.18)
 }
+
+/* ---------- device lock: Face ID / Touch ID + 4-digit PIN ---------- */
+#lock{position:fixed;inset:0;z-index:600;display:grid;place-items:center;padding:22px;
+  background:radial-gradient(120% 90% at 50% 0%,#141a2b 0%,#0a0e17 55%,#05070d 100%);color:#e8eefc}
+#lock[hidden]{display:none}
+.lock-card{width:100%;max-width:330px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center}
+.lock-mark{width:62px;height:62px;border-radius:19px;display:grid;place-items:center;font-weight:900;font-size:21px;color:#241221;
+  background:linear-gradient(140deg,#ffd479,#ff8a5c 45%,#e2569b 100%);
+  box-shadow:0 18px 40px -18px rgba(255,138,92,.75),inset 0 2px 0 rgba(255,255,255,.55)}
+.lock-title{font-size:18.5px;font-weight:850;letter-spacing:-.2px;margin-top:4px}
+.lock-sub{font-size:11.5px;line-height:1.5;color:#8ea0bf;max-width:268px}
+.lock-bio{margin-top:4px;display:inline-flex;align-items:center;justify-content:center;gap:9px;width:100%;padding:13px 18px;border-radius:14px;border:0;cursor:pointer;
+  font-family:inherit;font-size:14px;font-weight:800;color:#fff;
+  background:linear-gradient(102deg,#7c5cff,#22d3ee);box-shadow:0 14px 30px -16px rgba(124,92,255,.9),inset 0 1px 0 rgba(255,255,255,.35)}
+.lock-bio[hidden]{display:none}
+.lock-dots{display:flex;gap:14px;margin-top:12px}
+.lock-dots i{width:12px;height:12px;border-radius:99px;border:1.6px solid rgba(255,255,255,.32);transition:background .12s,transform .12s,border-color .12s}
+.lock-dots i.on{background:#fff;border-color:#fff;transform:scale(1.1)}
+.lock-msg{min-height:15px;font-size:11px;font-weight:750;color:#fca5a5}
+.lock-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:100%;margin-top:2px}
+.lock-key{height:48px;border-radius:13px;border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.05);color:#e8eefc;
+  font-family:inherit;font-size:19px;font-weight:750;cursor:pointer;transition:background .12s,transform .1s;-webkit-tap-highlight-color:transparent}
+.lock-key:active{transform:scale(.955);background:rgba(255,255,255,.13)}
+.lock-key.blank{visibility:hidden;pointer-events:none}
+.lock-offer{width:100%;display:flex;flex-direction:column;gap:6px}
+.lock-offer[hidden]{display:none}
+.lock-link{background:none;border:0;color:#7dd3fc;font-family:inherit;font-size:12px;font-weight:800;cursor:pointer;padding:8px}
+.lock-link[hidden]{display:none}
+.lock-reset{background:none;border:0;color:#5b6b87;font-family:inherit;font-size:10.5px;font-weight:600;cursor:pointer;padding:4px 8px;text-decoration:underline}
+.shake{animation:lockShake .3s}
+@keyframes lockShake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+body.locked{overflow:hidden}
+body.locked .hd,body.locked .wrap,body.locked .foot,body.locked #intro,
+body.locked .menu,body.locked .sheet,body.locked .sheet-scrim,body.locked #sheet-scrim{visibility:hidden}
 
 /* ---------- one screen: the chart fills the device ---------- */
 :root{--hd-h:64px}
@@ -1211,6 +1252,31 @@ body[data-view="home"] .home>*:nth-child(4){animation-delay:.18s}
 <body data-view="home">
 <script>try{document.body.setAttribute("data-view","home");}catch(e){}</script>
 
+<div id="lock" role="dialog" aria-modal="true" aria-label="ASTRA6 is locked" hidden>
+  <div class="lock-card">
+    <div class="lock-mark">A6</div>
+    <div class="lock-title" id="lock-title">ASTRA6 is locked</div>
+    <div class="lock-sub" id="lock-sub">This device only. Your journal, alerts and drawings never leave it.</div>
+
+    <button class="lock-bio" id="lock-biobtn" type="button" hidden onclick="lkBioUnlock()">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><circle cx="9" cy="10.5" r=".9" fill="currentColor" stroke="none"/><circle cx="15" cy="10.5" r=".9" fill="currentColor" stroke="none"/><path d="M9 14.5c.9.7 1.9 1 3 1s2.1-.3 3-1"/></svg>
+      <span id="lock-bio-t">Unlock with Face ID</span>
+    </button>
+
+    <div class="lock-offer" id="lock-offer" hidden>
+      <button class="lock-bio" type="button" onclick="lkEnableBio()" id="lock-offer-bio">Enable Face ID</button>
+      <button class="lock-link" type="button" onclick="lkUnlock()">Not now</button>
+    </div>
+
+    <div class="lock-dots" id="lock-dots"><i></i><i></i><i></i><i></i></div>
+    <div class="lock-msg" id="lock-msg"></div>
+    <div class="lock-pad" id="lock-pad"></div>
+
+    <button class="lock-link" id="lock-alt" type="button" hidden onclick="lkUsePin()">Use my 4-digit PIN</button>
+    <button class="lock-reset" type="button" onclick="lkReset()">Forgot it? Reset the lock (erases this device's saved data)</button>
+  </div>
+</div>
+
 <div id="intro" role="dialog" aria-label="Welcome to ASTRA6">
   <div class="intro-stage">
     <div class="intro-ring"></div>
@@ -1265,6 +1331,10 @@ body[data-view="home"] .home>*:nth-child(4){animation-delay:.18s}
       <button class="tf-btn active" data-view="home" onclick="setView('home')">Home</button><button class="tf-btn" data-view="chart" onclick="setView('chart')">Chart</button>
     </div>
     <div class="menu-hint" id="view-hint">pick a screen to open</div>
+    <button class="menu-lock" type="button" onclick="lockNow()">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="9.5" rx="2.4"/><path d="M8.2 10.5V8a3.8 3.8 0 0 1 7.6 0v2.5"/></svg>
+      <span>Lock ASTRA6</span>
+    </button>
   </div>
 
   <div class="menu-sec">
@@ -1473,6 +1543,189 @@ if(!MKT[currentSymbol]){currentSymbol='XAUUSD';localStorage.setItem('astra6_symb
 function getToken(){return localStorage.getItem('astra6_token')||sessionStorage.getItem('astra6_token')||window.token||'';}
 function setToken(t){if(t){localStorage.setItem('astra6_token',t);sessionStorage.setItem('astra6_token',t);window.token=t;}else{localStorage.removeItem('astra6_token');sessionStorage.removeItem('astra6_token');window.token='';}}
 function authHeaders(){const t=getToken();return t?{'Authorization':'Bearer '+t}:{};}
+
+// ---------------- device lock: the OS does the face check, this file never sees a face ----------------
+// Face ID / Touch ID / Windows Hello is asked for by the browser through WebAuthn: the phone
+// compares your face, and all ASTRA6 ever receives is a yes/no plus a random credential id.
+// No camera stream is opened, no photo is taken, nothing biometric is stored or sent anywhere.
+// The 4-digit PIN is the fallback for a device or browser without a platform authenticator;
+// it is stored as a salted hash, never as the digits themselves.
+const LK={pin:'astra6_lock_pin',cred:'astra6_lock_cred',sess:'astra6_unlocked'};
+let _lkMode='verify', _lkBuf='', _lkDraft='', _lkHasBio=false, _lkBusy=false;
+function lkGet(k){try{return localStorage.getItem(k);}catch(e){return null;}}
+function lkSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
+function lkDel(k){try{localStorage.removeItem(k);}catch(e){}}
+function lkB64(buf){let s='';const a=new Uint8Array(buf);for(let i=0;i<a.length;i++)s+=String.fromCharCode(a[i]);return btoa(s);}
+function lkUnB64(str){const b=atob(str),u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);return u;}
+function lkChallenge(){const a=new Uint8Array(32);(window.crypto||{}).getRandomValues&&crypto.getRandomValues(a);return a;}
+function lkWeakHash(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return 'w'+((h>>>0).toString(36));}
+async function lkMakeHash(pin,salt){
+  try{
+    if(window.crypto&&crypto.subtle&&crypto.subtle.digest){
+      const d=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(salt+'|astra6|'+pin));
+      return 's'+lkB64(d);
+    }
+  }catch(e){}
+  return lkWeakHash(salt+'|'+pin);
+}
+async function lkBioReady(){
+  try{
+    if(!window.PublicKeyCredential) return false;
+    if(!PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable) return false;
+    return !!(await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable());
+  }catch(e){ return false; }
+}
+async function lkRegisterBio(){
+  if(!window.PublicKeyCredential) throw new Error('this browser has no Face ID check');
+  const cred=await navigator.credentials.create({publicKey:{
+    challenge:lkChallenge(),
+    rp:{name:'ASTRA6',id:location.hostname},
+    user:{id:lkChallenge(),name:'astra6@'+location.hostname,displayName:'ASTRA6'},
+    pubKeyCredParams:[{type:'public-key',alg:-7},{type:'public-key',alg:-257}],
+    authenticatorSelection:{authenticatorAttachment:'platform',userVerification:'required',residentKey:'preferred'},
+    timeout:60000,attestation:'none'
+  }});
+  if(!cred) throw new Error('no credential');
+  lkSet(LK.cred,lkB64(cred.rawId));
+  return true;
+}
+async function lkCheckBio(){
+  const raw=lkGet(LK.cred); if(!raw) throw new Error('no face saved on this device');
+  const res=await navigator.credentials.get({publicKey:{
+    challenge:lkChallenge(),
+    allowCredentials:[{type:'public-key',id:lkUnB64(raw)}],
+    userVerification:'required',timeout:60000
+  }});
+  return !!res;
+}
+function lkMsg(t){const e=document.getElementById('lock-msg');if(e)e.textContent=t||'';}
+function lkDots(){
+  const n=(_lkBuf||'').length;
+  document.querySelectorAll('#lock-dots i').forEach(function(d,i){d.classList.toggle('on',i<n);});
+}
+function lkPad(){
+  const pad=document.getElementById('lock-pad');
+  if(!pad||pad.childElementCount) return;
+  const keys=['1','2','3','4','5','6','7','8','9','','0','del'];
+  pad.innerHTML=keys.map(function(k){
+    if(k==='') return '<button class="lock-key blank" type="button" tabindex="-1"></button>';
+    if(k==='del') return '<button class="lock-key" type="button" data-k="del" aria-label="Delete">\u232b</button>';
+    return '<button class="lock-key" type="button" data-k="'+k+'">'+k+'</button>';
+  }).join('');
+  pad.querySelectorAll('.lock-key[data-k]').forEach(function(b){b.onclick=function(){lkKey(b.dataset.k);};});
+}
+function lkOpen(mode){
+  const el=document.getElementById('lock'); if(!el) return;
+  _lkMode=mode; _lkBuf='';
+  el.hidden=false; document.body.classList.add('locked');
+  lkPad();
+  const bio=document.getElementById('lock-biobtn'), alt=document.getElementById('lock-alt'),
+        offer=document.getElementById('lock-offer'), dots=document.getElementById('lock-dots'),
+        pad=document.getElementById('lock-pad');
+  const title=document.getElementById('lock-title'), sub=document.getElementById('lock-sub');
+  const bioText=document.getElementById('lock-bio-t');
+  const show=function(e,on){if(e)e.hidden=!on;};
+  if(mode==='setup'||mode==='setup2'){
+    title.textContent=mode==='setup'?'Create your lock':'Repeat the PIN';
+    sub.textContent=mode==='setup'?'A 4-digit PIN keeps other people out of this device\'s ASTRA6.':'Type the same 4 digits again.';
+    show(bio,false); show(alt,false); show(offer,false); show(dots,true); show(pad,true);
+  }else if(mode==='verify'){
+    title.textContent='ASTRA6 is locked';
+    sub.textContent='This device only. Your journal, alerts and drawings never leave it.';
+    show(dots,true); show(pad,true); show(offer,false);
+    show(alt,false);
+    show(bio,!!(_lkHasBio&&lkGet(LK.cred)));
+    if(bioText) bioText.textContent='Unlock with Face ID';
+  }else if(mode==='offer'){
+    title.textContent='PIN saved';
+    sub.textContent='Add Face ID so the next unlock is a glance, not four taps.';
+    show(bio,false); show(alt,false); show(dots,false); show(pad,false); show(offer,true);
+  }else if(mode==='pinonly'){
+    title.textContent='ASTRA6 is locked';
+    sub.textContent='Enter your 4-digit PIN.';
+    show(bio,false); show(alt,!!(_lkHasBio&&lkGet(LK.cred))); show(offer,false); show(dots,true); show(pad,true);
+  }
+  const rst=document.querySelector('.lock-reset');
+  if(rst) rst.hidden=(mode==='setup'||mode==='setup2'||mode==='offer');
+  lkDots(); lkMsg('');
+}
+function lkUsePin(){ lkOpen('pinonly'); }
+function lkKey(k){
+  if(_lkMode==='offer') return;
+  if(k==='del'){ _lkBuf=_lkBuf.slice(0,-1); lkDots(); return; }
+  if(_lkBuf.length>=4) return;
+  _lkBuf+=k; lkDots();
+  if(_lkBuf.length===4) setTimeout(lkSubmit,120);
+}
+async function lkSubmit(){
+  const pin=_lkBuf; _lkBuf=''; lkDots();
+  const dots=document.getElementById('lock-dots');
+  if(_lkMode==='setup'){ _lkDraft=pin; lkOpen('setup2'); return; }
+  if(_lkMode==='setup2'){
+    if(pin!==_lkDraft){
+      lkMsg('The two PINs did not match - start again.');
+      if(dots){dots.classList.add('shake');setTimeout(function(){dots.classList.remove('shake');},340);}
+      _lkDraft=''; lkOpen('setup'); lkMsg('The two PINs did not match - start again.'); return;
+    }
+    const salt=Math.random().toString(36).slice(2,10);
+    lkSet(LK.pin,JSON.stringify({salt:salt,h:await lkMakeHash(pin,salt),at:Date.now()}));
+    _lkDraft='';
+    if(await lkBioReady()){ lkOpen('offer'); return; }
+    lkUnlock('pin set');
+    return;
+  }
+  const saved=(function(){try{return JSON.parse(lkGet(LK.pin)||'null');}catch(e){return null;}})();
+  if(saved&&saved.h&&(await lkMakeHash(pin,saved.salt))===saved.h){ lkUnlock('pin'); return; }
+  lkMsg('Wrong PIN.');
+  if(dots){dots.classList.add('shake');setTimeout(function(){dots.classList.remove('shake');},340);}
+}
+async function lkBioUnlock(){
+  if(_lkBusy) return; _lkBusy=true; lkMsg('');
+  try{ await lkCheckBio(); lkUnlock('face'); }
+  catch(e){ lkMsg('Face check did not pass. Use the PIN.'); lkOpen('pinonly'); }
+  _lkBusy=false;
+}
+async function lkEnableBio(){
+  if(_lkBusy) return; _lkBusy=true; lkMsg('');
+  try{
+    await lkRegisterBio();
+    _lkHasBio=true;
+    lkUnlock('face added');
+  }catch(e){
+    lkMsg('Face ID was not saved on this device. The PIN still works.');
+    setTimeout(function(){lkUnlock('pin');},900);
+  }
+  _lkBusy=false;
+}
+function lkUnlock(){
+  _lkMode='unlocked'; _lkBuf='';
+  const el=document.getElementById('lock'); if(el)el.hidden=true;
+  document.body.classList.remove('locked');
+  try{sessionStorage.setItem(LK.sess,'1');}catch(e){}
+}
+function lockNow(){
+  if(typeof closeMenu==='function')closeMenu();
+  if(typeof closeSheet==='function')closeSheet();
+  try{sessionStorage.removeItem(LK.sess);}catch(e){}
+  _lkHasBio=!!lkGet(LK.cred);
+  lkOpen(lkGet(LK.pin)?'verify':'setup');
+}
+function lkReset(){
+  if(!confirm('Reset the lock? This erases the journal, alerts and drawings saved on this device.')) return;
+  ['astra6_lock_pin','astra6_lock_cred','astra6_journal_v1','astra6_zone_alerts_XAUUSD','astra6_ind','astra6_draw_XAUUSD'].forEach(function(k){lkDel(k);});
+  try{ Object.keys(localStorage).forEach(function(k){ if(k.indexOf('astra6_draw_')===0||k.indexOf('astra6_zone_alerts_')===0) localStorage.removeItem(k); }); }catch(e){}
+  try{sessionStorage.removeItem(LK.sess);}catch(e){}
+  _lkHasBio=false; lkOpen('setup');
+}
+(function lkBoot(){
+  const el=document.getElementById('lock'); if(!el) return;
+  let open=false;
+  try{open=sessionStorage.getItem(LK.sess)==='1';}catch(e){}
+  _lkHasBio=!!lkGet(LK.cred);
+  if(open){ el.hidden=true; document.body.classList.remove('locked'); return; }
+  lkOpen(lkGet(LK.pin)?'verify':'setup');
+})();
+
 // ---- 3D welcome: once per browser session, never blocks for long ----
 function endIntro(){
   const el=document.getElementById('intro');
