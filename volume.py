@@ -254,136 +254,197 @@ def atr_series(candles, n=14):
     return out
 
 
-def signal(candles, vwap, rows, poc, atr, min_pct=10.0, vwap_series_in=None):
-    """
-    The rule set, tuned on real history (see backtest_volume.py):
+def _bar_delta(c):
+    """Aggressive buying minus aggressive selling for one bar.
 
-        BUY   price in a high-volume row, above VWAP by 0.25 ATR, VWAP rising,
-              row delta positive and at least 15% of the row, ATR not in the top 20%
-        SELL  the mirror image
-        stop  beyond the row AND at least 1 ATR away - never inside the cluster
-        TP1   0.75R, TP2 the next cluster in the direction of travel
+    Real taker split where the feed gives one (Binance), otherwise the close-location
+    estimate the whole page is already labelled with: close near the high = buyers
+    were in control, close near the low = sellers were.
     """
-    if not candles or not rows:
+    b, s = c.get("buy"), c.get("sell")
+    if b is not None and s is not None:
+        return float(b) - float(s)
+    vol = float(c.get("volume") or 0)
+    hi, lo, cl = float(c["high"]), float(c["low"]), float(c["close"])
+    rng = (hi - lo) or 1e-9
+    return vol * (((cl - lo) - (hi - cl)) / rng)
+
+
+def _sum_delta(bars):
+    return sum(_bar_delta(c) for c in bars)
+
+
+def _vol_of(bars):
+    return sum(float(c.get("volume") or 0) for c in bars) or 1e-9
+
+
+def signal(candles, vwap, rows, poc, atr, min_pct=10.0, vwap_series_in=None, va=None):
+    """
+    Order flow, read off the volume profile the chart is drawing.
+
+    The unit of evidence is the VALUE EDGE, not the VWAP. Each edge gets one of two
+    reads, and they are opposites:
+
+      REJECTION (responsive)  a bar traded through VAL/VAH and closed back inside,
+                              with the delta of that move agreeing with the reclaim.
+                              Price failed outside value -> fade back to the POC.
+                              A bounce off VAL is a BUY, even below VWAP. The old
+                              rules vetoed exactly this with "below VWAP = sell",
+                              which is how a VAL rejection came out as a SELL.
+
+      ABSORPTION              heavy volume sitting on the edge row with a delta that
+                              is almost balanced, and the last bar turning away.
+                              Somebody big is filling the sellers/buyers there.
+
+      ACCEPTANCE (initiative) price held outside value for 2+ of the last 3 bars and
+                              the window delta is building -> go with it, stop back
+                              inside value.
+
+    VWAP and the POC are tie-breaks, never vetoes. The ATR gate stays: a market in
+    its top-20% volatility has no business being held for a target.
+    """
+    if not candles or not rows or not poc:
         return {"type": "HOLD", "reason": "no volume data yet"}
     price = candles[-1]["close"]
     a = atr or (candles[-1]["high"] - candles[-1]["low"]) or price * 0.0005
 
+    va = va or value_area(rows, poc)
+    if va:
+        val, vah = va["low"], va["high"]
+    else:
+        val, vah = poc["bot"], poc["top"]
+
     out = {"price": round(price, 2), "atr": round(a, 4)}
-
     cur = next((r for r in rows if r["bot"] <= price <= r["top"]), None)
-    if cur is None:
-        nearest = min(rows, key=lambda r: abs((r["bot"] + r["top"]) / 2 - price))
-        out.update({"type": "HOLD",
-                    "reason": f"Price outside every cluster - nearest node {(nearest['bot'] + nearest['top']) / 2:.2f}"})
-        return out
-
-    out.update({"row": {k: cur[k] for k in ("bot", "top", "buy", "sell", "total", "delta")},
+    row = cur or min(rows, key=lambda r: abs((r["bot"] + r["top"]) / 2 - price))
+    out.update({"row": {k: row[k] for k in ("bot", "top", "buy", "sell", "total", "delta")},
                 "vwap": round(vwap, 2) if vwap else None,
                 "poc": {"price": round((poc["bot"] + poc["top"]) / 2, 2), "total": poc["total"]},
-                "poc_row": {"bot": poc["bot"], "top": poc["top"]}})
+                "poc_row": {"bot": poc["bot"], "top": poc["top"]},
+                "value_area": {"low": round(val, 2), "high": round(vah, 2)}})
 
-    # ---- gate 1: the row has to carry real volume ----
-    if cur["total"] < poc["total"] * min_pct / 100.0:
-        out.update({"type": "HOLD", "reason": "Price in a thin row - no cluster to trade against."})
-        return out
+    # ---- the flow window: last six bars of aggression, last three of structure ----
+    win, w3 = candles[-6:], candles[-3:]
+    d_win, v_win = _sum_delta(win), _vol_of(win)
+    d_ratio = d_win / v_win
+    d_last = _bar_delta(candles[-1])
+    wlow = min(c["low"] for c in w3)
+    whigh = max(c["high"] for c in w3)
+    closes_below = sum(1 for c in w3 if c["close"] < val)
+    closes_above = sum(1 for c in w3 if c["close"] > vah)
+    away = 0.15 * a
+    above_vwap = vwap is not None and price > vwap
+    below_vwap = vwap is not None and price < vwap
 
-    # ---- gate 2: volatility has to be normal for this instrument ----
+    out["flow"] = {"delta_6": round(d_win, 2), "delta_ratio": round(d_ratio, 4),
+                   "delta_last": round(d_last, 2), "va_low": round(val, 2),
+                   "va_high": round(vah, 2),
+                   "vwap_side": "above" if above_vwap else ("below" if below_vwap else "at")}
+
+    # ---- volatility gate: unchanged, it keeps the strategy out of news spikes ----
     aser = atr_series(candles, 14)
     recent = [x for x in aser[-120:] if x]
     if len(recent) >= 30:
         lim = _percentile(recent, 0.80)
         if lim and a > lim:
             out.update({"type": "HOLD",
-                        "reason": f"ATR {a:.2f} is above its 80th percentile ({lim:.2f}) - too hot to hold."})
+                        "reason": f"ATR {a:.2f} is in the top 20% of the last 120 bars - too hot to hold."})
             return out
 
-    # ---- gate 3: VWAP side, with a buffer so it can't flicker on the line ----
-    buf = 0.25 * a
-    above = vwap is not None and (price - vwap) >= buf
-    below = vwap is not None and (vwap - price) >= buf
-    if not above and not below:
-        out.update({"type": "HOLD",
-                    "reason": f"Too close to VWAP {vwap:.2f} - waiting for price to commit." if vwap
-                              else "VWAP unavailable."})
+    row_strength = (row["total"] / poc["total"]) if poc["total"] else 0
+    row_balance = abs(row["delta"]) / max(row["total"], 1e-9)
+
+    rejection_low = wlow < val and price > val and d_win > 0
+    rejection_high = whigh > vah and price < vah and d_win < 0
+    absorption_low = (row_strength >= min_pct / 100.0 and row_balance < 0.20 and
+                      wlow < val + away and d_last > 0)
+    absorption_high = (row_strength >= min_pct / 100.0 and row_balance < 0.20 and
+                       whigh > vah - away and d_last < 0)
+    accept_above = price > vah + away and closes_above >= 2 and d_win > 0 and above_vwap
+    accept_below = price < val - away and closes_below >= 2 and d_win < 0 and below_vwap
+
+    side, style = 0, None
+    if rejection_low:
+        side, style = 1, "reject VAL"
+    elif rejection_high:
+        side, style = -1, "reject VAH"
+    elif accept_above:
+        side, style = 1, "accept above value"
+    elif accept_below:
+        side, style = -1, "accept below value"
+    elif absorption_low:
+        side, style = 1, "absorbed at VAL"
+    elif absorption_high:
+        side, style = -1, "absorbed at VAH"
+
+    if not side:
+        if val < price < vah:
+            why = f"Inside value {val:.2f}-{vah:.2f}, delta {d_ratio*100:+.0f}% - no edge either way."
+        elif price <= val:
+            why = f"Under VAL {val:.2f} but the flow is not turning up yet (delta {d_ratio*100:+.0f}%)."
+        else:
+            why = f"Over VAH {vah:.2f} but the flow is not turning down yet (delta {d_ratio*100:+.0f}%)."
+        out.update({"type": "HOLD", "reason": why})
         return out
 
-    # ---- gate 4: VWAP must be moving the same way as the trade ----
-    ser = vwap_series_in or vwap_series(candles)
-    if len(ser) > 10:
-        slope = ser[-1]["value"] - ser[-11]["value"]
-        if (above and slope <= 0) or (below and slope >= 0):
-            out.update({"type": "HOLD",
-                        "reason": f"VWAP is flat against the trade ({slope:+.2f} over 10 bars) - no edge."})
-            return out
-
-    # ---- gate 5: the row's own delta has to agree ----
-    ratio = abs(cur["delta"]) / max(cur["total"], 1e-9)
-    if ratio < 0.15:
-        out.update({"type": "HOLD",
-                    "reason": f"Row delta only {ratio*100:.0f}% of volume - buyers and sellers still fighting."})
-        return out
-
-    if above and cur["delta"] > 0:
-        side = 1
-    elif below and cur["delta"] < 0:
-        side = -1
+    # ---- the level that voids the idea, and two targets that are actually reachable ----
+    if "reject" in style or "absorbed" in style:
+        extreme = wlow if side == 1 else whigh
+        raw_risk = abs(price - (extreme - side * away))
+        risk = min(max(raw_risk, 0.5 * a), 1.6 * a)
+        poc_mid = (poc["bot"] + poc["top"]) / 2
+        to_poc = (poc_mid - price) * side
+        tp1_d = min(max(to_poc if to_poc > 0 else risk, 0.8 * risk), 1.4 * risk)
+        far = vah if side == 1 else val
+        to_far = (far - price) * side
+        tp2_d = to_far if to_far > tp1_d * 1.2 else 2.4 * risk
+        tp2_d = min(max(tp2_d, 1.5 * risk), 2.5 * risk)
     else:
-        out.update({"type": "HOLD",
-                    "reason": f"In cluster but {'above' if above else 'below'} VWAP with "
-                              f"{'positive' if cur['delta'] > 0 else 'negative'} delta - no edge."})
-        return out
+        extreme = val if side == 1 else vah
+        risk = min(max(abs(price - extreme) + away, 0.5 * a), 1.5 * a)
+        edges = ([r["bot"] - price for r in rows if r["bot"] > price] if side == 1
+                 else [price - r["top"] for r in rows if r["top"] < price])
+        edges = sorted(d for d in edges if d > 0)
+        tp1_d = risk
+        tp2_d = next((d for d in edges if d >= 1.4 * risk), 2.6 * risk)
+        tp2_d = min(max(tp2_d, 1.5 * risk), 2.5 * risk)
 
-    # ---- stop: just past the cluster the price is sitting in, never inside the noise ----
-    # The old rule took min(|row edge|, 1 ATR), so the stop was almost always exactly
-    # 1 ATR and had nothing to do with the box drawn on the chart. Now it is the row
-    # edge plus a small buffer - the level that invalidates the cluster - kept between
-    # 0.7 and 1.5 ATR so tick noise cannot stop it out and the target stays reachable.
-    # The stop belongs to the box on the chart. It sits just outside that box, scaled
-    # to the box's own height, with a floor so tick noise cannot clip it - the level in
-    # the alert is the level drawn on the chart, not an arbitrary ATR multiple.
-    row_edge = cur["bot"] if side == 1 else cur["top"]
-    row_h = max(cur["top"] - cur["bot"], 0.2 * a)
-    struct_risk = abs(price - (row_edge - side * (0.20 * row_h + 0.05 * a)))
-    risk = min(max(struct_risk, 0.5 * a), 1.5 * a)
-    sl = price - side * risk
     if risk <= 0:
         out.update({"type": "HOLD", "reason": "degenerate risk"})
         return out
-    tp1 = price + side * 1.0 * risk          # first target: a clean 1R, half off
 
-    # ---- target: the next genuine row edge, always beyond TP1 and never a long shot ----
-    # Before, the nearest row above could be one tick away, so TP2 sometimes came out
-    # BEHIND TP1 (0.39R). Now it has to clear TP1 and is capped at 2.5R.
-    tp_min = 1.4 * risk
-    tp_max = 2.5 * risk
-    if side == 1:
-        edges = [r["bot"] - price for r in rows if r["bot"] > cur["top"]]
-    else:
-        edges = [price - r["top"] for r in rows if r["top"] < cur["bot"]]
-    edges = sorted(d for d in edges if d > 0)
-    tp_dist = next((d for d in edges if d >= tp_min), tp_max)
-    tp_dist = min(max(tp_dist, tp_min), tp_max)
-    tp2 = price + side * tp_dist
-    # quote everything at the precision the card prints, then derive R from those exact
-    # numbers - so entry/sl/tp1/tp2/R all add up on screen instead of R drifting
-    _entry, _sl = round(price, 2), round(sl, 2)
+    entry, sl = price, price - side * risk
+    tp1, tp2 = price + side * tp1_d, price + side * tp2_d
+    _entry, _sl = round(entry, 2), round(sl, 2)
     _tp1, _tp2 = round(tp1, 2), round(tp2, 2)
     _risk = abs(_entry - _sl) or risk
+    if (_tp2 - _entry) * side <= (_tp1 - _entry) * side:      # TP2 can never sit behind TP1
+        _tp2 = round(_entry + side * max(abs(_tp1 - _entry) * 1.4, _risk * 1.4), 2)
     _r = round(abs(_tp2 - _entry) / _risk, 2)
     _r1 = round(abs(_tp1 - _entry) / _risk, 2)
+
+    conf = 55
+    if "reject" in style:
+        conf += 8
+    if "absorbed" in style:
+        conf += 10
+    if abs(d_ratio) >= 0.25:
+        conf += 8
+    if (side == 1 and above_vwap) or (side == -1 and below_vwap):
+        conf += 6
+    if row_strength >= 0.5:
+        conf += 4
+    conf = min(92, conf)
+
+    where = f"VAL {val:.2f}" if side == 1 else f"VAH {vah:.2f}"
     out.update({
         "type": "BUY" if side == 1 else "SELL",
-        "entry": _entry, "sl": _sl,
-        "tp1": _tp1, "tp2": _tp2,
-        "risk": round(_risk, 2),
-        "r": _r,
-        "confidence": min(92, 55 + int(min(35, ratio * 100 * 0.5))),
-        "reason": (f"Cluster {cur['bot']:.2f}-{cur['top']:.2f} · "
-                   f"{'above' if side == 1 else 'below'} VWAP {vwap:.2f} · "
-                   f"delta {'+' if cur['delta'] >= 0 else ''}{cur['delta']:.2f} · "
-                   f"stop {abs(_sl-_entry):.2f} pts past the {cur['bot']:.2f}-{cur['top']:.2f} box "
-                   f"({_risk/a:.1f} ATR) · tp1 {_r1:.1f}R · tp2 {_r:.1f}R"),
+        "entry": _entry, "sl": _sl, "tp1": _tp1, "tp2": _tp2,
+        "risk": round(_risk, 2), "r": _r, "confidence": conf,
+        "style": style,
+        "reason": (f"{style} · {where} · delta {d_ratio*100:+.0f}% over 6 bars · "
+                   f"stop {abs(_sl-_entry):.2f} ({_risk/a:.1f} ATR) · "
+                   f"tp1 {_r1:.1f}R · tp2 {_r:.1f}R"),
     })
     return out
 
@@ -422,8 +483,8 @@ def analyse(candles, rows=48, min_pct=10.0, bias_from="5m"):
         c, p = candles[i], candles[i - 1]
         trs.append(max(c["high"] - c["low"], abs(c["high"] - p["close"]), abs(c["low"] - p["close"])))
     atr = sum(trs[-14:]) / len(trs[-14:]) if trs else None
-    sig = signal(candles, vwap, cl, poc, atr, min_pct, vwap_series(candles))
     va = value_area(cl, poc)
+    sig = signal(candles, vwap, cl, poc, atr, min_pct, vwap_series(candles), va=va)
     return {"status": "ok", "vwap_series": vwap_series(candles[-180:]),
             "vwap": round(vwap, 2) if vwap else None,
             "vwap_bars": used, "rows": cl, "poc": poc,

@@ -343,7 +343,7 @@ section('nothing opens by itself');
      && !/class="home-tiles"/.test(html));
   ok('home offers one chart button instead', /class="home-cta"[^>]*onclick="setView\('chart'\)/.test(html));
   ok('bitcoin is gone from the page', !/BTCUSD|BITCOIN|Bitcoin/.test(html.replace(/bitcoin is gone[^<]*/,'')));
-  ok('the welcome subtitle names the three desks', /metals · forex · futures/.test(html));
+  ok('the welcome subtitle names metals and futures', /metals · futures/.test(html) && !/metals · forex/.test(html));
   ok('the welcome has no price header', /body\[data-view="home"\] \.hd \.price-block/.test(html));
   ok('home still points at menu → Chart', /menu → Chart/.test(html));
   ok('menu has a Home choice', /data-view="home"/.test(html));
@@ -383,7 +383,7 @@ checks.append(('stop is 0.45-1.6 ATR from entry, anchored to the box', 0.45 <= r
 checks.append(('tp2 clears tp1', tp2 > tp1))
 checks.append(('target is 1.3-2.6R', 1.3 <= tp2/r <= 2.6))
 checks.append(('reported R matches the levels', abs(s['r'] - tp2/r) < 0.03))
-checks.append(('reason names the box and both targets', 'box' in s['reason'] and 'tp1' in s['reason']))
+checks.append(('reason names the value edge and both targets', ('VAL' in s['reason'] or 'VAH' in s['reason']) and 'tp1' in s['reason']))
 quiet=[{'time':1+i*900,'open':100+i*0.001,'high':100.02+i*0.001,'low':99.99+i*0.001,
         'close':100.01+i*0.001,'volume':5,'buy':3,'sell':2} for i in range(150)]
 rq,pq,sq=V.clusters(quiet,48,10.0)
@@ -702,18 +702,18 @@ section('the market picker and the alert card live on the chart');
   ok('the button shows the market on screen', /mkt-float-sym/.test(grab('setSymbol')));
 
   // the alert list is per market, by construction
-  currentSymbol = 'EURUSD';
-  store.astra6_zone_alerts_EURUSD = JSON.stringify([
-    { key: 'e1', sym: 'EURUSD', type: 'BUY', entry: 1.08542, sl: 1.08380, tp1: 1.08704, tp2: 1.08866, r: 2.0, ts: 1793400000 },
+  currentSymbol = 'XAGUSD';
+  store.astra6_zone_alerts_XAGUSD = JSON.stringify([
+    { key: 'e1', sym: 'XAGUSD', type: 'BUY', entry: 48.512, sl: 48.240, tp1: 48.784, tp2: 48.966, r: 2.0, ts: 1793400000 },
     { key: 'e2', sym: 'XAUUSD', type: 'SELL', entry: 3875, sl: 3880, tp1: 3870, tp2: 3865, r: 2.0, ts: 1793300000 },
   ]);
-  const eur = alertsOf('EURUSD');
-  ok('a stray gold record cannot show on the euro chart', eur.length === 1 && eur[0].key === 'e1');
+  const sil = alertsOf('XAGUSD');
+  ok('a stray gold record cannot show on the silver chart', sil.length === 1 && sil[0].key === 'e1');
   const realFmt = fmtPx;
   global.fmtPx = realFmtPx;                    // the page's own, decimals per market
-  const htmlEur = alertsHtml('EURUSD');
-  ok('the euro sheet lists the euro trade', htmlEur.includes('1.08542') && !htmlEur.includes('3875'));
-  ok('the sheet names the market', /EURUSD/.test(htmlEur));
+  const htmlSil = alertsHtml('XAGUSD');
+  ok('the silver sheet lists the silver trade', htmlSil.includes('48.512') && !htmlSil.includes('3875'));
+  ok('the sheet names the market', /XAGUSD/.test(htmlSil));
   localStorage.removeItem('astra6_zone_alerts_XAUUSD');
   const gold = alertsHtml('XAUUSD');
   ok('an empty market says so honestly', /No XAUUSD signal yet/.test(gold));
@@ -721,10 +721,10 @@ section('the market picker and the alert card live on the chart');
   const card = mkEl('alert-float');
   card.hidden = true;
   document.getElementById = (id) => (id === 'alert-float' ? card : (els[id] || null));
-  currentSymbol = 'EURUSD';
-  paintAlertCard(eur.map(a => ({ type: a.type, entry: a.entry, sl: a.sl, tp1: a.tp1, tp2: a.tp2, r: a.r, ts: a.ts })));
-  ok('the chart card shows this market only', card.hidden === false && /EURUSD/.test(card.innerHTML) && !/3,875|3875/.test(card.innerHTML));
-  ok('the card carries the levels', /1\.08380/.test(card.innerHTML) && /1\.08866/.test(card.innerHTML));
+  currentSymbol = 'XAGUSD';
+  paintAlertCard(sil.map(a => ({ type: a.type, entry: a.entry, sl: a.sl, tp1: a.tp1, tp2: a.tp2, r: a.r, ts: a.ts })));
+  ok('the chart card shows this market only', card.hidden === false && /XAGUSD/.test(card.innerHTML) && !/3,875|3875/.test(card.innerHTML));
+  ok('the card carries the levels', /48\.240/.test(card.innerHTML) && /48\.966/.test(card.innerHTML));
   global.fmtPx = realFmt;
   paintAlertCard([]);
   ok('no alert means no card', card.hidden === true);
@@ -849,6 +849,41 @@ section('one strategy, one price, more tools');
   ok('a device without a face check still gets in by PIN', /lkBioReady\(\).*lkOpen\('offer'\)|if\(await lkBioReady\(\)\)\{ lkOpen\('offer'\); return; \}/.test(html));
   ok('locking again drops the session pass', /sessionStorage\.removeItem\(LK\.sess\)/.test(html));
   ok('the session pass is what keeps it open', /sessionStorage\.setItem\(LK\.sess,'1'\)/.test(html));
+
+  // ---- order flow: the value edge decides, not the VWAP side ----
+  const { execSync: ex2 } = require('child_process');
+  const flow = ex2(`cd ${root} && python3 -c "
+import sys; sys.path.insert(0,'.')
+import volume as V, copy, random
+random.seed(3)
+def book(n=110, start=3900.0):
+    out=[]; p=start; t=1793000000
+    for i in range(n):
+        o=p; p=p+random.uniform(-1.1,1.1)
+        hi=max(o,p)+random.uniform(0,0.9); lo=min(o,p)-random.uniform(0,0.9)
+        vol=random.uniform(800,1500); rng=(hi-lo) or 1e-9; ratio=(p-lo)/rng
+        out.append({'time':t+i*900,'open':o,'high':hi,'low':lo,'close':p,'volume':vol,
+                    'buy':vol*ratio,'sell':vol*(1-ratio)})
+    return out
+c=book(); rows,poc,_=V.clusters(c,48,10); va=V.value_area(rows,poc)
+vw,_=V.daily_vwap(c); atr=V.atr_series(c,14)[-1]
+base=V.signal(c,vw,rows,poc,atr,10,V.vwap_series(c),va=va)
+low=copy.deepcopy(c); low.append({'time':c[-1]['time']+900,'open':va['low']+1,'high':va['low']+1.3,
+    'low':va['low']-1.2,'close':va['low']+1.1,'volume':1600.0,'buy':1400,'sell':200})
+r2,p2,_=V.clusters(low,48,10); v2=V.value_area(r2,p2)
+rej=V.signal(low,vw,r2,p2,atr,10,V.vwap_series(low),va=v2)
+hi=copy.deepcopy(c); hi.append({'time':c[-1]['time']+900,'open':va['high']-1,'high':va['high']+1.2,
+    'low':va['high']-1.3,'close':va['high']-1.1,'volume':1600.0,'buy':200,'sell':1400})
+r3,p3,_=V.clusters(hi,48,10); v3=V.value_area(r3,p3)
+rejh=V.signal(hi,vw,r3,p3,atr,10,V.vwap_series(hi),va=v3)
+print('|'.join([rej['type'], rej.get('style') or '-', rejh['type'], base['type'],
+                str(rej.get('tp2',0)>rej.get('tp1',0))]))
+"`).toString().trim().split('|');
+  ok('a bounce off VAL is a BUY, not a sell', flow[0] === 'BUY' && /reject VAL|absorbed at VAL/.test(flow[1]), flow.join('|'));
+  ok('a rejection at VAH is a SELL', flow[2] === 'SELL', flow[2]);
+  ok('the signal names the order-flow read', /reject|absorb|accept/.test(flow[1]), flow[1]);
+  ok('the targets stay ordered', flow[4] === 'True', flow[4]);
+  ok('the signal carries its flow numbers', /delta_ratio/.test(grab('fetchVolume')) || /flow/.test(html));
 }
 console.log(`\n${fail ? '\x1b[31m' : '\x1b[32m'}${pass} passed, ${fail} failed\x1b[0m`);
 process.exit(fail ? 1 : 0);

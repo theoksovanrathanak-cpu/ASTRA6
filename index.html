@@ -4,9 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ASTRA6</title>
-<meta name="description" content="ASTRA6 — live metals, forex and futures with volume-cluster and daily-VWAP signals. Free, no sign-in.">
+<meta name="description" content="ASTRA6 — live metals and futures with order-flow volume, value area and daily VWAP. Free, no sign-in.">
 <meta property="og:title" content="ASTRA6">
-<meta property="og:description" content="Live metals, forex and futures. Volume clusters, daily VWAP and real OHLC.">
+<meta property="og:description" content="Live metals and futures. Order flow, value area, daily VWAP and real OHLC.">
 <meta property="og:url" content="https://astra6render.com">
 <meta name="theme-color" content="#0b1220">
 <link rel="icon" href="/logo.png">
@@ -320,6 +320,16 @@ body.intro-open{overflow:hidden}
 /* ---------- charts ---------- */
 #oanda_chart{width:100%;height:420px;border-radius:10px;background:#fbfcfd;border:1px solid var(--line-soft);overflow:hidden;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px}
 .chart-shell{position:relative}
+.swap-note{
+  position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:7;pointer-events:none;
+  padding:9px 16px;border-radius:99px;font-size:11.5px;font-weight:800;letter-spacing:.02em;
+  background:color-mix(in srgb,var(--surface) 92%,transparent);color:var(--ink);
+  border:1px solid color-mix(in srgb,var(--a-violet) 30%,var(--line));
+  box-shadow:0 10px 26px -14px rgba(0,0,0,.6);
+}
+.swap-note[hidden]{display:none}
+#oanda_chart{transition:opacity .18s ease}
+#oanda_chart.swapping{opacity:.22}
 .chart-stale{position:absolute;left:10px;bottom:34px;z-index:6;max-width:min(78%,320px);
   font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;line-height:1.35;
   color:#7a4b00;background:rgba(255,196,84,.20);border:1px solid #e3b258;border-radius:8px;
@@ -1282,7 +1292,7 @@ body[data-view="home"] .home>*:nth-child(4){animation-delay:.18s}
     <div class="intro-ring"></div>
     <div class="intro-mark"><span>A6</span><i class="intro-shine"></i></div>
     <div class="intro-title">WELCOME TO <b>ASTRA</b></div>
-    <div class="intro-sub">metals · forex · futures</div>
+    <div class="intro-sub">metals · futures</div>
     <div class="intro-bar"><i></i></div>
     <div class="intro-tap">
       <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
@@ -1397,7 +1407,7 @@ body[data-view="home"] .home>*:nth-child(4){animation-delay:.18s}
     <div class="home-mark-wrap"><div class="home-mark">A6</div></div>
     <div>
       <div class="home-title">ASTRA6</div>
-      <div class="home-sub">metals · forex · futures</div>
+      <div class="home-sub">metals · futures</div>
     </div>
     <button class="home-cta" type="button" onclick="setView('chart');if(typeof closeMenu==='function')closeMenu()">
       <span class="cta-ico" aria-hidden="true">
@@ -1482,6 +1492,7 @@ body[data-view="home"] .home>*:nth-child(4){animation-delay:.18s}
         <button class="tf-btn" data-tf="M1">M1</button><button class="tf-btn" data-tf="M5">M5</button><button class="tf-btn active" data-tf="M15">M15</button><button class="tf-btn" data-tf="M30">M30</button><button class="tf-btn" data-tf="H1">H1</button><button class="tf-btn" data-tf="H4">H4</button><button class="tf-btn" data-tf="D">D1</button><button class="tf-btn" data-tf="W">W1</button>
       </div>
       <div id="chart-stale" class="chart-stale" hidden></div>
+      <div id="swap-note" class="swap-note" hidden></div>
       <div id="alert-float" class="alert-float" hidden onclick="openAlerts()"></div>
       <div id="tv-legend"><span class="lg-t" id="lg-sym">XAUUSD</span><span id="lg-tf">M15</span><span id="lg-ohlc">—</span><span class="lg-note" id="lg-note"></span><span id="ind-legend" hidden></span></div>
       <svg id="vwap-layer" aria-hidden="true"><g id="vw-bands"></g><g id="vw-guides"></g><g id="vw-marks"></g><g id="vw-labels"></g></svg>
@@ -1529,14 +1540,11 @@ const MKT={
   XAGUSD:{name:'Silver',    group:'Metals', dec:3, unit:'$', vol:true},
   XPTUSD:{name:'Platinum',  group:'Metals', dec:1, unit:'$', vol:true},
   XPDUSD:{name:'Palladium', group:'Metals', dec:1, unit:'$', vol:true},
-  EURUSD:{name:'EUR/USD',   group:'Forex',  dec:5, unit:'',  vol:false},
-  GBPUSD:{name:'GBP/USD',   group:'Forex',  dec:5, unit:'',  vol:false},
-  USDJPY:{name:'USD/JPY',   group:'Forex',  dec:3, unit:'',  vol:false},
   ES:    {name:'S&P 500',   group:'Futures',dec:2, unit:'',  vol:true},
   NQ:    {name:'Nasdaq 100',group:'Futures',dec:2, unit:'',  vol:true},
   CL:    {name:'WTI Crude', group:'Futures',dec:2, unit:'$', vol:true}
 };
-const MKT_GROUPS=['Metals','Forex','Futures'];
+const MKT_GROUPS=['Metals','Futures'];
 function mkMeta(sym){return MKT[sym]||MKT.XAUUSD;}
 let currentSymbol=localStorage.getItem('astra6_symbol')||'XAUUSD';
 if(!MKT[currentSymbol]){currentSymbol='XAUUSD';localStorage.setItem('astra6_symbol','XAUUSD');}
@@ -2065,7 +2073,7 @@ function journalHtml(){
    +'<div><b class="mono">'+open+'</b><span>open</span></div></div>';
   h+='<div id="jn-cal">'+jnCalHtml()+'</div>';
   h+='<div class="sheet-sec">Log a trade</div><div class="jn-form">'
-   +'<label class="jn-f"><span>Market</span><select id="jn-sym"><option value="XAUUSD">GOLD · XAUUSD</option><option value="XAGUSD">SILVER · XAGUSD</option><option value="EURUSD">EUR/USD</option><option value="GBPUSD">GBP/USD</option><option value="USDJPY">USD/JPY</option><option value="ES">S&amp;P 500</option><option value="NQ">NASDAQ 100</option><option value="CL">CRUDE OIL</option></select></label>'
+   +'<label class="jn-f"><span>Market</span><select id="jn-sym"><option value="XAUUSD">GOLD · XAUUSD</option><option value="XAGUSD">SILVER · XAGUSD</option><option value="ES">S&amp;P 500</option><option value="NQ">NASDAQ 100</option><option value="CL">CRUDE OIL</option></select></label>'
    +'<label class="jn-f"><span>Side</span><select id="jn-side"><option value="BUY">BUY</option><option value="SELL">SELL</option></select></label>'
    +'<label class="jn-f"><span>Entry</span><input id="jn-entry" inputmode="decimal" placeholder="0.00"></label>'
    +'<label class="jn-f"><span>Stop</span><input id="jn-stop" inputmode="decimal" placeholder="0.00"></label>'
@@ -3346,12 +3354,21 @@ const url=cfg.chart+_sep+`granularity=${tf}&count=${count}`+(cfg.venues?`&venue=
 const _key=currentSymbol+'|'+tf,_same=(window._chartKey===_key);window._chartKey=_key;
 let _vr=null;try{if(_same)_vr=chart.timeScale().getVisibleLogicalRange();}catch(e){}
 try{paintSeries(clean);
+  try{const _cv=document.getElementById('oanda_chart');if(_cv)_cv.classList.remove('swapping');
+      const _sn=document.getElementById('swap-note');if(_sn)_sn.hidden=true;}catch(e){}
   if(_vr) chart.timeScale().setVisibleLogicalRange(_vr);   // no jump every refresh
   else{
     // A market the user just opened shows from its first bar to its last. The range is
     // set after the series has the data (a range set before setData is clamped to the
     // old, empty scale and then restored forever), and re-asserted once the axis settles.
-    const _fit=()=>{try{chart.timeScale().setVisibleLogicalRange({from:-0.5,to:clean.length-0.5});}catch(e){}};
+    // 150 bars squeezed into a phone width gives ~2 px candles - they read as sticks and
+    // the chart feels jittery. Show a readable window of the newest bars instead.
+    const _want=()=>{const w=(document.getElementById('oanda_chart')||{}).clientWidth||430;
+      return Math.max(30,Math.min(150,Math.round((w-56)/9)));};
+    const _fit=()=>{try{
+      const n=clean.length, show=Math.min(n,_want());
+      chart.timeScale().setVisibleLogicalRange({from:n-show-0.5,to:n+2.5});
+    }catch(e){}};
     _fit();
     requestAnimationFrame(_fit);
     setTimeout(_fit,120);
@@ -3444,7 +3461,7 @@ function marketOpenNow(sym, when){
   if(day===0) return m>=openSun;                  // Sunday open
   if(day===5) return m<21*60;                     // Friday close 21:00 UTC
   if(fut) return !(m>=21*60 && m<22*60);          // futures: one short break
-  return !(m>=21*60 && m<22*60);                  // metals + forex: daily break
+  return !(m>=21*60 && m<22*60);                  // metals + futures: daily break
 }
 function setNet(state,text,title){
   const chip=document.getElementById('net-chip'), t=document.getElementById('net-text');
@@ -3511,7 +3528,7 @@ enableTilt();
 function netWatch(){
   const sym=currentSymbol, open=marketOpenNow(sym);
   const age=_lastTickAt?Math.round((Date.now()-_lastTickAt)/1000):null;
-  ['XAUUSD','EURUSD','ES'].forEach(sy=>{
+  ['XAUUSD','ES'].forEach(sy=>{
     const tag=document.getElementById('home-tag-'+sy);
     if(!tag) return;
     const txt=marketOpenNow(sy)?'':'closed';
@@ -3602,6 +3619,15 @@ function setSymbol(sym){
   // pair's price under the new pair's name while the feed is in flight
   lastCandles=[];lastPrice=0;window._zones=null;
   try{if(candleSeries)candleSeries.setData([]);}catch(e){}
+  // dim the plot and label the swap so a market change reads as a transition, not a glitch
+  try{const _cv=document.getElementById('oanda_chart');if(_cv)_cv.classList.add('swapping');}catch(e){}
+  try{const _sn=document.getElementById('swap-note');if(_sn){_sn.textContent='loading '+sym+' · '+mkMeta(sym).name; _sn.hidden=false;}}catch(e){}
+  // never leave the plot dimmed if a feed stalls
+  clearTimeout(window._swapTimer);
+  window._swapTimer=setTimeout(function(){try{
+    const c=document.getElementById('oanda_chart');if(c)c.classList.remove('swapping');
+    const n=document.getElementById('swap-note');if(n)n.hidden=true;
+  }catch(e){}},5000);
   try{document.getElementById('chart-candle-count').textContent='switching…';}catch(e){}
   try{const _o=document.getElementById('lg-ohlc');if(_o)_o.textContent='—';}catch(e){}
   try{document.getElementById('chart-source').textContent='loading '+sym+'…';}catch(e){}
@@ -3655,7 +3681,7 @@ function setStrategy(){
   if(window._volume) renderVolumeSignal(window._volume);
 }
 
-// ---------- volume clusters + daily VWAP ----------
+// ---------- order flow: value area, clusters, daily VWAP ----------
 const VOL_COOLDOWN_MS = 15*60*1000;   // one alert per symbol per 15 minutes, at most
 window._volume = null;
 let _volPending=false, _volAt=0;
@@ -3726,7 +3752,7 @@ function renderVolumeSignal(d){
     type:type, price:s.price||d.price, confidence:s.confidence||55, winrate_est:s.winrate_est||50,
     timestamp:d.bar_time||Date.now()/1000,
     time_str:new Date().toLocaleString(),
-    strategy:'volume clusters · daily VWAP',
+    strategy:'order flow · value area',
     entry:lv.entry, sl:lv.sl, tp1:lv.tp1, tp2:lv.tp2, r:lv.r,
     reasons:[
       (s.reason||'Waiting for a clean cluster.')+
@@ -3735,7 +3761,7 @@ function renderVolumeSignal(d){
     ]
   });
   const stamp=document.getElementById('sig-stamp');
-  if(stamp) stamp.textContent='volume clusters · daily VWAP';
+  if(stamp) stamp.textContent='order flow · value area';
   const ai=document.getElementById('sig-ai');
   if(ai){
     const top=rows.slice().sort((a,b)=>Math.abs(b.delta||0)-Math.abs(a.delta||0)).slice(0,4);
