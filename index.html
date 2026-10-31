@@ -349,7 +349,7 @@ body.intro-open{overflow:hidden}
 #tf-float .tf-btn{height:23px;min-width:30px;padding:0 7px;font-size:10.5px;border-radius:7px;flex:0 0 auto}
 @media(max-width:620px){#tf-float .tf-btn{min-width:27px;padding:0 5px;font-size:10px}}
 
-#tv-legend{position:absolute;top:44px;left:10px;z-index:4;pointer-events:none;display:flex;align-items:center;gap:10px;font-size:11px;font-weight:600;letter-spacing:.2px;color:var(--muted);background:color-mix(in srgb,var(--surface) 78%,transparent);padding:4px 8px;border-radius:7px;border:1px solid var(--line-soft)}
+#tv-legend{position:absolute;top:44px;left:10px;z-index:4;pointer-events:none;display:flex;align-items:center;gap:10px;font-size:11px;font-weight:600;letter-spacing:.2px;color:var(--muted);background:color-mix(in srgb,var(--surface) 95%,transparent);backdrop-filter:blur(6px);padding:4px 8px;border-radius:7px;border:1px solid var(--line-soft);box-shadow:0 2px 10px rgba(0,0,0,.22)}
 #tv-legend b{color:var(--ink);font-weight:800}
 #tv-legend .lg-t{font-weight:800;color:var(--ink)}
 #tv-legend .lg-c.up{color:var(--up)} #tv-legend .lg-c.dn{color:var(--down)}
@@ -595,6 +595,9 @@ body[data-view="signal"] .wrap{
   body[data-view="chart"] .price-value{font-size:21px}
   #tv-legend{font-size:10px;gap:7px}
   .lg-note{display:none}
+  /* phones: the OHLC strip ate half the row, so the indicator readouts get it instead */
+  #tv-legend>#lg-ohlc{display:none}
+  #tv-legend>#ind-legend{max-width:none;flex:1 1 auto;font-size:9.6px}
 }
 
 /* ---------- responsive ---------- */
@@ -1100,6 +1103,13 @@ body[data-view="home"] .wrap{position:relative;overflow:hidden}
 #draw-hint.on{display:block}
 #tv-legend{flex-wrap:nowrap;max-width:calc(100% - 16px);gap:8px}
 #tv-legend>*{white-space:nowrap;flex:0 0 auto}
+/* the OHLC strip and the indicator legend must shrink and clip instead of printing over each other */
+#tv-legend>#lg-ohlc{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+#tv-legend>#ind-legend{flex:1 1 auto;min-width:0;max-width:47%;overflow:hidden;text-overflow:ellipsis}
+@media(max-width:620px){
+  #tv-legend{gap:6px;font-size:9.6px;padding:3px 7px}
+  #tv-legend>#ind-legend{max-width:44%;font-size:9.4px}
+}
 #lg-ohlc{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
 #ind-legend{flex:1 1 auto;min-width:0;max-width:none;text-align:right}
 #ind-legend{color:var(--muted);font-weight:700;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;min-width:0;max-width:42vw}
@@ -1138,7 +1148,8 @@ body[data-view="chart"] .chart-shell{
   box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--a-violet) 12%,transparent);
 }
 #tv-legend{
-  background:color-mix(in srgb,var(--surface) 72%,transparent);
+  background:color-mix(in srgb,var(--surface) 95%,transparent);
+  backdrop-filter:blur(6px);
   box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 8px 18px -16px rgba(15,23,42,.9);
 }
 
