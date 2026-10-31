@@ -2967,6 +2967,14 @@ def simple_login_page():
     except:
         return HTMLResponse("<h1>Simple login not found</h1>", status_code=404)
 
+@app.get("/astra6-orderflow.mp4")
+def orderflow_video():
+    """the Catalog walkthrough: real screenshots, rendered offline, served as a plain file"""
+    p = Path("astra6-orderflow.mp4")
+    if p.exists():
+        return FileResponse(p, media_type="video/mp4", headers={"Accept-Ranges": "bytes"})
+    raise HTTPException(status_code=404, detail="video not found")
+
 @app.get("/logo.png")
 def logo():
     p = Path("logo.png")

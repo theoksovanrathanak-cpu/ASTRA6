@@ -320,6 +320,17 @@ body.intro-open{overflow:hidden}
 /* ---------- charts ---------- */
 #oanda_chart{width:100%;height:420px;border-radius:10px;background:#fbfcfd;border:1px solid var(--line-soft);overflow:hidden;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px}
 .chart-shell{position:relative}
+.flow-line{
+  display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px;padding:7px 10px;border-radius:10px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10.5px;font-weight:700;color:var(--ink-2);
+  background:color-mix(in srgb,var(--surface) 82%,transparent);border:1px solid var(--line);line-height:1.35;
+}
+.flow-line[hidden]{display:none}
+.flow-line b{font-weight:900;letter-spacing:.03em}
+.flow-line .buy{color:#12b981}
+.flow-line .sell{color:#f4525f}
+.flow-line .hold{color:var(--muted)}
+.flow-line .flow-k{color:var(--muted);font-weight:700}
 .swap-note{
   position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:7;pointer-events:none;
   padding:9px 16px;border-radius:99px;font-size:11.5px;font-weight:800;letter-spacing:.02em;
@@ -586,6 +597,29 @@ body[data-view="home"] .wrap{
 .home-cta:hover{transform:translateY(-1px);box-shadow:0 16px 30px -14px rgba(124,92,255,.9),inset 0 1px 0 rgba(255,255,255,.4)}
 .home-cta:active{transform:translateY(1px)}
 .home-cta .cta-ico{display:inline-flex;opacity:.95}
+.catalog-card{
+  display:flex;align-items:center;gap:11px;width:100%;text-align:left;cursor:pointer;
+  padding:11px 12px;border-radius:13px;font-family:inherit;
+  background:linear-gradient(102deg,rgba(124,92,255,.20),rgba(34,211,238,.16));
+  border:1px solid color-mix(in srgb,var(--a-violet) 42%,transparent);
+  transition:transform .15s ease,border-color .15s ease;
+}
+.catalog-card:hover{transform:translateY(-1px);border-color:color-mix(in srgb,var(--a-cyan) 60%,transparent)}
+.catalog-card .cc-play{
+  flex:0 0 auto;width:34px;height:34px;border-radius:99px;display:grid;place-items:center;color:#fff;
+  background:linear-gradient(140deg,var(--a-violet,#7c5cff),var(--a-cyan,#22d3ee));
+  box-shadow:0 8px 18px -8px rgba(124,92,255,.9);
+}
+.catalog-card .cc-play svg{margin-left:2px}
+.catalog-card .cc-txt{display:flex;flex-direction:column;gap:2px;min-width:0}
+.catalog-card .cc-t{font-size:12.5px;font-weight:800;color:var(--ink)}
+.catalog-card .cc-k{font-size:10px;font-weight:600;color:var(--muted)}
+.cat-player{width:100%;border-radius:14px;background:#05070d;display:block}
+.cat-steps{margin:12px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:9px}
+.cat-steps li{display:flex;gap:9px;font-size:12px;line-height:1.5;color:var(--ink-2)}
+.cat-steps b{color:var(--ink)}
+.cat-steps .n{flex:0 0 auto;width:19px;height:19px;border-radius:99px;display:grid;place-items:center;
+  font-size:10px;font-weight:900;color:#fff;background:linear-gradient(140deg,var(--a-violet,#7c5cff),var(--a-cyan,#22d3ee))}
 .menu-lock{
   display:inline-flex;align-items:center;gap:7px;margin-top:8px;padding:8px 12px;border-radius:10px;cursor:pointer;
   font-family:inherit;font-size:11.5px;font-weight:750;color:var(--ink-2);
@@ -1364,6 +1398,19 @@ body[data-view="home"] .home>*:nth-child(4){animation-delay:.18s}
   </div>
 
   <div class="menu-sec">
+    <div class="menu-label">Catalog</div>
+    <button class="catalog-card" type="button" onclick="openCatalog()">
+      <span class="cc-play" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor"><path d="M8 5.2v13.6L19 12z"/></svg>
+      </span>
+      <span class="cc-txt">
+        <span class="cc-t">How to trade this strategy</span>
+        <span class="cc-k">video · 1:15 · order flow, value area, entry &amp; exits</span>
+      </span>
+    </button>
+  </div>
+
+  <div class="menu-sec">
     <div class="menu-label">Trade journal</div>
     <div class="menu-stats">
       <div><b class="mono" id="jn-trades">0</b><span>trades</span></div>
@@ -1493,7 +1540,6 @@ body[data-view="home"] .home>*:nth-child(4){animation-delay:.18s}
       </div>
       <div id="chart-stale" class="chart-stale" hidden></div>
       <div id="swap-note" class="swap-note" hidden></div>
-      <div id="alert-float" class="alert-float" hidden onclick="openAlerts()"></div>
       <div id="tv-legend"><span class="lg-t" id="lg-sym">XAUUSD</span><span id="lg-tf">M15</span><span id="lg-ohlc">—</span><span class="lg-note" id="lg-note"></span><span id="ind-legend" hidden></span></div>
       <svg id="vwap-layer" aria-hidden="true"><g id="vw-bands"></g><g id="vw-guides"></g><g id="vw-marks"></g><g id="vw-labels"></g></svg>
       <svg id="zone-layer" aria-hidden="true"></svg>
@@ -1503,6 +1549,7 @@ body[data-view="home"] .home>*:nth-child(4){animation-delay:.18s}
       <div id="ind-panel" class="tool-panel" hidden role="dialog" aria-label="Indicators"></div>
       <div id="chart-menu" class="tool-panel" hidden role="dialog" aria-label="Chart type and tools"></div>
     </div>
+    <div id="flow-line" class="flow-line" hidden></div>
     <div class="meta-row">
       <span>ASTRA6 chart · <span id="chart-info-tf">M15</span> · <span id="chart-candle-count">--</span> · <span class="ok" id="chart-source">connecting</span></span>
       <span class="zone-key"><i style="background:rgba(16,185,129,.35);border:1px solid #10b981"></i>buy zone
@@ -3725,16 +3772,15 @@ function renderVolumeSignal(d){
       if(prev!==t && cooled && !firedKeys().includes(key)){
         markFired(key);
         localStorage.setItem(atKey,String(Date.now()));
-        recordZoneAlert(key,{type:t,entry:(sg.entry!=null?sg.entry:sg.price),price:sg.price,
-                             sl:sg.sl,tp1:sg.tp1,tp2:sg.tp2,r:sg.r,
-                             confidence:sg.confidence||70,src:'volume'});
         beep();
       }
     }
   }catch(e){console.log('vol alert err',e);}
 
-  const sig=JSON.stringify([d.signal&&d.signal.type,d.signal&&d.signal.price,d.vwap,
+  const sig=JSON.stringify([d.signal&&d.signal.type,d.signal&&d.signal.price,d.signal&&d.signal.entry,
+    d.signal&&d.signal.sl,d.signal&&d.signal.tp1,d.signal&&d.signal.tp2,d.vwap,
     d.poc&&d.poc.bot,d.poc&&d.poc.top,currentSymbol]);
+  paintFlowLine(d);
   if(window._volSigKey===sig) return;   // nothing changed — leave the card alone
   window._volSigKey=sig;
   const s=d.signal||{}, type=s.type||'HOLD';
@@ -3945,7 +3991,7 @@ function drawVolume(){
       // don't print a level under the floating alert card: half-covered text is worse than none
       const _c=document.getElementById('alert-float');
       let covered=false;
-      if(_c&&!_c.hidden){
+      if(_c&&!_c.hidden&&_c.getBoundingClientRect){
         const _cr=_c.getBoundingClientRect(), _plot=document.getElementById('vwap-layer');
         if(_plot){const _pr=_plot.getBoundingClientRect();
           const yTop=g.top+_pr.top, yBot=yTop+g.hh;
@@ -3973,12 +4019,16 @@ function drawVolume(){
     const gG=document.getElementById('vw-guides');
     if(gG&&gG.getAttribute('data-k')!==gh){gG.innerHTML=gh;gG.setAttribute('data-k',gh);}
   }catch(e){}
-  _pool(gL,_VL.labels,labels.length,'text');
+  // a level label that lands under the legend / timeframe chrome is unreadable, so it is
+  // dropped: the dashed guide still marks the level and the volume panel names the price
+  const topCut=86;
+  const shown=labels.filter(function(L){return (L.g.top+L.g.hh/2)>topCut;});
+  _pool(gL,_VL.labels,shown.length,'text');
   // when the alert's entry/SL/TP chips own the right edge, the level labels step left of them
   const _af=document.getElementById('alert-float');
   const _tagW=(_af&&!_af.hidden)?70:5;
-  for(let i=0;i<labels.length;i++){
-    const {g,isPoc,isVah,isVal}=labels[i], r=g.r, pos=(r.delta||0)>=0;
+  for(let i=0;i<shown.length;i++){
+    const {g,isPoc,isVah,isVal}=shown[i], r=g.r, pos=(r.delta||0)>=0;
     const t=_VL.labels[i];
     t.setAttribute('x',(xR-_tagW).toFixed(1));
     t.setAttribute('y',(g.top+g.hh/2+2.6).toFixed(1));
@@ -4161,7 +4211,7 @@ function renderZoneSignal(d){
   // one alert per 5m entry box, ever — and only for the symbol on screen
   if(type!=='HOLD'&&s.entry_zone&&window._strategy==='render'){
     const key=currentSymbol+'|'+type+'|'+s.entry_zone.top.toFixed(2)+'|'+s.entry_zone.bot.toFixed(2);
-    if(!firedKeys().includes(key)){recordZoneAlert(key,s);markFired(key);beep();}
+    if(!firedKeys().includes(key)){markFired(key);}
   }
   renderZoneStats(wr);
 }
@@ -4182,8 +4232,34 @@ function renderZoneAlerts(){
   paintAlertCard(list);
 }
 
+// the order-flow readout: one line under the chart, always the current read.
+// No pop-up, no history, no sound - it is the strategy's output, not an alert.
+function paintFlowLine(d){
+  const el=document.getElementById('flow-line');
+  if(!el) return;
+  const s=(d&&d.signal)||{}, f=(d&&d.flow)||s.flow||{};
+  const px=v=>fmtPx(v,mkMeta(currentSymbol).dec);
+  if(!s.type){ el.hidden=true; el.innerHTML=''; return; }
+  if(s.type==='HOLD'){
+    el.innerHTML='<b class="hold">HOLD</b><span>'+((s.reason||'no edge right now').replace(/&/g,'&amp;').replace(/</g,'&lt;'))+'</span>';
+    el.hidden=false; return;
+  }
+  const cls=s.type==='BUY'?'buy':'sell';
+  const bits=['<b class="'+cls+'">'+s.type+'</b>',
+    '<span class="flow-k">entry</span> '+px(s.entry),
+    '<span class="flow-k">SL</span> '+px(s.sl),
+    '<span class="flow-k">TP1</span> '+px(s.tp1),
+    '<span class="flow-k">TP2</span> '+px(s.tp2),
+    '<span class="flow-k">R</span> '+(s.r!=null?Number(s.r).toFixed(2):'—'),
+    (s.style?'<span class="flow-k">·</span> '+s.style:'')];
+  el.innerHTML=bits.join(' ');
+  el.hidden=false;
+}
+
 // the compact card that floats on the chart: this market, its newest signal
 function paintAlertCard(list){
+  // alerts were removed from the product: nothing is painted on the chart any more.
+  // the history helpers stay so the journal keeps working off the same storage.
   const el=document.getElementById('alert-float');
   if(!el) return;
   const a=(list||[])[0];
@@ -4228,6 +4304,16 @@ function alertsOf(sym){
     return JSON.parse(localStorage.getItem('astra6_zone_alerts_'+sym)||'[]')
       .filter(a=>!a.sym || a.sym===sym);      // a stray record from before never leaks in
   }catch(e){ return []; }
+}
+function openCatalog(){
+  const body='<video class="cat-player" src="/astra6-orderflow.mp4" controls playsinline preload="metadata" poster=""></video>'
+   +'<ol class="cat-steps">'
+   +'<li><span class="n">1</span><span><b>Read the value area.</b> Clusters build the profile; POC is the most traded price and VAH/VAL are the 70% band. Yellow line = daily VWAP.</span></li>'
+   +'<li><span class="n">2</span><span><b>A bounce off VAL is a BUY.</b> The wick goes below, the close comes back inside and the delta is positive. Stop goes under the wick.</span></li>'
+   +'<li><span class="n">3</span><span><b>A rejection at VAH is a SELL.</b> Same rule upside down. Price below VWAP does not veto a buy at VAL - the value edge decides.</span></li>'
+   +'<li><span class="n">4</span><span><b>Take the printed levels.</b> Entry, SL, TP1 (POC) and TP2 (far edge of value) are computed, not drawn by hand. If the card says HOLD there is no trade.</span></li>'
+   +'</ol>';
+  openSheet('Catalog · order flow', body);
 }
 function openAlerts(){
   openSheet('Alerts · '+currentSymbol, alertsHtml(currentSymbol));

@@ -203,8 +203,8 @@ section('hamburger menu');
      html.indexOf('id="tf-float"') > html.indexOf('id="chart-section"') &&
      html.indexOf('id="tf-float"') < html.indexOf('</main>'));
   ok('all eight timeframes are on the chart', (html.slice(html.indexOf('id="tf-float"'), html.indexOf('</div>', html.indexOf('id="tf-float"'))).match(/data-tf=/g) || []).length === 8);
-  ok('the alert card lives on the chart', html.indexOf('id="alert-float"') > html.indexOf('id="chart-section"')
-     && html.indexOf('id="alert-float"') < html.indexOf('</main>'));
+  ok('alerts are gone: no card on the chart', !html.includes('id="alert-float"')
+     && !/class="alert-float"/.test(html));
   ok('front page has no ladder', !html.slice(html.indexOf('<main'), html.indexOf('</main>')).includes('alerts-list'));
 }
 
@@ -728,7 +728,7 @@ section('the market picker and the alert card live on the chart');
   global.fmtPx = realFmt;
   paintAlertCard([]);
   ok('no alert means no card', card.hidden === true);
-  ok('the card opens the whole list', /onclick="openAlerts\(\)"/.test(html) && /openSheet\('Alerts/.test(grab('openAlerts')));
+  ok('nothing can reopen the alert card', !/id="alert-float"/.test(html) && /alerts were removed from the product/.test(grab('paintAlertCard')));
   ok('switching market repaints the card', /renderZoneAlerts\(\)/.test(grab('setSymbol')));
 }
 
@@ -884,6 +884,21 @@ print('|'.join([rej['type'], rej.get('style') or '-', rejh['type'], base['type']
   ok('the signal names the order-flow read', /reject|absorb|accept/.test(flow[1]), flow[1]);
   ok('the targets stay ordered', flow[4] === 'True', flow[4]);
   ok('the signal carries its flow numbers', /delta_ratio/.test(grab('fetchVolume')) || /flow/.test(html));
+
+  // ---- catalog video, flow readout, forex gone ----
+  ok('the menu offers a Catalog video', /class="catalog-card"[^>]*onclick="openCatalog\(\)"/.test(html)
+     && /openSheet\('Catalog/.test(grab('openCatalog')));
+  ok('the video is served from the site, not a third party', /src="\/astra6-orderflow\.mp4"/.test(html)
+     && /@app\.get\("\/astra6-orderflow\.mp4"\)/.test(require('fs').readFileSync(path.join(root,'main.py'),'utf8')));
+  ok('the video file is real and roughly the promised length', (() => {
+    const st = require('fs').statSync(path.join(root, 'astra6-orderflow.mp4'));
+    return st.size > 500000 && st.size < 20e6;
+  })());
+  ok('the strategy readout sits under the chart', /id="flow-line"/.test(html) && /function paintFlowLine/.test(html));
+  ok('the readout prints entry, stop and both targets', /flow-k">SL<\/span>/.test(html) && /flow-k">TP2<\/span>/.test(html));
+  ok('forex pairs are gone from the market table', !/'EUR\/USD'/.test(html) && !/'USD\/JPY'/.test(html) && !/'GBP\/USD'/.test(html));
+  ok('the market picker only lists metals and futures', /MKT_GROUPS=\['Metals','Futures'\]/.test(html));
+  ok('no pop-up alert card exists any more', !html.includes('id="alert-float"'));
 }
 console.log(`\n${fail ? '\x1b[31m' : '\x1b[32m'}${pass} passed, ${fail} failed\x1b[0m`);
 process.exit(fail ? 1 : 0);
