@@ -169,6 +169,14 @@ body.intro-open{overflow:hidden}
 .menu-sec{display:flex;flex-direction:column;gap:7px;padding-top:12px;border-top:1px solid var(--line-soft)}
 .menu-sec:first-of-type{padding-top:0;border-top:0}
 .menu-label{font-size:9.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.tg-card{border:1px solid var(--line);border-radius:10px;padding:9px 10px;background:var(--line-soft)}
+.tg-state{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:800;letter-spacing:.02em}
+.tg-dot{width:7px;height:7px;border-radius:50%;background:var(--muted);flex:0 0 7px}
+.tg-dot.on{background:var(--up);box-shadow:0 0 0 3px rgba(15,157,103,.14)}
+.tg-dot.off{background:var(--muted)}
+.tg-note{font-size:10.5px;line-height:1.45;color:var(--muted);margin-top:4px}
+.tg-row{display:flex;gap:6px;margin-top:8px}
+.tg-row .chip{flex:1;justify-content:center;font-size:10.5px;padding:6px 8px}
 .menu-hint{font-size:10.5px;color:var(--muted);line-height:1.4;word-break:break-word}
 .menu-btns{display:flex;flex-wrap:wrap;gap:6px}
 .menu-select{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:9px;background:var(--panel);color:var(--ink);font-size:12px}
@@ -316,6 +324,16 @@ body.intro-open{overflow:hidden}
   color:#7a4b00;background:rgba(255,196,84,.20);border:1px solid #e3b258;border-radius:8px;
   padding:5px 8px;backdrop-filter:blur(6px);pointer-events:none}
 .chart-stale::before{content:'⚠';margin-right:5px}
+.event-live{display:flex;align-items:center;gap:7px;width:100%;border:0;
+  border-top:1px solid #e3b258;background:rgba(255,196,84,.20);color:#6f4400;
+  font:inherit;font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
+  padding:5px 12px;cursor:pointer;text-align:left;line-height:1.35}
+.event-live[hidden]{display:none}
+.event-live b{font-weight:900}
+.event-live .ev-dot{width:7px;height:7px;border-radius:50%;background:#c8860d;flex:0 0 7px;
+  animation:netPulse 1.4s ease-in-out infinite}
+.event-live .ev-go{margin-left:auto;opacity:.7;font-size:9.5px}
+[data-theme="dark"] .event-live{color:#ffd894;border-top-color:#7a5a14;background:rgba(200,134,13,.18)}
 .chart-stale.closed{color:var(--ink-2);background:color-mix(in srgb,var(--surface) 86%,transparent);
   border-color:var(--line);font-weight:700}
 .chart-stale.closed::before{content:'';margin:0}
@@ -671,6 +689,7 @@ body[data-view="signal"] .wrap{
       <span></span><span></span><span></span>
     </button>
   </div>
+  <button class="event-live" id="event-live" type="button" hidden onclick="openCalendar()"></button>
 </header>
 
 <div class="scrim" id="scrim" onclick="closeMenu()"></div>
@@ -698,6 +717,18 @@ body[data-view="signal"] .wrap{
       <div><b class="mono" id="menu-stat-bs">0 / 0</b><span>buy / sell</span></div>
     </div>
     <div id="alerts-list"><div style="padding:14px;text-align:center;color:var(--muted);font-size:11px">Loading…</div></div>
+  </div>
+
+  <div class="menu-sec">
+    <div class="menu-label">Alerts on your phone</div>
+    <div class="tg-card">
+      <div class="tg-state"><span class="tg-dot" id="tg-dot"></span><span id="tg-state">checking…</span></div>
+      <div class="tg-note" id="tg-note"></div>
+      <div class="tg-row">
+        <button class="chip" onclick="tgOpenBot()">Open the bot</button>
+        <button class="chip" onclick="tgTest(this)">Send test</button>
+      </div>
+    </div>
   </div>
 
   <div class="menu-sec">
@@ -965,7 +996,7 @@ async function loadCalendar(force){
   try{
     const r=await fetch('/api/calendar',{cache:'no-store'});
     const d=await r.json();
-    if(d && d.status==='ok'){ _cal=d; _calAt=Date.now(); renderCalStrip(d); }
+    if(d && d.status==='ok'){ _cal=d; _calAt=Date.now(); renderCalStrip(d); paintEventLive(); }
   }catch(e){ console.log('calendar err',e); }
   _calBusy=false;
   return _cal;
@@ -978,6 +1009,78 @@ function renderCalStrip(d){
       +esc(nh.title)+' · '+esc(evDay(nh.time))+' '+esc(evClock(nh.time))+'</span></div>'
     : '<div class="fund-row"><span class="fund-x">no high-impact event scheduled</span></div>';
 }
+// A high-impact release is what actually breaks a 15m setup: count it down before it
+// prints, and say so for ten minutes after. Nothing else is allowed to show here.
+function paintEventLive(src){
+  const el=document.getElementById('event-live'); if(!el) return;
+  const feed=src||_cal;
+  const cal=(feed&&feed.calendar)||[], now=Math.floor(Date.now()/1000);
+  let next=null;
+  for(const e of cal){
+    if((e.impact||'')!=='High'||!e.time) continue;
+    if(e.time>now && (!next||e.time<next.time)) next=e;
+  }
+  const recent=cal.filter(e=>(e.impact||'')==='High'&&e.time<=now&&(now-e.time)<=600)
+                  .sort((a,b)=>b.time-a.time)[0]||null;
+  let html='';
+  if(next && (next.time-now)<=5400){
+    const m=Math.round((next.time-now)/60);
+    html='<span class="ev-dot"></span><span><b>'+esc(next.currency||'')+' '+esc(next.title)+'</b> in '
+        +(m<60?m+' min':Math.round(m/60)+' h')
+        +(next.forecast?' · forecast '+esc(next.forecast):'')+'</span><span class="ev-go">calendar ›</span>';
+  }else if(recent){
+    html='<span class="ev-dot"></span><span><b>'+esc(recent.currency||'')+' '+esc(recent.title)+'</b> just released'
+        +(recent.actual?' · actual '+esc(recent.actual):'')+'</span><span class="ev-go">calendar ›</span>';
+  }
+  if(!html){ if(!el.hidden){ el.hidden=true; el.innerHTML=''; } return; }
+  const was=el.hidden;
+  if(el.innerHTML!==html) el.innerHTML=html;
+  if(was){ el.hidden=false; syncHdH(); relayoutChart(); }
+}
+
+// ---------- alerts on the phone ----------
+// The page's alert list is the record; Telegram is the copy that reaches a pocket.
+// It stays visibly "not connected" until the server really has the bot token, so
+// nothing here can look subscribed when it is not.
+async function tgLoad(){
+  const st=document.getElementById('tg-state'), note=document.getElementById('tg-note'),
+        dot=document.getElementById('tg-dot');
+  if(!st) return;
+  try{
+    const r=await fetch('/api/telegram/status',{cache:'no-store'});
+    const d=await r.json();
+    const on=!!(d.configured && d.subscribers>0);
+    if(dot) dot.className='tg-dot '+(on?'on':'off');
+    st.textContent = on ? 'Connected · '+d.subscribers+' phone'+(d.subscribers>1?'s':'')
+                     : (d.configured?'Bot ready · waiting for Start':'Not connected');
+    if(note) note.textContent = on
+      ? 'Every BUY/SELL is pushed once - entry, stop, TP1, TP2.'
+      : (d.configured
+          ? 'Open '+(d.bot||'@astra6renderbot')+' in Telegram and press Start once.'
+          : 'One time: add TELEGRAM_BOT_TOKEN in Render → Environment. Then press Start in the bot.');
+    window._tgOn=on;
+  }catch(e){
+    if(st) st.textContent='Status unavailable';
+    if(note) note.textContent='The server did not answer - try again in a moment.';
+  }
+}
+function tgOpenBot(){ window.open('https://t.me/'+((window._tgBot||'astra6renderbot').replace('@','')),'_blank'); }
+async function tgTest(btn){
+  const note=document.getElementById('tg-note');
+  if(btn){ btn.disabled=true; const t=btn.textContent; btn.textContent='Sending…';
+           setTimeout(()=>{btn.disabled=false;btn.textContent=t;},3000); }
+  try{
+    const r=await fetch('/api/telegram/test',{method:'POST'});
+    const d=await r.json();
+    if(note) note.textContent = d.sent
+      ? 'Test sent - check your phone.'
+      : (d.how || (d.error==='no_bot_token'
+            ? 'The bot token is not set on the server yet.'
+            : 'Nothing was sent - open the bot and press Start once.'));
+    if(!d.sent) tgLoad();
+  }catch(e){ if(note) note.textContent='Could not reach the server.'; }
+}
+
 function calHtml(d){
   if(!d || d.status!=='ok')
     return '<div class="jn-empty">The calendar feed is unreachable right now.<br>Nothing is invented - open this again in a minute.</div>';
@@ -1304,6 +1407,7 @@ function toggleMenu(){
 }
 function openMenu(){
   if(typeof loadCalendar==='function'){ loadCalendar(); loadNews(); }
+  if(typeof tgLoad==='function') tgLoad();
   const m=document.getElementById('menu'), s=document.getElementById('scrim'), b=document.getElementById('burger');
   if(m)m.classList.add('open');
   if(s)s.classList.add('on');
@@ -2207,10 +2311,11 @@ applyTheme();document.getElementById('sound-btn')&&(document.getElementById('sou
 initClicks();document.addEventListener('DOMContentLoaded',initClicks);setTimeout(initClicks,500);
 setTimeout(()=>{if(currentSymbol==='BTCUSD'){const b=document.querySelector('.sym-btn[data-sym="BTCUSD"]');if(b)b.classList.add('active');const g=document.querySelector('.sym-btn[data-sym="XAUUSD"]');if(g)g.classList.remove('active');document.querySelector('.brand-sub').textContent='Bitcoin · 15m / 5m';}else{fetchDashboard();}fetchLive();fetchFastPrice();},800);
 setInterval(updateTimeSmooth,500);updateTimeSmooth();
-setView('home');fitScreen();jnStats();loadCalendar();loadNews();netWatch();setTimeout(fitScreen,300);setTimeout(fitScreen,1200);startPriceStream();setInterval(fetchFastPrice,1500);setInterval(fetchOtherPrice,12000);setInterval(fetchZones,30000);setInterval(()=>{if(window._strategy==='volume')fetchVolume();},20000);setInterval(fetchLive,10000);setInterval(()=>{if(currentSymbol!=='BTCUSD')fetchDashboard();},15000);
+setView('home');fitScreen();jnStats();loadCalendar();loadNews();netWatch();tgLoad();setTimeout(fitScreen,300);setTimeout(fitScreen,1200);startPriceStream();setInterval(fetchFastPrice,1500);setInterval(fetchOtherPrice,12000);setInterval(fetchZones,30000);setInterval(()=>{if(window._strategy==='volume')fetchVolume();},20000);setInterval(fetchLive,10000);setInterval(()=>{if(currentSymbol!=='BTCUSD')fetchDashboard();},15000);
 document.getElementById('venue-select')?.addEventListener('change',e=>setVenue(e.target.value));
 loadVenues().then(()=>{if(currentSymbol==='BTCUSD')fetchBtcCompare();else fetchTVCompare();});updateSymTabs();fetchOtherPrice();renderZoneAlerts();fetchZones();
 setInterval(()=>{fetch('/health').catch(()=>{});},240000);
+setInterval(paintEventLive,20000);setInterval(()=>{if(document.getElementById('menu').classList.contains('open'))tgLoad();},60000);
 setInterval(()=>{if(chart)fetchChart(currentTF);},30000);
 console.log('ASTRA6 REBUILT SMOOTH - First upgrade clean + All data + All in one + No lag + Smooth + Free access + Market stays + Working');
 </script>

@@ -115,7 +115,7 @@ eval([
   'journalHtml', 'openJournal', 'openSheet', 'closeSheet', 'calHtml', 'newsHtml',
   'renderCalStrip', 'renderNewsStrip',
   'jnKeyOf', 'jnByDay', 'jnCalHtml', 'jnListHtml', 'jnMonth', 'jnPickDay', 'jnRepaint',
-  'marketOpenNow', 'setNet', 'candlesLate', 'nextOpenLocal',
+  'marketOpenNow', 'setNet', 'candlesLate', 'nextOpenLocal', 'paintEventLive',
 ].map(n => grab(n)).join('\n'));
 ['recordZoneAlert', 'renderZoneAlerts', 'zoneAlerts', 'latestTrade',
  'openMenu', 'closeMenu', 'toggleMenu', 'setView', 'endIntro', 'playIntro',
@@ -124,7 +124,7 @@ eval([
  'journalHtml', 'openJournal', 'openSheet', 'closeSheet', 'calHtml', 'newsHtml',
  'renderCalStrip', 'renderNewsStrip',
  'jnKeyOf', 'jnByDay', 'jnCalHtml', 'jnListHtml', 'jnMonth', 'jnPickDay', 'jnRepaint',
- 'marketOpenNow', 'setNet', 'candlesLate', 'nextOpenLocal'].forEach(n => { global[n] = eval(n); });
+ 'marketOpenNow', 'setNet', 'candlesLate', 'nextOpenLocal', 'paintEventLive'].forEach(n => { global[n] = eval(n); });
 // the calendar keeps its month/day in module scope in the page; give the harness the same
 global._jnM = new Date(2026, 10, 1);
 global._jnDay = null;
@@ -598,6 +598,48 @@ section('the page says when the data stops');
   ok('the reopening time is a real local date', nextOpenLocal('XAUUSD', new Date('2026-10-31T12:00:00Z').getTime()).length > 5);
   ok('the reopening time lands on a quarter hour', /:(00|15|30|45)\b/.test(nextOpenLocal('XAUUSD', new Date('2026-10-31T12:07:31Z').getTime())));
   ok('the watchdog keeps the note current', /setCandleAge\(\{last_bar_age_min:window._candleAgeMin\}\)/.test(grab('netWatch')));
+}
+
+section('the high-impact countdown');
+{
+  const now = Math.floor(Date.now() / 1000);
+  const strip = mkEl('event-live');
+  strip.hidden = true;
+  document.getElementById = (id) => (id === 'event-live' ? strip : els[id] || null);
+  // the strip re-measures the header when it appears; the real ones need a browser
+  globalThis.syncHdH = () => {};
+  globalThis.relayoutChart = () => {};
+
+  paintEventLive({ calendar: [{ time: now + 6 * 3600, title: 'NFP', currency: 'USD', impact: 'High' }] });
+  ok('nothing within 90 minutes means no strip', strip.hidden === true);
+
+  paintEventLive({ calendar: [
+    { time: now + 42 * 60, title: 'CPI m/m', currency: 'USD', impact: 'High', forecast: '0.3%' },
+    { time: now + 5 * 3600, title: 'NFP', currency: 'USD', impact: 'High' },
+    { time: now + 20 * 60, title: 'Minor', currency: 'EUR', impact: 'Medium' },
+  ] });
+  ok('a high-impact release in 42 minutes is counted down', strip.hidden === false && /CPI m\/m/.test(strip.innerHTML) && /42 min/.test(strip.innerHTML));
+  ok('it shows the forecast it was measured from', /0\.3%/.test(strip.innerHTML));
+  ok('medium-impact events do not raise the strip', !/Minor/.test(strip.innerHTML));
+
+  paintEventLive({ calendar: [{ time: now - 180, title: 'CPI y/y', currency: 'USD', impact: 'High', actual: '3.1%' }] });
+  ok('a release from three minutes ago is shown with its actual', /just released/.test(strip.innerHTML) && /3\.1%/.test(strip.innerHTML));
+
+  paintEventLive({ calendar: [{ time: now - 6000, title: 'Old news', currency: 'USD', impact: 'High', actual: '1' }] });
+  ok('an old release is not news any more', strip.hidden === true);
+  ok('the strip is the door to the calendar', /onclick="openCalendar\(\)"/.test(html) && html.includes('id="event-live"'));
+}
+
+section('alerts on the phone');
+{
+  ok('the menu carries a phone-alert card', html.includes('id="tg-state"') && html.includes('id="tg-note"'));
+  ok('it is honest about the token', /TELEGRAM_BOT_TOKEN/.test(html));
+  ok('there is a test button', /onclick="tgTest\(this\)"/.test(html));
+  ok('the bot can be opened from the menu', /function tgOpenBot\(\)/.test(html) && /t\.me\//.test(html));
+  ok('the state is read from the server, not guessed', /\/api\/telegram\/status/.test(grab('tgLoad')));
+  ok('the menu refreshes it on open', /tgLoad\(\)/.test(grab('openMenu')));
+  ok('the server only pushes BUY and SELL', /not in \("BUY", "SELL"\)/.test(fs.readFileSync(path.join(root, 'push.py'), 'utf8')));
+  ok('one push per box, keyed on the trade', /def signal_key/.test(fs.readFileSync(path.join(root, 'push.py'), 'utf8')));
 }
 
 console.log(`\n${fail ? '\x1b[31m' : '\x1b[32m'}${pass} passed, ${fail} failed\x1b[0m`);

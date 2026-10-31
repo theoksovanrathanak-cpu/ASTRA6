@@ -2847,11 +2847,61 @@ async def telegram_webhook(request: Request):
     try:
         data = await request.json()
         print(f"TG webhook received: {data}")
-        handle_telegram_update(data)
+        # anyone who messages the bot becomes a subscriber: one tap, nothing to type
+        try:
+            import push as PUSH
+            msg = data.get("message") or data.get("edited_message") or {}
+            chat = msg.get("chat") or {}
+            cid = chat.get("id")
+            if cid:
+                name = " ".join(x for x in (chat.get("first_name"), chat.get("username")) if x)
+                PUSH.add(cid, name)
+        except Exception as e:
+            print("tg subscribe err", e)
+        try:
+            handle_telegram_update(data)
+        except Exception as e:
+            # a bad update must not make Telegram retry the same message forever
+            print("tg update handler:", e)
         return {"ok": True}
     except Exception as e:
         print(f"TG webhook error {e}")
         return {"ok": False, "error": str(e)}
+
+# === phone alerts: the same signal, pushed to Telegram ===
+# The page's alert list is the record; this is the copy that reaches a pocket.
+# Dormant until TELEGRAM_BOT_TOKEN is set in the environment - it never pretends.
+@app.get("/api/telegram/status")
+def telegram_alert_status():
+    try:
+        import push as PUSH
+        return PUSH.status()
+    except Exception as e:
+        return {"status": "error", "error": str(e), "configured": False, "subscribers": 0}
+
+@app.post("/api/telegram/test")
+def telegram_alert_test():
+    try:
+        import push as PUSH
+        if not PUSH.configured():
+            return {"status": "error", "error": "no_bot_token",
+                    "how": "Add TELEGRAM_BOT_TOKEN in Render -> Environment, then press Start in the bot."}
+        if not PUSH.subscribers():
+            return {"status": "error", "error": "no_subscribers",
+                    "how": "Open " + PUSH.BOT_HANDLE + " in Telegram and press Start once."}
+        return dict(PUSH.broadcast(PUSH.format_test()), status="ok")
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+@app.post("/api/telegram/unsubscribe")
+def telegram_alert_unsubscribe(chat_id: str = ""):
+    try:
+        import push as PUSH
+        if chat_id:
+            PUSH.remove(chat_id)
+        return {"status": "ok", "subscribers": len(PUSH.subscribers())}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
 
 @app.get("/api/telegram/webhook")
 def telegram_webhook_info():
@@ -4088,6 +4138,45 @@ def get_volume(symbol: str = "XAUUSD", venue: str = None, rows: int = 48,
         print("volume err", e)
         return {"status": "error", "error": str(e), "real": True, "user": email}
 
+
+# === the phone push: one message per trade, while the tab is shut ===
+SITE_URL = "https://astra6-real.onrender.com"
+
+def push_scan_once():
+    """Compute the live cluster signal and push anything that is genuinely new."""
+    import push as PUSH
+    if not PUSH.configured() or not PUSH.subscribers():
+        return 0
+    sent = 0
+    for sym, venue in (("XAUUSD", "XAUS"), ("BTCUSD", "BINANCE:BTCUSDT")):
+        try:
+            d = get_volume(symbol=sym, venue=venue, tf="M15", bars=150)
+            sig = (d or {}).get("signal") or {}
+            key = PUSH.signal_key(sym, sig)
+            if not key or not PUSH.is_new(key):
+                continue
+            res = PUSH.broadcast(PUSH.format_signal(sym, sig, "M15"))
+            if res.get("sent"):
+                PUSH.mark(key)          # only once it really left the building
+                sent += 1
+                print("pushed", key)
+        except Exception as e:
+            print("push scan", sym, e)
+    return sent
+
+def push_loop():
+    time.sleep(45)          # let the app finish booting before the first scan
+    while True:
+        try:
+            push_scan_once()
+        except Exception as e:
+            print("push loop", e)
+        time.sleep(60)
+
+try:
+    threading.Thread(target=push_loop, daemon=True, name="phone-push").start()
+except Exception as _pe:
+    print("push thread:", _pe)
 
 @app.get("/api/calendar")
 def get_calendar(days: int = 10):

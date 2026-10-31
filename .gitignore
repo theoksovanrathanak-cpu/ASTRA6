@@ -12,3 +12,5 @@ broker_trades.json
 mt5_trades.json
 *.log
 .DS_Store
+telegram_subs.json
+telegram_seen.json
