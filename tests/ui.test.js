@@ -338,12 +338,14 @@ section('nothing opens by itself');
   ok('nothing polls the chart while it is closed', /if\(chart\)fetchChart\(currentTF\)/.test(html));
   ok('hero and chart are hidden on home', /body\[data-view="home"\] #chart-section/.test(css));
   ok('footer is hidden on home', /body\[data-view="home"\] \.foot\{display:none\}/.test(css));
-  ok('the welcome shows metals, forex and futures', html.includes('id="home-px-XAUUSD"')
-     && html.includes('id="home-px-EURUSD"') && html.includes('id="home-px-ES"'));
+  ok('the home screen carries no market tiles', !html.includes('id="home-px-XAUUSD"')
+     && !html.includes('id="home-px-EURUSD"') && !html.includes('id="home-px-ES"')
+     && !/class="home-tiles"/.test(html));
+  ok('home offers one chart button instead', /class="home-cta"[^>]*onclick="setView\('chart'\)/.test(html));
   ok('bitcoin is gone from the page', !/BTCUSD|BITCOIN|Bitcoin/.test(html.replace(/bitcoin is gone[^<]*/,'')));
   ok('the welcome subtitle names the three desks', /metals · forex · futures/.test(html));
   ok('the welcome has no price header', /body\[data-view="home"\] \.hd \.price-block/.test(html));
-  ok('home tells you the chart is in the menu', /tap the <b>menu<\/b> → <b>Chart<\/b>/.test(html));
+  ok('home still points at menu → Chart', /menu → Chart/.test(html));
   ok('menu has a Home choice', /data-view="home"/.test(html));
   ok('Home starts active in the menu', /class="tf-btn active" data-view="home"/.test(html));
   BTNS = ['home', 'chart', 'signal', 'all'].map(v => { const b = mkEl('b-' + v); b.dataset.view = v; return b; });
@@ -617,7 +619,8 @@ section('the page says when the data stops');
   ok('the daily break is closed', !marketOpenNow('XAUUSD', at('2026-10-28T21:30:00Z')));
   ok('the rest of the week is open', marketOpenNow('XAUUSD', at('2026-10-28T12:00:00Z')));
   ok('the header carries the state', html.includes('id="net-chip"') && html.includes('id="net-text"'));
-  ok('the tiles admit a closed market', html.includes('id="home-tag-XAUUSD"'));
+  ok('a closed market is admitted without home tiles', !html.includes('id="home-tag-XAUUSD"')
+     && /market closed/.test(grab('fetchChart')));
   ok('a stale clock is retried instead of freezing', /age>10/.test(grab('netWatch')) && /fetchFastPrice\(\)/.test(grab('netWatch')));
   ok('a silent stream no longer switches polling off', /streamOk && _lastTickAt && Date.now\(\)-_lastTickAt < 5000/.test(grab('fetchFastPrice')));
   ok('every tick stamps the clock', /_lastTickAt=Date.now\(\)/.test(grab('applyTick')));

@@ -565,6 +565,21 @@ body[data-view="home"] .wrap{
 }
 .home-hint b{color:var(--ink);font-weight:750}
 .home-hint svg{flex:0 0 auto;color:var(--muted)}
+.home-cta{
+  display:inline-flex;align-items:center;gap:10px;width:100%;justify-content:center;
+  padding:13px 18px;border:0;border-radius:15px;cursor:pointer;
+  font-family:inherit;font-size:14.5px;font-weight:800;letter-spacing:.01em;color:#fff;
+  background:linear-gradient(102deg,var(--a-violet,#7c5cff),var(--a-cyan,#22d3ee));
+  box-shadow:0 12px 26px -14px rgba(124,92,255,.85),inset 0 1px 0 rgba(255,255,255,.35);
+  transition:transform .15s ease,box-shadow .15s ease;
+}
+.home-cta:hover{transform:translateY(-1px);box-shadow:0 16px 30px -14px rgba(124,92,255,.9),inset 0 1px 0 rgba(255,255,255,.4)}
+.home-cta:active{transform:translateY(1px)}
+.home-cta .cta-ico{display:inline-flex;opacity:.95}
+.home-cta .cta-k{
+  margin-left:auto;font-size:9.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;
+  padding:4px 8px;border-radius:99px;background:rgba(255,255,255,.18)
+}
 
 /* ---------- one screen: the chart fills the device ---------- */
 :root{--hd-h:64px}
@@ -1314,27 +1329,13 @@ body[data-view="home"] .home>*:nth-child(4){animation-delay:.18s}
       <div class="home-title">ASTRA6</div>
       <div class="home-sub">metals · forex · futures</div>
     </div>
-    <div class="home-tiles">
-      <button class="home-tile" type="button" onclick="openMarket('XAUUSD')">
-        <div class="tile-hd"><span class="tile-ico gold" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><circle cx="12" cy="12" r="8.4"/><circle cx="12" cy="12" r="3.6" fill="currentColor" stroke="none" opacity=".85"/><path d="M8.7 6.4 10 4.7" opacity=".7"/></svg></span><span class="tile-k">GOLD</span></div>
-        <span class="tile-v mono" id="home-px-XAUUSD">—</span>
-        <span class="tile-tag" id="home-tag-XAUUSD"></span>
-      </button>
-      <button class="home-tile" type="button" onclick="openMarket('EURUSD')">
-        <div class="tile-hd"><span class="tile-ico fx" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h13l-3.2-3.2M20 16H7l3.2 3.2"/></svg></span><span class="tile-k">EUR / USD</span></div>
-        <span class="tile-v mono" id="home-px-EURUSD">—</span>
-        <span class="tile-tag" id="home-tag-EURUSD"></span>
-      </button>
-      <button class="home-tile" type="button" onclick="openMarket('ES')">
-        <div class="tile-hd"><span class="tile-ico fut" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16.5 9.5 11l3.5 3.5L20 7"/><path d="M15.5 7H20v4.5"/></svg></span><span class="tile-k">S&P 500</span></div>
-        <span class="tile-v mono" id="home-px-ES">—</span>
-        <span class="tile-tag" id="home-tag-ES"></span>
-      </button>
-    </div>
-    <div class="home-hint">
-      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
-      <span>tap the <b>menu</b> → <b>Chart</b> to open the chart</span>
-    </div>
+    <button class="home-cta" type="button" onclick="setView('chart');if(typeof closeMenu==='function')closeMenu()">
+      <span class="cta-ico" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5M4 19h16"/><path d="m7.5 15 4-5 3 3.2 4.2-6.2"/></svg>
+      </span>
+      <span class="cta-t">Open chart</span>
+      <span class="cta-k">menu → Chart</span>
+    </button>
   </section>
 
   <section class="grid-hero" id="hero-signal">
