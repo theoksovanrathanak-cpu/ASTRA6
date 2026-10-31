@@ -1,30 +1,40 @@
 name: Keep ASTRA6 awake (Render free tier)
 
-# Render free web services sleep after ~15 min idle.
-# Set the repository variable ASTRA6_URL (Settings > Secrets and variables > Actions > Variables)
-# to the live service URL, e.g. https://astra6-xxxx.onrender.com
-# Defaults to https://astra6.onrender.com if the variable is not set.
+# WHY THIS EXISTS
+#   A Render free web service sleeps after 15 minutes without inbound traffic and
+#   takes ~60-90s to wake. A sleeping app cannot ping itself, so the keep-warm has
+#   to come from outside. GitHub Actions is free for public repos, so this is the
+#   pinger.
+#
+# WHY ONLY ONE URL
+#   Free tier = 750 instance hours per workspace per MONTH, shared by every free
+#   service. Two services kept awake 24/7 = ~1440 hours and Render suspends ALL
+#   free services until the next month. One awake service = ~720 hours, which fits.
+#   astra6-real stays warm; renderbot-v2 is allowed to sleep (a sleeping service
+#   uses no instance hours) and simply wakes on its first request.
 
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: '*/5 * * * *'      # every 5 min, inside Render's 15-min idle window
   workflow_dispatch:
+
+concurrency:
+  group: keepalive
+  cancel-in-progress: false
 
 jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping health + price (wake up if sleeping)
+      - name: Wake and verify
         env:
-          URL: ${{ vars.ASTRA6_URL || 'https://astra6.onrender.com' }}
+          URL: ${{ vars.ASTRA6_URL || 'https://astra6-real.onrender.com' }}
         run: |
           echo "Target: $URL"
           for i in 1 2 3 4 5 6; do
-            CODE=$(curl -s --max-time 60 -o /dev/null -w "%{http_code}" "$URL/health" || echo 000)
+            CODE=$(curl -s --max-time 70 -o /dev/null -w "%{http_code}" "$URL/health" || echo 000)
             echo "attempt $i -> $CODE ($(date -u +%H:%M:%S))"
-            if [ "$CODE" = "200" ]; then break; fi
-            sleep 15
+            [ "$CODE" = "200" ] && break
+            sleep 12
           done
-          curl -s --max-time 30 -o /dev/null -w "home  %{http_code} %{time_total}s\n" "$URL/" || true
-          curl -s --max-time 30 "$URL/api/xauusd/fast-price" | head -c 300 || true
-          echo ""
+          curl -s --max-time 40 -o /dev/null -w "home %{http_code} in %{time_total}s\n" "$URL/" || true

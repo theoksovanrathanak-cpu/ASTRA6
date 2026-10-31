@@ -62,38 +62,36 @@ try:
 except Exception as _e:
     print("static mount skipped:", _e)
 
-# Keepalive for free plan 24/7 hosting - prevents sleep after 15 min
+# Keepalive - optional, and it must ping the CORRECT public URL.
+# Render exposes RENDER_EXTERNAL_URL, so we no longer hardcode a dead host.
 import threading
 import time as time_module
 
 def keep_alive_ping():
-    """Background thread that pings self every 10 min to keep free plan alive 24/7"""
-    time_module.sleep(30)
-    print("🔄 Keepalive thread started - pinging every 10 min to keep free plan 24/7")
+    base = os.getenv("RENDER_EXTERNAL_URL", "").rstrip("/")
+    extra = [u.strip().rstrip("/") for u in os.getenv("KEEPALIVE_URLS", "").split(",") if u.strip()]
+    urls = ([f"{base}/health"] if base else []) + [f"{u}/health" for u in extra]
+    if not urls:
+        print("Keepalive skipped - no public URL to ping (not on Render?)")
+        return
+    every = int(os.getenv("KEEPALIVE_SECONDS", "300"))   # 5 min < Render's 15 min idle window
+    time_module.sleep(20)
+    print(f"Keepalive pinging {urls} every {every}s")
+    import requests
     while True:
-        try:
-            time_module.sleep(600)  # 10 minutes
-            import requests
-            urls = [
-                "https://astra6.onrender.com/health",
-                "https://astra6.onrender.com/api/status"
-            ]
-            for url in urls:
-                try:
-                    r = requests.get(url, timeout=10)
-                    print(f"🔄 Keepalive ping {url} {r.status_code}")
-                except Exception as e:
-                    print(f"Keepalive ping {url} fail {e}")
-        except Exception as e:
-            print(f"Keepalive error {e}")
-            time_module.sleep(60)
+        for url in urls:
+            try:
+                r = requests.get(url, timeout=15)
+                print(f"keepalive {url} {r.status_code}")
+            except Exception as e:
+                print(f"keepalive {url} fail {e}")
+        time_module.sleep(every)
 
-try:
-    t = threading.Thread(target=keep_alive_ping, daemon=True)
-    t.start()
-    print("✅ Keepalive launched for free 24/7")
-except Exception as e:
-    print(f"Keepalive launch error {e}")
+if os.getenv("KEEPALIVE", "0") == "1":
+    try:
+        threading.Thread(target=keep_alive_ping, daemon=True).start()
+    except Exception as e:
+        print(f"Keepalive launch error {e}")
 
 app.add_middleware(
     CORSMiddleware,
