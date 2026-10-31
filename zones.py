@@ -376,3 +376,152 @@ def layers(candles, atr, zones, sig):
         {"k": "session", "label": "Session", "value": f"{hour:02d}:00 UTC",
          "note": "dead zone (21–01)" if (hour >= 21 or hour < 1) else "active"},
     ]
+
+
+def dual_signal(c5, z5, atr5, c15, z15, atr15, sl_buf=0.15):
+    """
+    The strategy: 15m boxes are the TARGET (where price is going),
+    5m boxes are the ENTRY (when to pull the trigger).
+
+      price inside a 5m demand box  -> BUY   target = nearest 15m supply above
+      price inside a 5m supply box  -> SELL  target = nearest 15m demand below
+
+    No entry box touched = no trade. If price is already sitting inside the
+    15m target box, the move is spent and we stay out.
+    """
+    price = c15[-1]["close"]
+    live15 = [z for z in z15 if z["alive"]]
+    live5 = [z for z in z5 if z["alive"]]
+
+    aggs = [z for z in live15 if z["side"] == -1 and z["bot"] >= price]
+    dmgs = [z for z in live15 if z["side"] == 1 and z["top"] <= price]
+    tgt_up = min(aggs, key=lambda z: z["bot"]) if aggs else None
+    tgt_dn = max(dmgs, key=lambda z: z["top"]) if dmgs else None
+
+    # is price already inside a 15m target box? then the target is spent
+    inside15 = None
+    for z in live15:
+        if (c15[-1]["low"] <= z["top"] and price >= z["bot"]) if z["side"] == 1 else (c15[-1]["high"] >= z["bot"] and price <= z["top"]):
+            inside15 = z
+
+    # entry trigger: the 5m BOX the last 5m candle is touching (5m data, not 15m)
+    last5 = c5[-1]
+    hit = None
+    for z in reversed(live5):
+        touching = (last5["low"] <= z["top"] and price >= z["bot"]) if z["side"] == 1 \
+            else (last5["high"] >= z["bot"] and price <= z["top"])
+        if touching:
+            hit = z
+            break
+
+    w5, n5 = cohort_stats([z for z in z5 if z.get("touch_out")])
+    def held(side, tn):
+        b = 0 if tn <= 1 else (1 if tn == 2 else 2)
+        si = 0 if side == 1 else 1
+        return round(100.0 * w5[si][b] / n5[si][b]) if n5[si][b] else None
+
+    out = {
+        "price": round(price, 2),
+        "entry_zone": None, "target": None,
+        "road_up": None, "road_dn": None, "next_stop": None,
+        "stats_5m": {"demand": [{"held": w5[0][i], "n": n5[0][i]} for i in range(3)],
+                     "supply": [{"held": w5[1][i], "n": n5[1][i]} for i in range(3)]},
+    }
+    if tgt_up:
+        out["road_up"] = {"top": round(tgt_up["top"], 2), "bot": round(tgt_up["bot"], 2),
+                          "touches": tgt_up["touches"], "dist": round(tgt_up["bot"] - price, 2)}
+    if tgt_dn:
+        out["road_dn"] = {"top": round(tgt_dn["top"], 2), "bot": round(tgt_dn["bot"], 2),
+                          "touches": tgt_dn["touches"], "dist": round(price - tgt_dn["top"], 2)}
+    nearest = None
+    if out["road_up"] and out["road_dn"]:
+        nearest = out["road_up"] if out["road_up"]["dist"] <= out["road_dn"]["dist"] else out["road_dn"]
+    elif out["road_up"]:
+        nearest = out["road_up"]
+    elif out["road_dn"]:
+        nearest = out["road_dn"]
+    out["next_stop"] = nearest
+
+    if hit is not None:
+        side = hit["side"]
+        zt, zb = hit["top"], hit["bot"]
+        opposite15 = inside15 and inside15["side"] != side
+        if opposite15:
+            out.update({"type": "HOLD", "reason": "Price is inside the 15m target box — move is done."})
+            return out
+        target = tgt_up if side == 1 else tgt_dn
+        atr_now = (atr5[-1] if isinstance(atr5, list) and atr5 else atr5) or 0
+        sl = (zb - sl_buf * atr_now) if side == 1 else (zt + sl_buf * atr_now)
+        risk = abs(price - sl)
+        out["entry_zone"] = {"side": "demand" if side == 1 else "supply",
+                             "top": round(zt, 2), "bot": round(zb, 2), "touches": hit["touches"],
+                             "held": held(side, hit["touches"])}
+        if target:
+            tp = round(target["bot"] if side == 1 else target["top"], 2)
+            out["target"] = {"top": round(target["top"], 2), "bot": round(target["bot"], 2), "price": tp,
+                             "r": round(abs(tp - price) / risk, 2) if risk else None}
+        else:
+            tp = round(price + side * 2.0 * risk, 2) if risk else price
+            out["target"] = {"top": None, "bot": None, "price": tp, "r": 2.0}
+        out.update({
+            "type": "BUY" if side == 1 else "SELL",
+            "entry": round(price, 2), "sl": round(sl, 2),
+            "tp1": round(price + side * 0.75 * risk, 2) if risk else price,
+            "tp2": tp,
+            "risk": round(risk, 2),
+            "held_pct": out["entry_zone"]["held"],
+            "confidence": out["entry_zone"]["held"] if out["entry_zone"]["held"] is not None else 60,
+            "reason": (f"5m {'demand' if side == 1 else 'supply'} box {zb:.2f}–{zt:.2f} → "
+                       f"target 15m {tp:.2f} ({out['target']['r']}R)"),
+        })
+        return out
+
+    # nothing to do yet
+    bits = []
+    if out["road_up"]:
+        bits.append(f"↑ {out['road_up']['bot']:.2f}")
+    if out["road_dn"]:
+        bits.append(f"↓ {out['road_dn']['top']:.2f}")
+    out.update({"type": "HOLD",
+               "reason": "No 5m box touched — waiting for entry." + (" " + " · ".join(bits) if bits else "")})
+    return out
+
+
+def analyse_dual(c15, c5):
+    z15, a15 = build_zones(c15)
+    z5, a5 = build_zones(c5)
+    sig = dual_signal(c5, z5, a5, c15, z15, a15)
+
+    def pack(zs, candles, n=30):
+        live = [z for z in zs if z["alive"]][-n:]
+        out = []
+        for z in live:
+            i = z["pivot_i"]
+            out.append({"side": "demand" if z["side"] == 1 else "supply",
+                        "top": round(z["top"], 2), "bot": round(z["bot"], 2),
+                        "from": int(candles[i]["time"]) if 0 <= i < len(candles) else 0,
+                        "touches": z["touches"],
+                        "state": "WEAK" if z["touches"] >= 2 else ("TESTED" if z["touches"] else "FRESH")})
+        return out
+
+    return {"signal": sig, "zones": pack(z15, c15), "entries": pack(z5, c5),
+            "zones_total_15": len(z15), "zones_total_5": len(z5)}
+
+
+def roadmap_rows(sig):
+    """The road map rows the indicator shows: entry box, target up, target down, next stop."""
+    up, dn, stop = sig.get("road_up"), sig.get("road_dn"), sig.get("next_stop")
+    ez = sig.get("entry_zone")
+    rows = [{"k": "entry", "label": "Entry 5m",
+             "value": f"{ez['bot']:.2f}–{ez['top']:.2f}" if ez else "none",
+             "note": f"touch #{ez['touches']}" if ez else "waiting"},
+            {"k": "target_up", "label": "Target ↑ 15m",
+             "value": f"{up['bot']:.2f}" if up else "none",
+             "note": f"+{up['dist']:.2f}" if up else ""},
+            {"k": "target_dn", "label": "Target ↓ 15m",
+             "value": f"{dn['top']:.2f}" if dn else "none",
+             "note": f"-{dn['dist']:.2f}" if dn else ""},
+            {"k": "next_stop", "label": "Next stop",
+             "value": ("%.2f" % (stop["bot"] if stop is up else stop["top"])) if stop else "—",
+             "note": "magnet" if stop else ""}]
+    return rows

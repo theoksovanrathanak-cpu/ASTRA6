@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ASTRA6 — Live XAUUSD</title>
-<meta name="description" content="Live XAUUSD price, real candles and 5-layer signal analysis. Free access, no sign-in.">
+<meta name="description" content="Live XAUUSD and BTCUSD. 15m target boxes, 5m entry boxes. Free, no sign-in.">
 <link rel="icon" href="/logo.png">
 <style>
 :root{
@@ -292,7 +292,7 @@ button,select{font-family:inherit}
       <div class="brand-mark">A6</div>
       <div>
         <div class="brand-name">ASTRA6</div>
-        <div class="brand-sub">Gold · 5-layer analysis</div>
+        <div class="brand-sub">Gold · 15m / 5m</div>
       </div>
     </div>
 
@@ -329,7 +329,7 @@ button,select{font-family:inherit}
     <div class="signal-card hold" id="current-signal-card">
       <div class="signal-stamp">
         <img src="/logo.png" alt="" onerror="this.style.display='none'">
-        <span id="sig-stamp">RENDER · zone boxes · M15</span>
+        <span id="sig-stamp">15m target · 5m entry</span>
       </div>
       <div class="signal-type hold" id="sig-type">LOADING</div>
 
@@ -352,7 +352,7 @@ button,select{font-family:inherit}
       <div class="signal-reason" id="sig-reasons">Loading signal…</div>
 
       <div class="signal-actions">
-        <button class="btn btn-dark btn-sm" onclick="fetchDashboard()">Refresh signal</button>
+        <button class="btn btn-dark btn-sm" onclick="fetchDashboard()">Refresh</button>
         <button class="btn btn-sm" id="btn-toggle-data" onclick="toggleAllData()">Show all data</button>
       </div>
 
@@ -383,7 +383,7 @@ button,select{font-family:inherit}
     <div class="card-hd">
       <div>
         <div class="card-title">Price chart</div>
-        <div class="card-note">Real <span id="chart-tf-label">M15</span> candles · live price overlay</div>
+        <div class="card-note"><span id="chart-tf-label">M15</span> · live</div>
       </div>
       <div class="tf-row" id="tf-buttons">
         <button class="tf-btn" data-tf="M1">M1</button><button class="tf-btn" data-tf="M5">M5</button><button class="tf-btn active" data-tf="M15">M15</button><button class="tf-btn" data-tf="M30">M30</button><button class="tf-btn" data-tf="H1">H1</button><button class="tf-btn" data-tf="H4">H4</button><button class="tf-btn" data-tf="D">D1</button><button class="tf-btn" data-tf="W">W1</button>
@@ -408,7 +408,7 @@ button,select{font-family:inherit}
       <div class="card-hd">
         <div>
           <div class="card-title">Recent alerts</div>
-          <div class="card-note">BUY / SELL only</div>
+          <div class="card-note">one alert per box</div>
         </div>
       </div>
       <div id="alerts-list"><div style="padding:26px;text-align:center;color:var(--muted);font-size:12px">Loading alerts…</div></div>
@@ -417,16 +417,16 @@ button,select{font-family:inherit}
     <article class="card">
       <div class="card-hd">
         <div>
-          <div class="card-title">5-layer analysis</div>
-          <div class="card-note">Every layer must agree before a signal fires</div>
+          <div class="card-title">Confluence</div>
+          <div class="card-note">5 checks · tap one</div>
         </div>
       </div>
       <div class="layers">
-        <div class="layer"><div class="layer-i">ZN</div><div class="layer-b"><div class="layer-t">Zone</div><div class="layer-d">Support / resistance boxes from confirmed swings</div></div></div>
-        <div class="layer"><div class="layer-i">TR</div><div class="layer-b"><div class="layer-t">Trend</div><div class="layer-d">Higher highs &amp; higher lows, EMA 9 / 21</div></div></div>
-        <div class="layer"><div class="layer-i">MO</div><div class="layer-b"><div class="layer-t">Momentum</div><div class="layer-d">RSI 14 and MACD on the closed bar</div></div></div>
-        <div class="layer"><div class="layer-i">VL</div><div class="layer-b"><div class="layer-t">Volatility</div><div class="layer-d">ATR 14 percentile — quiet / normal / wild</div></div></div>
-        <div class="layer"><div class="layer-i">SS</div><div class="layer-b"><div class="layer-t">Session</div><div class="layer-d">UTC hour and the dead-zone filter</div></div></div>
+        <div class="layer"><div class="layer-i">ZN</div><div class="layer-b"><div class="layer-t">Zone</div><div class="layer-d">15m target · 5m entry box</div></div></div>
+        <div class="layer"><div class="layer-i">TR</div><div class="layer-b"><div class="layer-t">Trend</div><div class="layer-d">HH / HL · EMA 9 / 21</div></div></div>
+        <div class="layer"><div class="layer-i">MO</div><div class="layer-b"><div class="layer-t">Momentum</div><div class="layer-d">RSI 14 · MACD</div></div></div>
+        <div class="layer"><div class="layer-i">VL</div><div class="layer-b"><div class="layer-t">Volatility</div><div class="layer-d">ATR 14 percentile</div></div></div>
+        <div class="layer"><div class="layer-i">SS</div><div class="layer-b"><div class="layer-t">Session</div><div class="layer-d">UTC hour filter</div></div></div>
       </div>
       <div style="margin-top:14px;display:flex;gap:6px;flex-wrap:wrap">
         <button class="btn btn-sm" onclick="showLayer('zone')">Zone</button>
@@ -448,7 +448,7 @@ button,select{font-family:inherit}
         <a class="btn btn-sm" href="https://t.me/ASTRA6RENDER" target="_blank" rel="noopener" style="margin-top:8px">Open Telegram</a>
       </div>
     </div>
-    <div class="legal">Free access, no sign-in. Real market data from public sources — venue prices differ by spread. Not financial advice.</div>
+    <div class="legal">Free · no sign-in · not financial advice</div>
   </footer>
 
 </main>
@@ -549,16 +549,16 @@ function symConf(){return currentSymbol==='BTCUSD'?{price:'/api/btc/price',chart
 function fmtPx(v){const d=symConf().dec;return '$'+(Number(v)||0).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});}
 async function fetchChart(tf){tf=tf||currentTF;tf=tf.replace('D1','D').replace('W1','W');const count=(tf==='D'||tf==='W')?200:150;const cfg=symConf();try{const url=currentSymbol==='BTCUSD'?`${cfg.chart}?granularity=${tf}&count=${count}&venue=${encodeURIComponent(currentVenue)}`:`${cfg.chart}?granularity=${tf}&count=${count}&venue=${encodeURIComponent(currentVenue)}`;const r=await fetch(url);const d=await r.json();const srcEl=document.getElementById('chart-source');if(d.status==='ok'&&d.candles&&d.candles.length&&candleSeries){const data=d.candles.map(c=>{let t=typeof c.time==='number'?Math.floor(c.time):Math.floor(new Date(c.time).getTime()/1000);if(t>1e12)t=Math.floor(t/1000);return {time:t,open:c.open,high:c.high,low:c.low,close:c.close};}).filter(c=>c.time>0).sort((a,b)=>a.time-b.time);const seen=new Set();const clean=data.filter(c=>{if(seen.has(c.time))return false;seen.add(c.time);return true;});try{candleSeries.setData(clean);lastCandles=clean;}catch(e){console.log('chart data err',e);}document.getElementById('chart-candle-count').textContent=`${clean.length} candles`;setTimeout(scheduleZoneDraw,60);updateLegend(null);if(srcEl)srcEl.textContent=(d.source||'REAL OHLCV').replace('xaus.com /api/v1/chart XAU/USD (REAL OHLCV, spot-anchored)','XAUS spot · TradingView bar').replace('xaus.com /api/v1/chart XAU/USD (REAL spot OHLCV)','XAUS REAL spot').replace('yfinance GC=F (REAL futures OHLCV)','yfinance GC=F REAL');if(clean.length){const last=clean[clean.length-1];if(lastPrice===0){lastPrice=last.close;const p=document.getElementById('price');if(p&&p.textContent==='$--.--')p.textContent=fmtPx(last.close);}}let fb=document.getElementById('chart-price-fallback');if(fb&&lastPrice)fb.textContent=fmtPx(lastPrice);}else if(srcEl){srcEl.textContent=(!candleSeries?'chart library loading…':'feed reconnecting (no fake data)');}}catch(e){console.log('chart fetch err',e);const s=document.getElementById('chart-source');if(s)s.textContent='feed reconnecting…';}}
 
-async function fetchFastPrice(){const cfg=symConf();try{const r=await fetch(cfg.price+'?venue='+encodeURIComponent(currentVenue)).catch(()=>null);if(!r)return;const d=await r.json();if(d.status==='ok'){const priceEl=document.getElementById('price');const newPrice=currentSymbol==='BTCUSD'?d.mid:d.price;if(priceEl){if(lastPrice!==0&&Math.abs(newPrice-lastPrice)>0.01){priceEl.style.color=newPrice>lastPrice?'#10b981':'#ef4444';setTimeout(()=>{priceEl.style.color='var(--ink)';},400);}priceEl.textContent=fmtPx(newPrice);}setTabPrice(currentSymbol,newPrice);const sigPrice=document.getElementById('sig-price');if(sigPrice&&sigPrice.textContent==='$--')sigPrice.textContent=fmtPx(newPrice);lastPrice=newPrice;priceUpdateCount++;const bid=currentSymbol==='BTCUSD'?null:(d.live_price?d.live_price.bid:d.bid),ask=currentSymbol==='BTCUSD'?null:(d.live_price?d.live_price.ask:d.ask);
-        if(currentSymbol==='BTCUSD'){const ba0=document.getElementById('bidask');if(ba0){const chg0=d.change_pct!=null?`${d.change_pct>=0?'+':''}${Number(d.change_pct).toFixed(2)}%`:'—';ba0.textContent=`${(d.venue||'BINANCE:BTCUSDT').replace(':',' · ')} · ${chg0} (24h)`;}}if(bid&&ask){const ba=document.getElementById('bidask');if(ba){const spread=(ask-bid).toFixed(2);const chg=d.change_pct!=null?` • ${d.change_pct>=0?'+':''}${Number(d.change_pct).toFixed(2)}%`:'';ba.textContent=`BID ${Number(bid).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})} / ASK ${Number(ask).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}${chg}`;}}const fb=document.getElementById('chart-price-fallback');if(fb)fb.textContent=fmtPx(newPrice);if(candleSeries&&lastCandles.length){const lc=lastCandles[lastCandles.length-1];const upd={time:lc.time,open:lc.open,high:Math.max(lc.high,newPrice),low:Math.min(lc.low,newPrice),close:newPrice};lastCandles[lastCandles.length-1]=upd;try{candleSeries.update(upd);}catch(e){}}}if(priceUpdateCount%15===0){if(currentSymbol==='BTCUSD')fetchBtcCompare();else fetchTVCompare();}}catch(e){console.log('fast price err',e);}}
+async function fetchFastPrice(){const cfg=symConf();try{const r=await fetch(cfg.price+'?venue='+encodeURIComponent(currentVenue)).catch(()=>null);if(!r)return;const d=await r.json();if(d.status==='ok'){const priceEl=document.getElementById('price');const newPrice=currentSymbol==='BTCUSD'?d.mid:d.price;if(priceEl){const txt=fmtPx(newPrice);if(priceEl.textContent!==txt){if(lastPrice!==0&&Math.abs(newPrice-lastPrice)>0.01){priceEl.style.color=newPrice>lastPrice?'var(--up)':'var(--down)';setTimeout(()=>{priceEl.style.color='var(--ink)';},380);}priceEl.textContent=txt;}}setTabPrice(currentSymbol,newPrice);const sigPrice=document.getElementById('sig-price');if(sigPrice&&sigPrice.textContent==='$--')sigPrice.textContent=fmtPx(newPrice);lastPrice=newPrice;priceUpdateCount++;const bid=currentSymbol==='BTCUSD'?null:(d.live_price?d.live_price.bid:d.bid),ask=currentSymbol==='BTCUSD'?null:(d.live_price?d.live_price.ask:d.ask);
+        if(currentSymbol==='BTCUSD'){const ba0=document.getElementById('bidask');if(ba0){const chg0=d.change_pct!=null?`${d.change_pct>=0?'+':''}${Number(d.change_pct).toFixed(2)}%`:'—';ba0.textContent=`${(d.venue||'BINANCE:BTCUSDT').replace(':',' · ')} · ${chg0} (24h)`;}}if(bid&&ask){const ba=document.getElementById('bidask');if(ba){const spread=(ask-bid).toFixed(2);const chg=d.change_pct!=null?` • ${d.change_pct>=0?'+':''}${Number(d.change_pct).toFixed(2)}%`:'';ba.textContent=`BID ${Number(bid).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})} / ASK ${Number(ask).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}${chg}`;}}const fb=document.getElementById('chart-price-fallback');if(fb)fb.textContent=fmtPx(newPrice);if(candleSeries&&lastCandles.length){const lc=lastCandles[lastCandles.length-1];const upd={time:lc.time,open:lc.open,high:Math.max(lc.high,newPrice),low:Math.min(lc.low,newPrice),close:newPrice};lastCandles[lastCandles.length-1]=upd;try{candleSeries.update(upd);}catch(e){}scheduleZoneDraw();}}if(priceUpdateCount%15===0){if(currentSymbol==='BTCUSD')fetchBtcCompare();else fetchTVCompare();}}catch(e){console.log('fast price err',e);}}
 async function loadVenues(){try{const cfg=symConf();const r=await fetch(cfg.venues);const d=await r.json();const sel=document.getElementById('venue-select');if(!sel||d.status!=='ok')return;let opts;if(currentSymbol==='BTCUSD'){opts=(d.venues||[]).filter(v=>v.price).map(v=>`<option value="${v.id}">${v.id.replace(':BTCUSD','').replace(':BTCUSDT','')}</option>`).join('');}else{opts=(d.venues||[]).filter(v=>v.price).map(v=>`<option value="${v.id}">${v.id==='XAUS'?'xaus.com spot':'TradingView · '+v.label}</option>`).join('');}if(opts){sel.innerHTML=opts;const def=currentSymbol==='BTCUSD'?'BINANCE:BTCUSDT':(d.primary||'OANDA:XAUUSD');const has=[...sel.options].some(o=>o.value===currentVenue);sel.value=has?currentVenue:def;currentVenue=sel.value;}}catch(e){console.log('venues err',e);}}
 function setVenue(v){currentVenue=v;if(currentSymbol==='BTCUSD'){currentVenueBtc=v;localStorage.setItem('astra6_venue_btc',v);}else{localStorage.setItem('astra6_venue',v);}lastPrice=0;lastCandles=[];fetchFastPrice();fetchChart(currentTF);if(currentSymbol==='BTCUSD')fetchBtcCompare();else fetchTVCompare();}
 function setSymbol(sym){if(sym===currentSymbol)return;currentSymbol=sym;localStorage.setItem('astra6_symbol',sym);const isBtc=sym==='BTCUSD';
   currentVenue=isBtc?currentVenueBtc:(localStorage.getItem('astra6_venue_gold')||'OANDA:XAUUSD');
   if(!isBtc)localStorage.setItem('astra6_venue_gold',currentVenue);
   document.querySelectorAll('.sym-btn').forEach(b=>b.classList.toggle('active',b.dataset.sym===sym));
-  document.querySelector('.brand-sub').textContent=isBtc?'Bitcoin · 5-layer analysis':'Gold · 5-layer analysis';
-  updateSymTabs();fetchOtherPrice();window._zones=null;drawZones();fetchZones();lastPrice=0;lastCandles=[];priceUpdateCount=0;
+  document.querySelector('.brand-sub').textContent=isBtc?'Bitcoin · 15m / 5m':'Gold · 15m / 5m';
+  updateSymTabs();fetchOtherPrice();window._zones=null;drawZones();renderZoneAlerts();renderZoneStats(null);fetchZones();lastPrice=0;lastCandles=[];priceUpdateCount=0;
   document.getElementById('price').textContent='$--.--';
   document.getElementById('bidask').textContent='BID -- / ASK --';
   loadVenues().then(()=>{fetchFastPrice();fetchChart(currentTF);});
@@ -593,12 +593,7 @@ function renderBtcSignal(candles){
     if(ai)ai.innerHTML=`<b>BTCUSD · real-candle technicals</b><br>EMA20 ${e20.toFixed(0)} · EMA50 ${e50.toFixed(0)}<br>RSI14 ${r.toFixed(1)} · MACD ${macd.toFixed(1)}<br><span style="font-size:10px;color:var(--muted)">Computed from live COINBASE:BTCUSD candles — no estimates, no fake data</span>`;
     const sw=document.getElementById('sig-winrate');if(sw)sw.textContent='--';
     const up=closes.filter((c,i)=>i>0&&c>closes[i-1]).length, dn=closes.filter((c,i)=>i>0&&c<closes[i-1]).length;
-    const k1=document.getElementById('stat-k-1'),k2=document.getElementById('stat-k-2'),k3=document.getElementById('stat-k-3');
-    if(k1)k1.textContent='Bars analysed'; if(k2)k2.textContent='Bull / bear bars'; if(k3)k3.textContent='Market hours';
-    document.getElementById('stat-total').textContent=closes.length;
-    document.getElementById('stat-bs').textContent=up+' / '+dn;
-    document.getElementById('real-winrate').textContent='24/7';
-    document.getElementById('real-stats').textContent='crypto · never closes';
+
   }catch(e){console.log('btc signal err',e);}
 }
 async function fetchBtcCompare(){try{const r=await fetch('/api/btc/venues').catch(()=>null);if(!r)return;const d=await r.json();const el=document.getElementById('tv-compare');if(!el||d.status!=='ok'||!d.venues.length)return;
@@ -620,144 +615,163 @@ function layerRow(k,v,extra){return `<div style="display:flex;justify-content:sp
 function showLayer(which){
   const el=document.getElementById('layer-status'); if(!el) return;
   if(el.dataset.open===which){el.style.display='none';el.dataset.open='';return;}
-  const L=(window._zones&&window._zones.layers)||[];
+  const Z=window._zones||{};
+  const L=Z.layers||[];
   const picked=L.find(x=>x.k===which);
   if(!picked){el.style.display='none';el.dataset.open='';return;}
-  const extra={
-    zone:()=>{const s=window._zones.signal||{};return layerRow('Signal',s.type||'HOLD')+layerRow('Boxes live',(window._zones.zones||[]).length)+ (s.zone?layerRow('Box edges',s.zone.bot.toFixed(2)+' – '+s.zone.top.toFixed(2))+layerRow('Touch',(s.zone.touches||0)+(s.held_pct!=null?' · held '+s.held_pct+'%':'')):'');},
-    trend:()=>layerRow('Structure',picked.value)+layerRow('EMA',picked.note||'—'),
-    momentum:()=>layerRow('RSI 14',picked.value.replace('RSI ',''))+layerRow('MACD',(picked.note||'').replace('MACD ','')),
-    volatility:()=>layerRow('Regime',picked.value)+layerRow('ATR',(picked.note||'').replace('ATR ','')),
-    session:()=>layerRow('Now',picked.value)+layerRow('Filter',picked.note||'')
-  }[which];
-  el.innerHTML=`<div style="font-weight:750;color:var(--ink);margin-bottom:6px">${picked.label}</div>`+(extra?extra():layerRow(picked.label,picked.value,picked.note));
+  let body='';
+  if(which==='zone'){
+    // the indicator's road map rows
+    body=(Z.roadmap||[]).map(r=>layerRow(r.label,r.value,r.note)).join('');
+    body+=layerRow('15m boxes',(Z.zones||[]).length)+layerRow('5m boxes',(Z.entries||[]).length);
+  }else if(which==='trend'){
+    body=layerRow('Structure',picked.value)+layerRow('EMA',picked.note||'—');
+  }else if(which==='momentum'){
+    body=layerRow('RSI 14',picked.value.replace('RSI ',''))+layerRow('MACD',(picked.note||'').replace('MACD ',''));
+  }else if(which==='volatility'){
+    body=layerRow('Regime',picked.value)+layerRow('ATR',(picked.note||'').replace('ATR ',''));
+  }else{
+    body=layerRow('Now',picked.value)+layerRow('Filter',picked.note||'');
+  }
+  el.innerHTML=`<div style="font-weight:750;color:var(--ink);margin-bottom:6px">${picked.label}</div>${body}`;
   el.style.display='block'; el.dataset.open=which;
 }
-// ---- RENDER zone engine: boxes drawn on the chart, signal taken from the boxes ----
-let _zoneDrawPending=false;
-function scheduleZoneDraw(){if(_zoneDrawPending)return;_zoneDrawPending=true;requestAnimationFrame(()=>{_zoneDrawPending=false;drawZones();});}
+
+// ---------- zone boxes: 15m = TARGET (solid) · 5m = ENTRY (thin dashed) ----------
+let _drawPending=false;
+function scheduleZoneDraw(){
+  if(_drawPending)return;
+  _drawPending=true;
+  requestAnimationFrame(()=>{_drawPending=false;drawZones();});
+}
+function zoneColor(side){return side==='demand'?(isDark()?'38,166,154':'16,185,129'):(isDark()?'239,83,80':'239,68,68');}
 function drawZones(){
   const svg=document.getElementById('zone-layer'); if(!svg) return;
-  const zs=(window._zones&&window._zones.zones)||[];
-  const box=document.getElementById('oanda_chart');
-  if(!chart||!candleSeries||!box){svg.innerHTML='';return;}
-  const w=box.clientWidth, h=box.clientHeight;
-  svg.setAttribute('width',w); svg.setAttribute('height',h);
-  svg.setAttribute('viewBox',`0 0 ${w} ${h}`);
+  const Z=window._zones||{}, box=document.getElementById('oanda_chart');
+  if(!chart||!candleSeries||!box){if(svg.childNodes.length)svg.innerHTML='';return;}
+  const targets=Z.zones||[], entries=Z.entries||[];
+  if(!targets.length&&!entries.length){if(svg.childNodes.length)svg.innerHTML='';return;}
+  const w=box.clientWidth,h=box.clientHeight;
+  if(svg.getAttribute('width')!=String(w)){svg.setAttribute('width',w);svg.setAttribute('height',h);svg.setAttribute('viewBox',`0 0 ${w} ${h}`);}
   const ts=chart.timeScale();
   const plotW=(typeof ts.width==='function'?ts.width():w-64);
   const lastT=lastCandles.length?lastCandles[lastCandles.length-1].time:0;
   const xLast=ts.timeToCoordinate(lastT);
-  const xEnd=Math.min(plotW-2,(xLast==null?plotW-40:xLast)+52);
-  let out='', lastLabelY=-99;
-  // TradingView-clean: nearest boxes first, drop duplicates that sit on top of each other
+  const xEnd=Math.min(plotW-2,(xLast==null?plotW-40:xLast)+46);
   const px=lastPrice||(lastCandles.length?lastCandles[lastCandles.length-1].close:0);
-  const list=zs.slice().sort((a,b)=>{
-    const da=Math.min(Math.abs(a.top-px),Math.abs(a.bot-px));
-    const db=Math.min(Math.abs(b.top-px),Math.abs(b.bot-px));
-    if((b.touches>0)-(a.touches>0))return (b.touches>0)-(a.touches>0);
-    return da-db;
+  let out='',labelY=-99;
+  const near=(a,b)=>Math.min(Math.abs(a.top-px),Math.abs(a.bot-px))-Math.min(Math.abs(b.top-px),Math.abs(b.bot-px));
+
+  // 5m ENTRY boxes first (thin, dashed, quiet)
+  entries.slice().sort(near).slice(0,4).forEach(z=>{
+    const y1=candleSeries.priceToCoordinate(z.top),y2=candleSeries.priceToCoordinate(z.bot);
+    if(y1==null||y2==null)return;
+    let x1=ts.timeToCoordinate(z.from); if(x1==null)x1=xEnd-160;
+    const c=zoneColor(z.side),top=Math.min(y1,y2),hgt=Math.max(1.5,Math.abs(y2-y1));
+    out+=`<rect x="${x1.toFixed(1)}" y="${top.toFixed(1)}" width="${Math.max(4,xEnd-x1).toFixed(1)}" height="${hgt.toFixed(1)}" rx="2" fill="none" stroke="rgba(${c},.55)" stroke-width="1" stroke-dasharray="3 3"></rect>`;
   });
+
+  // 15m TARGET boxes (solid) — nearest + tested first
   const keep=[];
-  list.forEach(z=>{
-    const dup=keep.some(k=>k.side===z.side&&Math.min(k.top,z.top)-Math.max(k.bot,z.bot)>=-Math.min(k.top-k.bot,z.top-z.bot)*0.55);
-    if(!dup)keep.push(z);
+  targets.slice().sort((a,b)=>near(a,b)).forEach(z=>{
+    if(keep.some(k=>k.side===z.side&&Math.min(k.top,z.top)-Math.max(k.bot,z.bot)>=-Math.min(k.top-k.bot,z.top-z.bot)*0.55))return;
+    keep.push(z);
   });
-  keep.slice(0,10).forEach(z=>{
-    const y1=candleSeries.priceToCoordinate(z.top), y2=candleSeries.priceToCoordinate(z.bot);
-    let x1=ts.timeToCoordinate(z.from);
-    if(y1==null||y2==null) return;
-    if(x1==null) x1=xEnd-240;
-    const top=Math.min(y1,y2), hgt=Math.max(1.5,Math.abs(y2-y1));
-    const wdt=Math.max(4,xEnd-x1);
-    const up=z.side==='demand';
-    const c=up?(isDark()?'38,166,154':'16,185,129'):(isDark()?'239,83,80':'239,68,68');
+  keep.slice(0,6).forEach(z=>{
+    const y1=candleSeries.priceToCoordinate(z.top),y2=candleSeries.priceToCoordinate(z.bot);
+    if(y1==null||y2==null)return;
+    let x1=ts.timeToCoordinate(z.from); if(x1==null)x1=xEnd-240;
+    const c=zoneColor(z.side),top=Math.min(y1,y2),hgt=Math.max(2,Math.abs(y2-y1));
     const tested=z.touches>0;
-    const thin=hgt<5;
-    out+=`<rect x="${x1.toFixed(1)}" y="${top.toFixed(1)}" width="${wdt.toFixed(1)}" height="${hgt.toFixed(1)}" rx="2" fill="${thin?'none':`rgba(${c},${tested?(isDark()?0.10:0.13):(isDark()?0.045:0.06)})`}" stroke="rgba(${c},${tested?0.9:0.5})" stroke-width="1" ${z.state==='WEAK'?'stroke-dasharray="4 3"':''}></rect>`;
+    out+=`<rect x="${x1.toFixed(1)}" y="${top.toFixed(1)}" width="${Math.max(4,xEnd-x1).toFixed(1)}" height="${hgt.toFixed(1)}" rx="2" fill="${hgt<5?'none':`rgba(${c},${tested?(isDark()?0.11:0.14):(isDark()?0.05:0.07)})`}" stroke="rgba(${c},${tested?0.9:0.55})" stroke-width="1" ${z.state==='WEAK'?'stroke-dasharray="4 3"':''}></rect>`;
     const ly=top+9;
-    if(hgt>=12 && Math.abs(ly-lastLabelY)>=13 && xEnd-x1>70){
-      lastLabelY=ly;
-      out+=`<text x="${(xEnd-6).toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="end" font-family="ui-monospace,monospace" font-size="8.5" font-weight="700" fill="rgba(${c},.95)">${up?'BUY':'SELL'} · ${z.state}</text>`;
+    if(hgt>=12&&Math.abs(ly-labelY)>=13&&xEnd-x1>74){
+      labelY=ly;
+      out+=`<text x="${(xEnd-6).toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="end" font-family="ui-monospace,monospace" font-size="8.5" font-weight="700" fill="rgba(${c},.95)">TARGET ${z.side==='demand'?'BUY':'SELL'}</text>`;
     }
   });
-  svg.innerHTML=out;
+  if(svg.innerHTML!==out)svg.innerHTML=out;
 }
+
 async function fetchZones(){
   try{
-    const r=await fetch('/api/zones?symbol='+currentSymbol+'&venue='+encodeURIComponent(currentVenue)); if(!r) return;
-    const d=await r.json(); if(d.status!=='ok') return;
+    const sym=currentSymbol;
+    const r=await fetch('/api/zones?symbol='+sym+'&venue='+encodeURIComponent(currentVenue));
+    if(!r)return;
+    const d=await r.json();
+    if(d.status!=='ok'||sym!==currentSymbol)return;   // symbol moved on — drop stale payload
     window._zones=d;
     renderZoneSignal(d);
     scheduleZoneDraw();
   }catch(e){console.log('zones err',e);}
 }
+
 function renderZoneSignal(d){
-  const s=d.signal||{}; const type=(s.type||'HOLD');
-  const live=(d.zones||[]);
+  const s=d.signal||{}, type=s.type||'HOLD';
+  const st5=(d.signal&&d.signal.stats_5m)||{};
   let wr=null;
   try{
-    const m=d.measured||{};let w=0,n=0;
-    [m.demand,m.supply].forEach(side=>(side||[]).forEach(b=>{w+=b.held;n+=b.n;}));
+    let w=0,n=0;
+    [st5.demand,st5.supply].forEach(side=>(side||[]).forEach(b=>{w+=b.held;n+=b.n;}));
     wr=n?Math.round(100*w/n):null;
   }catch(e){}
-  const sig={
+  renderCurrent({
     type:type, price:s.price||d.price, confidence:s.confidence||60, winrate_est:wr!=null?wr:50,
-    timestamp:d.bar_time||Date.now()/1000, time_str:new Date((d.bar_time||Date.now()/1000)*1000).toLocaleString(),
-    strategy:'RENDER · support/resistance boxes · '+ (d.tf||'M15'),
+    timestamp:d.bar_time_5||d.bar_time||Date.now()/1000,
+    time_str:new Date(((d.bar_time_5||d.bar_time)||Date.now()/1000)*1000).toLocaleString(),
+    strategy:'15m target · 5m entry',
     sl:s.sl, tp1:s.tp1, tp2:s.tp2,
-    reasons:[ type==='HOLD'
-      ? (s.reason||'Price is between the boxes — waiting for it to reach one.')
-      : (s.reason||'')+ (s.next_up? ' · next red box '+s.next_up.bot.toFixed(2):'') ]
-  };
-  renderCurrent(sig);
-  const st=document.getElementById('sig-stamp'); if(st)st.textContent='RENDER · zone boxes · '+(d.tf||'M15');
+    reasons:[ s.reason||'Waiting for entry.' ]
+  });
+  const stamp=document.getElementById('sig-stamp');
+  if(stamp)stamp.textContent='15m target · 5m entry';
   const ai=document.getElementById('sig-ai');
   if(ai&&d.layers){
     ai.innerHTML=d.layers.map(L=>`<div style="display:flex;justify-content:space-between;gap:10px;padding:4px 0;border-bottom:1px solid var(--line-soft)"><span style="color:var(--muted)">${L.label}</span><span><b>${L.value}</b>${L.note?` <span style="color:var(--muted);font-size:10px">${L.note}</span>`:''}</span></div>`).join('');
     ai.style.display='none';
     const btn=document.getElementById('btn-toggle-data'); if(btn)btn.textContent='Show all data';
   }
-  // stats + alert log
-  // one alert per box, ever. Re-entering the same box does not fire again.
-  if(type!=='HOLD'&&s.zone){
-    const key=currentSymbol+'|'+type+'|'+s.zone.top.toFixed(2)+'|'+s.zone.bot.toFixed(2);
+  // one alert per 5m entry box, ever — and only for the symbol on screen
+  if(type!=='HOLD'&&s.entry_zone){
+    const key=currentSymbol+'|'+type+'|'+s.entry_zone.top.toFixed(2)+'|'+s.entry_zone.bot.toFixed(2);
     if(!firedKeys().includes(key)){recordZoneAlert(key,s);markFired(key);beep();}
   }
   renderZoneStats(wr);
 }
+
 function firedKeys(){try{return JSON.parse(localStorage.getItem('astra6_fired_'+currentSymbol)||'[]');}catch(e){return [];}}
 function markFired(k){const f=firedKeys();if(!f.includes(k)){f.push(k);localStorage.setItem('astra6_fired_'+currentSymbol,JSON.stringify(f.slice(-400)));}}
 function zoneAlerts(){try{return JSON.parse(localStorage.getItem('astra6_zone_alerts_'+currentSymbol)||'[]');}catch(e){return [];}}
+function renderZoneAlerts(){
+  // always painted from the storage of the symbol that is on screen
+  renderAlerts(zoneAlerts().map(a=>({type:a.type,price:a.price,confidence:a.confidence,
+                                     winrate_est:a.winrate||0,sl:a.sl,tp1:a.tp1,timestamp:a.timestamp})));
+}
 function recordZoneAlert(key,s){
   const list=zoneAlerts();
-  if(list.some(a=>a.key===key)) return;
+  if(list.some(a=>a.key===key))return;
   list.unshift({key:key,type:s.type,price:s.entry||s.price,confidence:s.confidence||60,winrate:s.held_pct,
                 sl:s.sl,tp1:s.tp1,timestamp:Math.floor(Date.now()/1000)});
   localStorage.setItem('astra6_zone_alerts_'+currentSymbol,JSON.stringify(list.slice(0,40)));
-  renderAlerts(list.map(a=>({type:a.type,price:a.price,confidence:a.confidence,winrate_est:a.winrate||0,sl:a.sl,tp1:a.tp1,timestamp:a.timestamp})));
+  renderZoneAlerts();
 }
 function renderZoneStats(wr){
   const list=zoneAlerts();
   const buys=list.filter(a=>a.type==='BUY').length, sells=list.filter(a=>a.type==='SELL').length;
-  const k1=document.getElementById('stat-k-1');
-  if(k1&&k1.textContent==='Total alerts'){
-    document.getElementById('stat-total').textContent=list.length;
-    document.getElementById('stat-bs').textContent=buys+' / '+sells;
-    document.getElementById('real-winrate').textContent=(wr!=null?wr:0)+'%';
-    document.getElementById('real-stats').textContent='box hold rate · measured';
-  }else if(k1&&k1.textContent==='Bars analysed'){
-    document.getElementById('real-winrate').textContent='24/7';
-  }
+  const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
+  set('stat-total',list.length);
+  set('stat-bs',buys+' / '+sells);
+  set('real-winrate',(wr!=null?wr:0)+'%');
+  set('real-stats','5m box hold rate');
 }
 function initClicks(){document.querySelectorAll('.tf-btn').forEach(b=>{b.onclick=()=>setTimeframe(b.dataset.tf);b.ontouchend=(e)=>{e.preventDefault();setTimeframe(b.dataset.tf);};});console.log('ASTRA6 rebuilt smooth - all clicks bound');}
 applyTheme();document.getElementById('sound-btn')&&(document.getElementById('sound-btn').style.opacity=soundOn?'1':'.4');
 initClicks();document.addEventListener('DOMContentLoaded',initClicks);setTimeout(initClicks,500);
-setTimeout(()=>{initChart();if(currentSymbol==='BTCUSD'){const b=document.querySelector('.sym-btn[data-sym="BTCUSD"]');if(b)b.classList.add('active');const g=document.querySelector('.sym-btn[data-sym="XAUUSD"]');if(g)g.classList.remove('active');document.querySelector('.brand-sub').textContent='Bitcoin · 5-layer analysis';}else{fetchDashboard();}fetchChart(currentTF);fetchLive();fetchFastPrice();},800);
+setTimeout(()=>{initChart();if(currentSymbol==='BTCUSD'){const b=document.querySelector('.sym-btn[data-sym="BTCUSD"]');if(b)b.classList.add('active');const g=document.querySelector('.sym-btn[data-sym="XAUUSD"]');if(g)g.classList.remove('active');document.querySelector('.brand-sub').textContent='Bitcoin · 15m / 5m';}else{fetchDashboard();}fetchChart(currentTF);fetchLive();fetchFastPrice();},800);
 setInterval(updateTimeSmooth,500);updateTimeSmooth();
-setInterval(fetchFastPrice,5000);setInterval(fetchOtherPrice,12000);setInterval(fetchZones,30000);setInterval(fetchLive,10000);setInterval(()=>{if(currentSymbol!=='BTCUSD')fetchDashboard();},15000);
+setInterval(fetchFastPrice,2500);setInterval(fetchOtherPrice,12000);setInterval(fetchZones,30000);setInterval(fetchLive,10000);setInterval(()=>{if(currentSymbol!=='BTCUSD')fetchDashboard();},15000);
 document.getElementById('venue-select')?.addEventListener('change',e=>setVenue(e.target.value));
-loadVenues().then(()=>{if(currentSymbol==='BTCUSD')fetchBtcCompare();else fetchTVCompare();});updateSymTabs();fetchOtherPrice();fetchZones();
+loadVenues().then(()=>{if(currentSymbol==='BTCUSD')fetchBtcCompare();else fetchTVCompare();});updateSymTabs();fetchOtherPrice();renderZoneAlerts();fetchZones();
 setInterval(()=>{fetch('/health').catch(()=>{});},240000);
 setInterval(()=>{fetchChart(currentTF);},30000);
 console.log('ASTRA6 REBUILT SMOOTH - First upgrade clean + All data + All in one + No lag + Smooth + Free access + Market stays + Working');

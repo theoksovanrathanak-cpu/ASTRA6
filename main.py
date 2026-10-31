@@ -3986,32 +3986,52 @@ def fetch_btc_candles(granularity="M15", count=150, venue="BINANCE:BTCUSDT"):
 # === RENDER zone strategy - support/resistance boxes drive every signal ===
 ZONE_TF = os.getenv("ZONE_TF", "M15")
 
-def _zone_candles(symbol: str, venue: str = None):
+def _zone_candles(symbol: str, venue: str = None, tf: str = "M15", count: int = 500):
     if str(symbol).upper().startswith("BTC"):
-        return fetch_btc_candles(ZONE_TF, 500, venue or os.getenv("BTC_VENUE", "BINANCE:BTCUSDT"))[0]
-    res = fetch_candles(ZONE_TF, 500, None)
+        return fetch_btc_candles(tf, count, venue or os.getenv("BTC_VENUE", "BINANCE:BTCUSDT"))[0]
+    res = fetch_candles(tf, count, None)
     return res[0] if res else []
+
+
+_ZONE_CACHE = {}
+
 
 @app.get("/api/zones")
 def get_zones(symbol: str = "XAUUSD", venue: str = None, email: str = "free@astra6.com"):
-    """Live support/resistance boxes + the signal they imply. Real candles only."""
+    """
+    15m boxes = TARGET, 5m boxes = ENTRY. Returns both sets plus the signal,
+    the road map and the five layers. Cached ~15s so polling stays instant.
+    """
+    key = f"{str(symbol).upper()}|{venue or ''}"
+    now = time.time()
+    hit = _ZONE_CACHE.get(key)
+    if hit and now - hit["t"] < 15:
+        return hit["d"]
     try:
         import zones as Z
-        candles = _zone_candles(symbol, venue)
-        if not candles or len(candles) < 60:
+        c15 = _zone_candles(symbol, venue, "M15", 400)
+        c5 = _zone_candles(symbol, venue, "M5", 400)
+        if not c15 or len(c15) < 60 or not c5 or len(c5) < 60:
             return {"status": "error", "error": "not_enough_candles", "real": True, "user": email}
-        candles = sorted(candles, key=lambda c: c["time"])
-        data = Z.analyse(candles, ZONE_TF)
-        atr = Z.atr_series(candles, 14)
-        zs, _ = Z.build_zones(candles)
-        data["layers"] = Z.layers(candles, atr, zs, data["signal"])
-        last = candles[-1]
-        data.update({"symbol": symbol.upper(), "price": last["close"], "bar_time": int(last["time"]),
-                     "source": "RENDER zones · real closed candles", "real": True, "user": email})
+        c15 = sorted(c15, key=lambda c: c["time"])
+        c5 = sorted(c5, key=lambda c: c["time"])
+        data = Z.analyse_dual(c15, c5)
+        atr15 = Z.atr_series(c15, 14)
+        z15, _ = Z.build_zones(c15)
+        data["layers"] = Z.layers(c15, atr15, z15, data["signal"])
+        data["roadmap"] = Z.roadmap_rows(data["signal"])
+        last = c15[-1]
+        data.update({"status": "ok", "symbol": str(symbol).upper(), "price": last["close"],
+                     "bar_time": int(last["time"]), "bar_time_5": int(c5[-1]["time"]),
+                     "tf_target": "M15", "tf_entry": "M5",
+                     "source": "15m target · 5m entry · real closed candles",
+                     "real": True, "user": email})
+        _ZONE_CACHE[key] = {"t": now, "d": data}
         return data
     except Exception as e:
         print("zones err", e)
         return {"status": "error", "error": str(e), "real": True, "user": email}
+
 
 @app.get("/api/btc/price")
 def btc_price(venue: str = None, email: str = "free@astra6.com"):
