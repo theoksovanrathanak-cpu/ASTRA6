@@ -128,6 +128,7 @@ eval([
   'jnKeyOf', 'jnByDay', 'jnCalHtml', 'jnListHtml', 'jnMonth', 'jnPickDay', 'jnRepaint',
   'marketOpenNow', 'setNet', 'candlesLate', 'nextOpenLocal', 'paintEventLive', 'mkMeta',
   'paintAlertCard', 'alertsOf', 'alertsHtml', 'renderMarketSwitch',
+  'taSMA', 'taEMA', 'taRSI', 'taMACD', 'taBB', 'toHeikin',
 ].map(n => grab(n)).join('\n'));
 ['recordZoneAlert', 'renderZoneAlerts', 'zoneAlerts', 'latestTrade',
  'openMenu', 'closeMenu', 'toggleMenu', 'setView', 'endIntro', 'playIntro',
@@ -137,7 +138,8 @@ eval([
  'renderCalStrip', 'renderNewsStrip',
  'jnKeyOf', 'jnByDay', 'jnCalHtml', 'jnListHtml', 'jnMonth', 'jnPickDay', 'jnRepaint',
  'marketOpenNow', 'setNet', 'candlesLate', 'nextOpenLocal', 'paintEventLive', 'mkMeta',
- 'paintAlertCard', 'alertsOf', 'alertsHtml', 'renderMarketSwitch'].forEach(n => { global[n] = eval(n); });
+ 'paintAlertCard', 'alertsOf', 'alertsHtml', 'renderMarketSwitch',
+ 'taSMA', 'taEMA', 'taRSI', 'taMACD', 'taBB', 'toHeikin'].forEach(n => { global[n] = eval(n); });
 // the page's own price formatter, kept out of the sandbox so the older stub survives
 const realFmtPx = new Function('mkMeta', 'currentSymbol',
   grab('fmtPx').replace('function fmtPx', 'return function fmtPx'))(mkMeta, 'XAUUSD');
@@ -721,6 +723,57 @@ section('the market picker and the alert card live on the chart');
   ok('the card opens the whole list', /onclick="openAlerts\(\)"/.test(html) && /openSheet\('Alerts/.test(grab('openAlerts')));
   ok('switching market repaints the card', /renderZoneAlerts\(\)/.test(grab('setSymbol')));
 }
+
+section('the chart carries real trading tools');
+{
+  ok('a tool rail sits on the chart', html.includes('id="tv-rail"') && /#tv-rail\{[^}]*position:absolute/.test(html));
+  ok('there is a drawing layer above the zones', html.includes('id="draw-layer"')
+     && html.indexOf('id="draw-layer"') > html.indexOf('id="zone-layer"'));
+  ok('the indicator and chart panels exist', html.includes('id="ind-panel"') && html.includes('id="chart-menu"'));
+  ok('the panes container exists', html.includes('id="sub-panes"'));
+
+  const rail = html.slice(html.indexOf('const TV_RAIL=['), html.indexOf('const TV_TOOL_NAME='));
+  const tools = [...rail.matchAll(/\{t:'(\w+)'/g)].map(m => m[1]);
+  ok('seven drawing tools', ['cursor','trend','hline','vline','rect','fib','ruler'].every(t => tools.includes(t)), tools.join(','));
+  ok('undo and clear are on the rail', tools.includes('undo') && tools.includes('clear'));
+  ok('the rail opens the indicator and chart panels', tools.includes('fx') && tools.includes('more'));
+
+  const types = [...html.slice(html.indexOf('const CTYPE_LIST='), html.indexOf('let drawTool=')).matchAll(/\['(\w+)','/g)].map(m => m[1]);
+  ok('five chart types, heikin included', types.length === 5 && types.includes('heikin') && types.includes('line'), types.join(','));
+
+  ok('drawings are stored per market', html.includes("'astra6_draw_'+currentSymbol"));
+  ok('indicator choices stick across a refresh', html.includes("localStorage.setItem('astra6_ind'"));
+  ok('the chart type sticks too', html.includes("localStorage.setItem('astra6_ctype',t)"));
+
+  // every fetch paints through the type-aware painter, live ticks too
+  ok('candles go through paintSeries', /try\{paintSeries\(clean\);/.test(html));
+  ok('ticks go through updateSeries', /try\{updateSeries\(upd\);/.test(html));
+  ok('the tools are built once the chart exists', /initChartTools\(\);/.test(grab('createChart') || html.slice(html.indexOf('function createChart()'), html.indexOf('function createChart()+200'))) );
+
+  // the maths is real
+  const sma = taSMA([1,2,3,4,5], 3);
+  ok('SMA of 1..5 over 3 is 2,3,4', sma[0] === null && sma[1] === null && sma[2] === 2 && sma[4] === 4, JSON.stringify(sma));
+  const ema = taEMA([1,1,1,1], 3);
+  ok('EMA of a flat line is that line', ema.every(v => Math.abs(v - 1) < 1e-9), JSON.stringify(ema));
+  const up = taRSI([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16], 14);
+  ok('RSI of a straight rise is 100', up[up.length-1] === 100, String(up[up.length-1]));
+  const dn = taRSI([16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1], 14);
+  ok('RSI of a straight fall is 0', dn[dn.length-1] === 0, String(dn[dn.length-1]));
+  const bb = taBB([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20], 20, 2);
+  ok('Bollinger bands bracket their mid line', bb.up[19] > bb.mid[19] && bb.dn[19] < bb.mid[19], JSON.stringify({u:bb.up[19],m:bb.mid[19],d:bb.dn[19]}));
+  const mac = taMACD(Array.from({length:60}, (_,i) => 100 + Math.sin(i/4)*3), 12, 26, 9);
+  ok('MACD returns a line, a signal and a histogram', mac.line.length === 60 && mac.signal.length === 60 && mac.hist.length === 60);
+  ok('MACD histogram is line minus signal', Math.abs(mac.hist[59] - (mac.line[59] - mac.signal[59])) < 1e-9);
+
+  const bars = [{time:1,open:10,high:14,low:9,close:12},{time:2,open:12,high:15,low:11,close:13}];
+  const hk = toHeikin(bars);
+  ok('Heikin candles average the four prices', Math.abs(hk[0].close - (10+14+9+12)/4) < 1e-9, String(hk[0].close));
+  ok('a Heikin high never cuts the real high', hk[0].high >= 14 && hk[1].high >= 15 && hk[1].low <= 11);
+  ok('Heikin bars keep their time', hk[1].time === 2);
+}
+
+console.log(`\n${fail ? '\x1b[31m' : '\x1b[32m'}${pass} passed, ${fail} failed\x1b[0m`);
+process.exit(fail ? 1 : 0);
 
 console.log(`\n${fail ? '\x1b[31m' : '\x1b[32m'}${pass} passed, ${fail} failed\x1b[0m`);
 process.exit(fail ? 1 : 0);
