@@ -17,11 +17,30 @@ from __future__ import annotations
 BINANCE = "https://data-api.binance.vision/api/v3"
 
 
+_KL_CACHE = {"key": None, "t": 0.0, "d": None}
+_KL_TTL = 45.0          # clusters do not need sub-minute freshness; Be polite to the venue
+
+
 def fetch_btc_klines(interval="1m", limit=500):
-    """Real Binance klines with taker buy volume (field 9)."""
+    """Real Binance klines with taker buy volume (field 9).
+
+    Cached, because this feed rate-limits hard: hammering it earns an HTTP 418
+    ban for the whole server IP, which also takes the live price down.
+    """
+    import time
     import requests
-    url = f"{BINANCE}/klines?symbol=BTCUSDT&interval={interval}&limit={min(limit, 1000)}"
+    key = (interval, min(limit, 1000))
+    now = time.time()
+    if _KL_CACHE["d"] is not None and _KL_CACHE["key"] == key and now - _KL_CACHE["t"] < _KL_TTL:
+        return _KL_CACHE["d"]
+
+    url = f"{BINANCE}/klines?symbol=BTCUSDT&interval={key[0]}&limit={key[1]}"
     r = requests.get(url, timeout=12, headers={"User-Agent": "ASTRA6/1.0"})
+    if r.status_code in (418, 429):
+        # rate limited — serve the last good set instead of failing, and stay quiet
+        if _KL_CACHE["d"] is not None:
+            return _KL_CACHE["d"]
+        raise RuntimeError("binance rate limited (418/429)")
     r.raise_for_status()
     out = []
     for k in r.json():
@@ -31,6 +50,8 @@ def fetch_btc_klines(interval="1m", limit=500):
         out.append({"time": int(k[0] / 1000), "open": float(k[1]), "high": float(k[2]),
                     "low": float(k[3]), "close": float(k[4]), "volume": vol,
                     "buy": buy, "sell": sell, "trades": int(k[8])})
+    if out:
+        _KL_CACHE.update({"key": key, "t": now, "d": out})
     return out
 
 

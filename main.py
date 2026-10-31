@@ -4092,26 +4092,57 @@ def _swiss_gold():
             "timestamp": time.time(), "real": True}
 
 
-def _binance_btc():
-    """Binance book ticker: the same venue TradingView reads, streamed directly."""
+def _btc_tick():
+    """BTC from Coinbase, then OKX, then Binance.
+
+    Binance bans the server IP with HTTP 418 if its REST endpoints are polled for a
+    live price, and that same ban takes the klines feed (and so the volume strategy)
+    down with it. Coinbase ticks just as often and does not punish a 1/s poll.
+    """
     import requests as _req
-    r = _req.get("https://data-api.binance.vision/api/v3/ticker/bookTicker?symbol=BTCUSDT",
-                 timeout=4, headers={"User-Agent": "ASTRA6/1.0"})
-    if r.status_code != 200:
+    H = {"User-Agent": "ASTRA6/1.0"}
+    try:
+        j = _req.get("https://api.exchange.coinbase.com/products/BTC-USD/ticker", timeout=4, headers=H)
+        if j.status_code == 200:
+            t = j.json()
+            bid, ask = float(t.get("bid") or t["price"]), float(t.get("ask") or t["price"])
+            mid = round(float(t["price"]), 2)
+            return {"mid": mid, "price": mid, "bid": bid, "ask": ask,
+                    "venue": "COINBASE:BTCUSD",
+                    "source": "Coinbase ticker - REAL live bid/ask",
+                    "timestamp": time.time(), "real": True}
+    except Exception:
+        pass
+    try:
+        j = _req.get("https://www.okx.com/api/v5/market/ticker?instId=BTC-USDT", timeout=4, headers=H)
+        if j.status_code == 200:
+            t = j.json()["data"][0]
+            bid, ask = float(t["bidPx"]), float(t["askPx"])
+            mid = round((bid + ask) / 2, 2)
+            return {"mid": mid, "price": mid, "bid": bid, "ask": ask,
+                    "venue": "OKX:BTCUSDT",
+                    "source": "OKX ticker - REAL live bid/ask",
+                    "timestamp": time.time(), "real": True}
+    except Exception:
+        pass
+    try:
+        b = _req.get("https://data-api.binance.vision/api/v3/ticker/bookTicker?symbol=BTCUSDT",
+                     timeout=4, headers=H).json()
+        bid, ask = float(b["bidPrice"]), float(b["askPrice"])
+        mid = round((bid + ask) / 2, 2)
+        return {"mid": mid, "price": mid, "bid": bid, "ask": ask,
+                "venue": "BINANCE:BTCUSDT",
+                "source": "Binance ticker - REAL live bid/ask",
+                "timestamp": time.time(), "real": True}
+    except Exception:
         return None
-    b = r.json()
-    bid, ask = float(b["bidPrice"]), float(b["askPrice"])
-    return {"mid": round((bid + ask) / 2, 2), "price": round((bid + ask) / 2, 2),
-            "bid": bid, "ask": ask, "venue": "BINANCE:BTCUSDT",
-            "source": "Binance ticker - REAL live bid/ask",
-            "timestamp": time.time(), "real": True}
 
 
 def fetch_live_tick(symbol):
     """A price that moves. Falls back to the venue chain when the fast feed is down."""
     sym = "BTCUSD" if str(symbol).upper().startswith("BTC") else "XAUUSD"
     try:
-        fast = _binance_btc() if sym == "BTCUSD" else _swiss_gold()
+        fast = _btc_tick() if sym == "BTCUSD" else _swiss_gold()
         if fast:
             _LIVE_SRC[sym == "BTCUSD" and "btc" or "gold"] = fast.get("source")
             return fast
@@ -4121,29 +4152,30 @@ def fetch_live_tick(symbol):
 
 
 def _ticker_loop(key):
-    """Refresh one symbol/venue pair a few times a second; one thread per key."""
-    import io, contextlib
+    """Refresh one symbol about once a second; exactly one thread per symbol."""
     symbol, venue = key
     while True:
         try:
-            # the fetch helpers print every price they see; on a free instance that is
-            # pure log spam, so the ticker keeps them quiet
-            with contextlib.redirect_stdout(io.StringIO()):
-                data = fetch_live_tick(symbol)
+            # NOT contextlib.redirect_stdout: that swaps the process-wide sys.stdout,
+            # so while the ticker held it every other thread's log line vanished.
+            data = fetch_live_tick(symbol)
             if data and (data.get("mid") or data.get("price")):
                 with _TICK_LOCK:
                     _TICK_CACHE[key] = {"data": data, "t": time.time()}
         except Exception as e:
             print("ticker err", key, e)
-        time.sleep(0.35)
+        time.sleep(1.0)
 
 
-def _ensure_ticker(symbol, venue):
-    key = (symbol, venue or "")
-    if key in _TICK_STARTED:
-        return key
-    _TICK_STARTED.add(key)
-    threading.Thread(target=_ticker_loop, args=(key,), daemon=True).start()
+def _ensure_ticker(symbol, venue=None):
+    """One thread per symbol. The venue string is ignored by the live tick, and keying
+    on it let any caller spawn an unbounded number of threads."""
+    key = (symbol, "")
+    if key not in _TICK_STARTED:
+        # guard the set before starting anything, so two racing requests can't both spawn
+        if len(_TICK_STARTED) < 8:
+            _TICK_STARTED.add(key)
+            threading.Thread(target=_ticker_loop, args=(key,), daemon=True).start()
     return key
 
 
@@ -4194,7 +4226,7 @@ def stream_price(symbol: str = "XAUUSD", venue: str = None):
 @app.get("/api/btc/price")
 def btc_price(venue: str = None, email: str = "free@astra6.com"):
     try:
-        tick = _binance_btc()         # real-time from the venue itself
+        tick = _btc_tick()         # real-time from the venue itself
         if tick:
             return {"status": "ok", **tick, "user": email}
     except Exception as e:
