@@ -185,7 +185,6 @@ button,select{font-family:inherit}
 #tv-legend .lg-c.up{color:var(--up)} #tv-legend .lg-c.dn{color:var(--down)}
 #zone-layer{position:absolute;inset:1px;width:100%;height:100%;pointer-events:none;overflow:hidden;z-index:3}
 #vwap-layer{position:absolute;inset:1px;width:100%;height:100%;pointer-events:none;overflow:hidden;z-index:4}
-#volpanel{z-index:5}
 .zone-key{display:inline-flex;align-items:center;gap:5px}
 .zone-key i{width:9px;height:9px;border-radius:2px;display:inline-block}
 .gc-shell{border-radius:10px;overflow:hidden;border:1px solid var(--line-soft)}
@@ -399,17 +398,9 @@ button,select{font-family:inherit}
     <div class="chart-shell">
       <div id="oanda_chart">Loading chart…</div>
       <div id="tv-legend"><span class="lg-t" id="lg-sym">XAUUSD</span><span id="lg-tf">M15</span><span id="lg-ohlc">—</span></div>
-      <svg id="vwap-layer" aria-hidden="true"></svg>
+      <svg id="vwap-layer" aria-hidden="true"><g id="vw-bands"></g><g id="vw-marks"></g><g id="vw-labels"></g></svg>
       <svg id="zone-layer" aria-hidden="true"></svg>
-      <div id="volpanel" style="display:none;position:absolute;left:8px;bottom:8px;max-width:min(300px,66%);max-height:62%;overflow:hidden;border-radius:9px;padding:7px 8px;font-size:10px;line-height:1.35;background:var(--panel,#fff);border:1px solid var(--line,#e2e8f0);box-shadow:0 6px 18px rgba(2,6,23,.14);pointer-events:none">
-        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:5px">
-          <b style="font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink,#0f172a)">Volume clusters</b>
-          <span id="vol-src" style="font-size:9px;color:#64748b">—</span>
-        </div>
-        <div id="vol-rows"></div>
-      </div>
-    </div>
-    <div class="meta-row">
+      <div class="meta-row">
       <span>ASTRA6 chart · <span id="chart-info-tf">M15</span> · <span id="chart-candle-count">--</span> · <span class="ok" id="chart-source">connecting</span></span>
       <span class="zone-key"><i style="background:rgba(16,185,129,.35);border:1px solid #10b981"></i>buy zone
         <i style="background:rgba(239,68,68,.30);border:1px solid #ef4444;margin-left:8px"></i>sell zone</span>
@@ -562,7 +553,12 @@ function updateLegend(bar,time){
 }
 function symConf(){return currentSymbol==='BTCUSD'?{price:'/api/btc/price',chart:'/api/btc/chart',venues:'/api/btc/venues',gc:'COINBASE:BTCUSD',dec:2,unit:'BTC'}:{price:'/api/xauusd/fast-price',chart:'/api/xauusd/history',venues:'/api/xauusd/venues',gc:currentVenue,dec:2,unit:'XAU'};}
 function fmtPx(v){const d=symConf().dec;return '$'+(Number(v)||0).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});}
-async function fetchChart(tf){tf=tf||currentTF;tf=tf.replace('D1','D').replace('W1','W');const count=(tf==='D'||tf==='W')?200:150;const cfg=symConf();try{const url=currentSymbol==='BTCUSD'?`${cfg.chart}?granularity=${tf}&count=${count}&venue=${encodeURIComponent(currentVenue)}`:`${cfg.chart}?granularity=${tf}&count=${count}&venue=${encodeURIComponent(currentVenue)}`;const r=await fetch(url);const d=await r.json();const srcEl=document.getElementById('chart-source');if(d.status==='ok'&&d.candles&&d.candles.length&&candleSeries){const data=d.candles.map(c=>{let t=typeof c.time==='number'?Math.floor(c.time):Math.floor(new Date(c.time).getTime()/1000);if(t>1e12)t=Math.floor(t/1000);return {time:t,open:c.open,high:c.high,low:c.low,close:c.close};}).filter(c=>c.time>0).sort((a,b)=>a.time-b.time);const seen=new Set();const clean=data.filter(c=>{if(seen.has(c.time))return false;seen.add(c.time);return true;});try{candleSeries.setData(clean);lastCandles=clean;}catch(e){console.log('chart data err',e);}document.getElementById('chart-candle-count').textContent=`${clean.length} candles`;setTimeout(scheduleZoneDraw,60);updateLegend(null);if(srcEl)srcEl.textContent=(d.source||'REAL OHLCV').replace('xaus.com /api/v1/chart XAU/USD (REAL OHLCV, spot-anchored)','XAUS spot · TradingView bar').replace('xaus.com /api/v1/chart XAU/USD (REAL spot OHLCV)','XAUS REAL spot').replace('yfinance GC=F (REAL futures OHLCV)','yfinance GC=F REAL');if(clean.length){const last=clean[clean.length-1];if(lastPrice===0){lastPrice=last.close;const p=document.getElementById('price');if(p&&p.textContent==='$--.--')p.textContent=fmtPx(last.close);}}let fb=document.getElementById('chart-price-fallback');if(fb&&lastPrice)fb.textContent=fmtPx(lastPrice);}else if(srcEl){srcEl.textContent=(!candleSeries?'chart library loading…':'feed reconnecting (no fake data)');}}catch(e){console.log('chart fetch err',e);const s=document.getElementById('chart-source');if(s)s.textContent='feed reconnecting…';}}
+async function fetchChart(tf){tf=tf||currentTF;tf=tf.replace('D1','D').replace('W1','W');const count=(tf==='D'||tf==='W')?200:150;const cfg=symConf();try{const url=currentSymbol==='BTCUSD'?`${cfg.chart}?granularity=${tf}&count=${count}&venue=${encodeURIComponent(currentVenue)}`:`${cfg.chart}?granularity=${tf}&count=${count}&venue=${encodeURIComponent(currentVenue)}`;const r=await fetch(url);const d=await r.json();const srcEl=document.getElementById('chart-source');if(d.status==='ok'&&d.candles&&d.candles.length&&candleSeries){const data=d.candles.map(c=>{let t=typeof c.time==='number'?Math.floor(c.time):Math.floor(new Date(c.time).getTime()/1000);if(t>1e12)t=Math.floor(t/1000);return {time:t,open:c.open,high:c.high,low:c.low,close:c.close};}).filter(c=>c.time>0).sort((a,b)=>a.time-b.time);const seen=new Set();const clean=data.filter(c=>{if(seen.has(c.time))return false;seen.add(c.time);return true;});
+const _key=currentSymbol+'|'+tf,_same=(window._chartKey===_key);window._chartKey=_key;
+let _vr=null;try{if(_same)_vr=chart.timeScale().getVisibleLogicalRange();}catch(e){}
+try{candleSeries.setData(clean);lastCandles=clean;
+  if(_vr)chart.timeScale().setVisibleLogicalRange(_vr);   // no jump every refresh
+}catch(e){console.log('chart data err',e);}document.getElementById('chart-candle-count').textContent=`${clean.length} candles`;setTimeout(scheduleZoneDraw,60);updateLegend(null);if(srcEl)srcEl.textContent=(d.source||'REAL OHLCV').replace('xaus.com /api/v1/chart XAU/USD (REAL OHLCV, spot-anchored)','XAUS spot · TradingView bar').replace('xaus.com /api/v1/chart XAU/USD (REAL spot OHLCV)','XAUS REAL spot').replace('yfinance GC=F (REAL futures OHLCV)','yfinance GC=F REAL');if(clean.length){const last=clean[clean.length-1];if(lastPrice===0){lastPrice=last.close;const p=document.getElementById('price');if(p&&p.textContent==='$--.--')p.textContent=fmtPx(last.close);}}let fb=document.getElementById('chart-price-fallback');if(fb&&lastPrice)fb.textContent=fmtPx(lastPrice);}else if(srcEl){srcEl.textContent=(!candleSeries?'chart library loading…':'feed reconnecting (no fake data)');}}catch(e){console.log('chart fetch err',e);const s=document.getElementById('chart-source');if(s)s.textContent='feed reconnecting…';}}
 
 async function fetchFastPrice(){const cfg=symConf();try{const r=await fetch(cfg.price+'?venue='+encodeURIComponent(currentVenue)).catch(()=>null);if(!r)return;const d=await r.json();if(d.status==='ok'){const priceEl=document.getElementById('price');const newPrice=currentSymbol==='BTCUSD'?d.mid:d.price;if(priceEl){const txt=fmtPx(newPrice);if(priceEl.textContent!==txt){if(lastPrice!==0&&Math.abs(newPrice-lastPrice)>0.01){priceEl.style.color=newPrice>lastPrice?'var(--up)':'var(--down)';setTimeout(()=>{priceEl.style.color='var(--ink)';},380);}priceEl.textContent=txt;}}setTabPrice(currentSymbol,newPrice);const sigPrice=document.getElementById('sig-price');if(sigPrice&&sigPrice.textContent==='$--')sigPrice.textContent=fmtPx(newPrice);lastPrice=newPrice;priceUpdateCount++;const bid=currentSymbol==='BTCUSD'?null:(d.live_price?d.live_price.bid:d.bid),ask=currentSymbol==='BTCUSD'?null:(d.live_price?d.live_price.ask:d.ask);
         if(currentSymbol==='BTCUSD'){const ba0=document.getElementById('bidask');if(ba0){const chg0=d.change_pct!=null?`${d.change_pct>=0?'+':''}${Number(d.change_pct).toFixed(2)}%`:'—';ba0.textContent=`${(d.venue||'BINANCE:BTCUSDT').replace(':',' · ')} · ${chg0} (24h)`;}}if(bid&&ask){const ba=document.getElementById('bidask');if(ba){const spread=(ask-bid).toFixed(2);const chg=d.change_pct!=null?` • ${d.change_pct>=0?'+':''}${Number(d.change_pct).toFixed(2)}%`:'';ba.textContent=`BID ${Number(bid).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})} / ASK ${Number(ask).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}${chg}`;}}const fb=document.getElementById('chart-price-fallback');if(fb)fb.textContent=fmtPx(newPrice);if(candleSeries&&lastCandles.length){const lc=lastCandles[lastCandles.length-1];const upd={time:lc.time,open:lc.open,high:Math.max(lc.high,newPrice),low:Math.min(lc.low,newPrice),close:newPrice};lastCandles[lastCandles.length-1]=upd;try{candleSeries.update(upd);}catch(e){}scheduleZoneDraw();}}if(priceUpdateCount%15===0){if(currentSymbol==='BTCUSD')fetchBtcCompare();else fetchTVCompare();}}catch(e){console.log('fast price err',e);}}
@@ -661,13 +657,13 @@ function setStrategy(s){
   document.querySelectorAll('[data-strategy]').forEach(b=>b.classList.toggle('active', b.dataset.strategy===s));
   const hint=document.getElementById('strategy-hint');
   if(hint) hint.textContent = s==='volume' ? 'volume clusters · daily VWAP' : '15m target · 5m entry';
-  const vp=document.getElementById('volpanel'); if(vp) vp.style.display = s==='volume' ? 'block' : 'none';
   scheduleZoneDraw();
   if(s==='volume'){
     fetchVolume();
     if(window._volume) renderVolumeSignal(window._volume);
-  }else if(window._zones){
-    renderZoneSignal(window._zones);
+  }else{
+    window._volSigKey=null;   // card is being taken over by RENDER
+    if(window._zones) renderZoneSignal(window._zones);
   }
 }
 
@@ -681,7 +677,6 @@ async function fetchVolume(){
     const d = await r.json();
     if(d && d.status==='ok' && currentSymbol===sym){
       window._volume = d; _volAt = Date.now();
-      renderVolumePanel(d);
       if(window._strategy==='volume') renderVolumeSignal(d);
       scheduleZoneDraw();
       return d;
@@ -692,6 +687,10 @@ async function fetchVolume(){
 
 // the volume-cluster signal, shown in the same card as RENDER
 function renderVolumeSignal(d){
+  const sig=JSON.stringify([d.signal&&d.signal.type,d.signal&&d.signal.price,d.vwap,
+    d.poc&&d.poc.bot,d.poc&&d.poc.top,currentSymbol]);
+  if(window._volSigKey===sig) return;   // nothing changed — leave the card alone
+  window._volSigKey=sig;
   const s=d.signal||{}, type=s.type||'HOLD';
   const poc=d.poc||{}, rows=(d.rows||[]);
   const est = (d.split||'').indexOf('estimated')>=0;
@@ -734,74 +733,138 @@ function fmtVol(n){
   if(a>=1e3) return (n/1e3).toFixed(2)+'K';
   return n.toFixed(a<10?2:0);
 }
-function renderVolumePanel(d){
-  const rowsEl=document.getElementById('vol-rows'), srcEl=document.getElementById('vol-src');
-  if(!rowsEl) return;
-  if(srcEl) srcEl.textContent = d.symbol+' · '+(d.bars_used||0)+' bars';
-  const rows=(d.rows||[]).slice().sort((a,b)=>b.top-a.top);
-  const pocTop = d.poc && d.poc.top;
-  const vals = rows.map(r=>r.total||0); const mx = Math.max(1, ...vals);
-  const sig = d.signal||{};
-  let html='';
-  rows.slice(0,14).forEach(r=>{
-    const isPoc = pocTop!=null && Math.abs(r.top-pocTop)<1e-9;
-    const pos = (r.delta||0)>=0;
-    const bg = pos ? 'rgba(13,148,136,.16)' : 'rgba(239,68,68,.14)';
-    const bd = isPoc ? '2px solid #f59e0b' : '2px solid transparent';
-    const bar = Math.max(2, Math.round(28*(r.total||0)/mx));
-    html+=`<div class="volrow" data-poc="${isPoc?1:0}" style="display:flex;align-items:center;gap:6px;padding:1px 4px;margin-bottom:1px;border-radius:4px;border:${bd};background:${bg}">
-      <span style="flex:0 0 78px;font-variant-numeric:tabular-nums;color:var(--ink,#0f172a)">${r.bot.toFixed(2)}–${r.top.toFixed(2)}</span>
-      <span style="flex:1 1 auto;height:6px;border-radius:3px;background:${pos?'#0d9488':'#ef4444'};opacity:.55;max-width:${bar}px"></span>
-      <span style="flex:0 0 auto;font-variant-numeric:tabular-nums;color:${pos?'#0f766e':'#b91c1c'};font-weight:700">${fmtVol(r.sell)} × ${fmtVol(r.buy)}</span>
-    </div>`;
-  });
-  rowsEl.innerHTML=html;
+// pooled SVG nodes — geometry updates only, so panning/zooming never rebuilds the DOM
+const _VL={bands:[],meters:[],labels:[],path:null,dot:null,tag:null};
+function _svgEl(tag){return document.createElementNS('http://www.w3.org/2000/svg',tag);}
+function _pool(parent,pool,n,tag){
+  while(pool.length<n){const e=_svgEl(tag);parent.appendChild(e);pool.push(e);}
+  while(pool.length>n){const e=pool.pop();if(e.parentNode) e.parentNode.removeChild(e);}
+  return pool;
 }
+function clearVolumeLayer(){
+  ['vw-bands','vw-marks','vw-labels'].forEach(id=>{const g=document.getElementById(id);if(g)g.innerHTML='';});
+  _VL.bands.length=0;_VL.meters.length=0;_VL.labels.length=0;
+  _VL.path=null;_VL.dot=null;_VL.tag=null;
+}
+
 function drawVolume(){
   const svg=document.getElementById('vwap-layer'), box=document.getElementById('oanda_chart');
   if(!svg) return;
-  const d=window._volume;
-  const on = window._strategy==='volume';
-  if(!on||!d||!d.vwap_series||d.vwap_series.length<2||!chart||!candleSeries||!box){
-    if(svg.innerHTML) svg.innerHTML='';
-    return;
-  }
+  const d=window._volume, on=(window._strategy==='volume');
+  if(!on||!d||!d.vwap_series||d.vwap_series.length<2||!chart||!candleSeries||!box){clearVolumeLayer();return;}
+  const gB=document.getElementById('vw-bands'), gM=document.getElementById('vw-marks'), gL=document.getElementById('vw-labels');
+  if(!gB||!gM||!gL) return;
   const w=box.clientWidth,h=box.clientHeight;
-  if(!w||!h){ if(svg.innerHTML) svg.innerHTML=''; return; }
+  if(!w||!h){clearVolumeLayer();return;}
   if(svg.getAttribute('width')!=String(w)){
-    svg.setAttribute('width',w); svg.setAttribute('height',h); svg.setAttribute('viewBox',`0 0 ${w} ${h}`);
+    svg.setAttribute('width',w);svg.setAttribute('height',h);svg.setAttribute('viewBox',`0 0 ${w} ${h}`);
   }
   const ts=chart.timeScale();
-  const pts=[], ys=[];
+  const plotW=(typeof ts.width==='function'?ts.width():w-64);
+
+  // the cluster sits on the candles it was measured from: right edge at the live bar,
+  // left edge back by the number of bars the profile used (clamped to the plot)
+  let xR=plotW-4;
+  const lastT=(typeof lastCandles!=='undefined'&&lastCandles&&lastCandles.length)?lastCandles[lastCandles.length-1].time:null;
+  if(lastT!=null){const x=ts.timeToCoordinate(lastT);if(x!=null)xR=Math.min(plotW-4,x+9);}
+  let spacing=7;
+  try{const o=(typeof ts.options==='function')?ts.options():null;if(o&&o.barSpacing)spacing=o.barSpacing;}catch(e){}
+  const nBars=Math.max(20,Number(d.bars_used)||120);
+  let xL=Math.max(1.5, xR - nBars*spacing);
+  if(xR-xL<80){xL=Math.max(1.5,xR-80);}
+  const bw=xR-xL;
+
+  // price rows, top of book first
+  const rows=(d.rows||[]).slice().sort((a,b)=>b.top-a.top);
+  const pocTop=(d.poc&&d.poc.top!=null)?d.poc.top:null;
+  const maxTot=Math.max(1,...rows.map(r=>r.total||0));
+  const geo=[];
+  for(let i=0;i<rows.length;i++){
+    const r=rows[i];
+    const y1=candleSeries.priceToCoordinate(r.top), y2=candleSeries.priceToCoordinate(r.bot);
+    if(y1==null||y2==null) continue;
+    const top=Math.min(y1,y2), hh=Math.max(1.2,Math.abs(y2-y1));
+    if(top>h+3||top+hh<-3) continue;
+    geo.push({r,top,hh});
+  }
+
+  _pool(gB,_VL.bands,geo.length,'rect');
+  _pool(gB,_VL.meters,geo.length,'rect');
+  const labels=[];
+  for(let i=0;i<geo.length;i++){
+    const g=geo[i], r=g.r, pos=(r.delta||0)>=0;
+    const isPoc=(pocTop!=null&&Math.abs(r.top-pocTop)<1e-9);
+    const b=_VL.bands[i];
+    if(b.getAttribute('data-role')!=='band') b.setAttribute('data-role','band');
+    b.setAttribute('x',xL.toFixed(1));
+    b.setAttribute('y',g.top.toFixed(1));
+    b.setAttribute('width',bw.toFixed(1));
+    b.setAttribute('height',g.hh.toFixed(1));
+    b.setAttribute('fill',pos?'rgba(13,148,136,0.13)':'rgba(239,68,68,0.12)');
+    b.setAttribute('stroke',isPoc?'#f59e0b':'none');
+    b.setAttribute('stroke-width',isPoc?'1.6':'0');
+    // volume meter hugging the left edge of the cluster
+    const m=_VL.meters[i], ml=Math.max(1.5,bw*0.24*((r.total||0)/maxTot));
+    if(m.getAttribute('data-role')!=='meter') m.setAttribute('data-role','meter');
+    m.setAttribute('x',(xL+1).toFixed(1));
+    m.setAttribute('y',g.top.toFixed(1));
+    m.setAttribute('width',ml.toFixed(1));
+    m.setAttribute('height',g.hh.toFixed(1));
+    m.setAttribute('fill',pos?'rgba(13,148,136,0.55)':'rgba(239,68,68,0.48)');
+    if(g.hh>=9.5&&bw>120) labels.push({g,isPoc});
+  }
+  _pool(gL,_VL.labels,labels.length,'text');
+  for(let i=0;i<labels.length;i++){
+    const {g,isPoc}=labels[i], r=g.r, pos=(r.delta||0)>=0;
+    const t=_VL.labels[i];
+    t.setAttribute('x',(xR-5).toFixed(1));
+    t.setAttribute('y',(g.top+g.hh/2+2.6).toFixed(1));
+    t.setAttribute('text-anchor','end');
+    t.setAttribute('font-family','ui-monospace,SFMono-Regular,Menlo,monospace');
+    t.setAttribute('font-size','8');
+    t.setAttribute('font-weight',isPoc?'800':'600');
+    t.setAttribute('fill',pos?'#0f766e':'#b91c1c');
+    const txt=fmtVol(r.sell)+' × '+fmtVol(r.buy);
+    if(t.textContent!==txt) t.textContent=txt;
+  }
+
+  // daily VWAP on top of the rows
+  if(!_VL.path){
+    _VL.path=_svgEl('path');
+    _VL.path.setAttribute('fill','none');
+    _VL.path.setAttribute('stroke','#eab308');
+    _VL.path.setAttribute('stroke-width','2');
+    _VL.path.setAttribute('stroke-linejoin','round');
+    _VL.path.setAttribute('stroke-linecap','round');
+    gM.appendChild(_VL.path);
+  }
+  const pts=[];
+  let lastXY=null;
   for(const p of d.vwap_series){
     const x=ts.timeToCoordinate(p.time), y=candleSeries.priceToCoordinate(p.value);
     if(x==null||y==null) continue;
     pts.push(`${pts.length?'L':'M'}${x.toFixed(1)},${y.toFixed(1)}`);
-    ys.push({x,y,v:p.value});
+    lastXY={x,y,v:p.value};
   }
-  if(pts.length<2){ if(svg.innerHTML) svg.innerHTML=''; return; }
-  let out=`<path d="${pts.join(' ')}" fill="none" stroke="#eab308" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" opacity="0.95"></path>`;
-  // dot + tag on the live end of the VWAP
-  const last=ys[ys.length-1];
-  const plotW=(typeof ts.width==='function'?ts.width():w-64);
-  const tx=Math.min(plotW-4, last.x+7);
-  out+=`<circle cx="${last.x.toFixed(1)}" cy="${last.y.toFixed(1)}" r="2.6" fill="#eab308"></circle>`;
-  out+=`<text x="${tx.toFixed(1)}" y="${(last.y-6).toFixed(1)}" font-family="ui-monospace,monospace" font-size="9.5" font-weight="700" fill="#a16207">VWAP ${Number(last.v).toFixed(2)}</text>`;
-  // cluster rows: horizontal bands at price, teal = positive delta, red = negative
-  const rows=(d.rows||[]), pocTop=d.poc&&d.poc.top, atr=Number(d.atr)||0;
-  const maxTot=Math.max(1,...rows.map(r=>r.total||0));
-  rows.forEach(r=>{
-    const y1=candleSeries.priceToCoordinate(r.top), y2=candleSeries.priceToCoordinate(r.bot);
-    if(y1==null||y2==null) return;
-    const top=Math.min(y1,y2), hgt=Math.max(1.2,Math.abs(y2-y1));
-    if(top<0||top>h) return;
-    const pos=(r.delta||0)>=0;
-    const isPoc = pocTop!=null && Math.abs(r.top-pocTop)<1e-9;
-    const len=Math.max(6, Math.round((ts.width?ts.width():plotW)*0.10*(r.total||0)/maxTot));
-    const col = pos ? '13,148,136' : '239,68,68';
-    out+=`<rect x="4" y="${top.toFixed(1)}" width="${len}" height="${hgt.toFixed(1)}" rx="1" fill="rgba(${col},${pos?0.42:0.34})"${isPoc?' stroke="#f59e0b" stroke-width="2"':''}></rect>`;
-  });
-  if(svg.innerHTML!==out) svg.innerHTML=out;
+  if(pts.length<2){clearVolumeLayer();return;}
+  const pstr=pts.join(' ');
+  if(_VL.path.getAttribute('d')!==pstr) _VL.path.setAttribute('d',pstr);
+
+  if(!_VL.dot){_VL.dot=_svgEl('circle');gM.appendChild(_VL.dot);}
+  _VL.dot.setAttribute('cx',lastXY.x.toFixed(1));
+  _VL.dot.setAttribute('cy',lastXY.y.toFixed(1));
+  _VL.dot.setAttribute('r','2.6');
+  _VL.dot.setAttribute('fill','#eab308');
+
+  if(!_VL.tag){_VL.tag=_svgEl('text');gM.appendChild(_VL.tag);}
+  _VL.tag.setAttribute('x',Math.max(4,Math.min(plotW-4,lastXY.x+7)).toFixed(1));
+  _VL.tag.setAttribute('y',(lastXY.y-6).toFixed(1));
+  _VL.tag.setAttribute('font-family','ui-monospace,SFMono-Regular,Menlo,monospace');
+  _VL.tag.setAttribute('font-size','9.5');
+  _VL.tag.setAttribute('font-weight','700');
+  _VL.tag.setAttribute('fill','#a16207');
+  const vtxt='VWAP '+Number(lastXY.v).toFixed(2);
+  if(_VL.tag.textContent!==vtxt) _VL.tag.textContent=vtxt;
 }
 
 // ---------- zone boxes: 15m = TARGET (solid) · 5m = ENTRY (thin dashed) ----------
@@ -947,7 +1010,7 @@ applyTheme();document.getElementById('sound-btn')&&(document.getElementById('sou
 initClicks();document.addEventListener('DOMContentLoaded',initClicks);setTimeout(initClicks,500);
 setTimeout(()=>{initChart();if(currentSymbol==='BTCUSD'){const b=document.querySelector('.sym-btn[data-sym="BTCUSD"]');if(b)b.classList.add('active');const g=document.querySelector('.sym-btn[data-sym="XAUUSD"]');if(g)g.classList.remove('active');document.querySelector('.brand-sub').textContent='Bitcoin · 15m / 5m';}else{fetchDashboard();}fetchChart(currentTF);fetchLive();fetchFastPrice();},800);
 setInterval(updateTimeSmooth,500);updateTimeSmooth();
-setInterval(fetchFastPrice,2500);setInterval(fetchOtherPrice,12000);setInterval(fetchZones,30000);setInterval(()=>{if(window._strategy==='volume')fetchVolume();},20000);setInterval(fetchLive,10000);setInterval(()=>{if(currentSymbol!=='BTCUSD')fetchDashboard();},15000);
+setInterval(fetchFastPrice,1500);setInterval(fetchOtherPrice,12000);setInterval(fetchZones,30000);setInterval(()=>{if(window._strategy==='volume')fetchVolume();},20000);setInterval(fetchLive,10000);setInterval(()=>{if(currentSymbol!=='BTCUSD')fetchDashboard();},15000);
 document.getElementById('venue-select')?.addEventListener('change',e=>setVenue(e.target.value));
 loadVenues().then(()=>{if(currentSymbol==='BTCUSD')fetchBtcCompare();else fetchTVCompare();});updateSymTabs();fetchOtherPrice();renderZoneAlerts();fetchZones();
 setInterval(()=>{fetch('/health').catch(()=>{});},240000);

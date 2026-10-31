@@ -3377,35 +3377,20 @@ def signals_current(email: str = "free@astra6.com"):
     m30 = fetch_candles("M30", 100)
     h1 = fetch_candles("H1", 100)
     if not m15:
-        print("⚠️ OANDA M15 missing - mock for preview smooth")
-        fp = fetch_fast_price()
-        mock_price = fp['mid'] if fp else 4121.0
+        # no candles, no signal — never invent a price or a direction
+        print("signals/current: M15 unavailable, returning wait state")
         return {
-            "status": "ok",
+            "status": "error",
+            "error": "candles_unavailable",
             "signal": {
-                "id": "preview-mock",
-                "timestamp": __import__('time').time(),
-                "time_str": __import__('time').strftime("%Y-%m-%d %H:%M:%S UTC", __import__('time').gmtime()),
-                "price": mock_price,
-                "bid": mock_price - 1.33,
-                "ask": mock_price + 1.33,
-                "type": "BUY",
-                "confidence": 85,
-                "winrate_est": 78,
-                "confluence": 4.2,
-                "strategy": "ASTRA6 Elite - Preview Smooth",
-                "sl": mock_price - 18,
-                "tp1": mock_price + 18,
-                "tp2": mock_price + 32,
-                "reasons": ["Preview smooth working"],
-                "buy_score": 4.5,
-                "sell_score": 0.8,
+                "type": "HOLD",
+                "confidence": 0,
+                "winrate_est": 0,
+                "reasons": ["Feed unavailable — no signal until real candles arrive."],
                 "should_alert": False,
-                "market_trend": "up",
-                "ai_available": True
             },
+            "real": True,
             "user": email,
-            "preview": True
         }
     m15_candles, live_price = m15
     # AI training in background if needed (pythonidae)
@@ -4135,10 +4120,8 @@ def fast_price(venue: str = None, email: str = "free@astra6.com"):
             _, lp = _price_cache["data"]
             if lp:
                 return {"status":"ok","price":lp['mid'],"bid":lp['bid'],"ask":lp['ask'],"live_price":lp,"timestamp":time.time(),"cached":True,"user":email}
-        import time as _t
-        fp = fetch_fast_price()
-        mock_price = fp['mid'] if fp else 4121.0
-        return {"status":"ok","price":mock_price,"bid":mock_price-1.33,"ask":mock_price+1.33,"live_price":{"mid":mock_price,"bid":mock_price-1.33,"ask":mock_price+1.33,"timestamp":_t.time()},"timestamp":_t.time(),"cached":False,"user":email,"preview":True}
+        # no fabricated fallback: say plainly that the feed is down
+        return {"status":"error","error":"price_feed_unavailable","real":True,"user":email}
     return {
         "status":"ok",
         "price": price['mid'],
