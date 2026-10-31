@@ -174,14 +174,6 @@ body.intro-open{overflow:hidden}
 .menu-sec{display:flex;flex-direction:column;gap:7px;padding-top:12px;border-top:1px solid var(--line-soft)}
 .menu-sec:first-of-type{padding-top:0;border-top:0}
 .menu-label{font-size:9.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
-.tg-card{border:1px solid var(--line);border-radius:10px;padding:9px 10px;background:var(--line-soft)}
-.tg-state{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:800;letter-spacing:.02em}
-.tg-dot{width:7px;height:7px;border-radius:50%;background:var(--muted);flex:0 0 7px}
-.tg-dot.on{background:var(--up);box-shadow:0 0 0 3px rgba(15,157,103,.14)}
-.tg-dot.off{background:var(--muted)}
-.tg-note{font-size:10.5px;line-height:1.45;color:var(--muted);margin-top:4px}
-.tg-row{display:flex;gap:6px;margin-top:8px}
-.tg-row .chip{flex:1;justify-content:center;font-size:10.5px;padding:6px 8px}
 .menu-hint{font-size:10.5px;color:var(--muted);line-height:1.4;word-break:break-word}
 .menu-btns{display:flex;flex-wrap:wrap;gap:6px}
 .menu-select{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:9px;background:var(--panel);color:var(--ink);font-size:12px}
@@ -986,6 +978,65 @@ body[data-view="home"] .wrap{position:relative;overflow:hidden}
   box-shadow:0 10px 24px -18px rgba(15,23,42,.9),inset 0 1px 0 rgba(255,255,255,.4);
 }
 #tf-float .tf-btn.active{box-shadow:0 6px 14px -9px rgba(124,92,255,.95),inset 0 1px 0 rgba(255,255,255,.3)}
+/* ---------- the market picker and the alert card, both on the chart ---------- */
+#tf-float{max-width:calc(100% - 108px)}
+#mkt-float{
+  position:absolute;top:6px;right:66px;z-index:7;display:inline-flex;align-items:center;gap:5px;
+  height:29px;padding:0 9px;border-radius:10px;cursor:pointer;
+  border:1px solid color-mix(in srgb,var(--a-violet) 26%,var(--line-soft));
+  background:color-mix(in srgb,var(--surface) 78%,transparent);
+  -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+  color:var(--ink);font:800 10.5px/1 ui-monospace,monospace;letter-spacing:.03em;
+  box-shadow:0 8px 18px -14px rgba(15,23,42,.9),inset 0 1px 0 rgba(255,255,255,.35);
+  transition:transform .16s,border-color .16s,box-shadow .16s;
+}
+#mkt-float:hover{transform:translateY(-1px);border-color:color-mix(in srgb,var(--a-violet) 55%,var(--line-soft))}
+#mkt-float.open{border-color:var(--a-violet);box-shadow:0 0 0 3px color-mix(in srgb,var(--a-violet) 18%,transparent)}
+#mkt-float svg{opacity:.7;transition:transform .18s}
+#mkt-float.open svg{transform:rotate(180deg)}
+.mkt-pop{
+  position:absolute;top:40px;right:66px;z-index:9;width:min(292px,calc(100% - 78px));
+  max-height:min(62%,340px);overflow-y:auto;padding:9px;
+  border-radius:13px;border:1px solid color-mix(in srgb,var(--a-violet) 26%,var(--line));
+  background:color-mix(in srgb,var(--surface) 96%,transparent);
+  -webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);
+  box-shadow:0 26px 50px -26px rgba(15,23,42,.75),0 8px 18px -14px rgba(15,23,42,.5);
+  display:flex;flex-direction:column;gap:9px;
+}
+.mkt-pop[hidden]{display:none}
+.mkt-pop .mkt-group{display:flex;flex-direction:column;gap:5px}
+.mkt-pop .mkt-g{font-size:8px;font-weight:900;letter-spacing:.12em;color:var(--muted);padding-left:2px}
+.mkt-pop .mkt-row{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.mkt-pop .sym-btn{flex-direction:row;align-items:center;justify-content:space-between;gap:4px;padding:6px 8px;border-radius:9px;
+  border:1px solid color-mix(in srgb,var(--line) 76%,transparent);background:color-mix(in srgb,var(--surface) 70%,transparent)}
+.mkt-pop .sym-btn .sym-tag{font-size:10px;font-weight:800;letter-spacing:.02em;flex:0 0 auto;color:var(--ink)}
+.mkt-pop .sym-btn .sym-px{font-size:11px;font-weight:700;white-space:nowrap;flex:1 1 auto;text-align:right;overflow:hidden}
+.mkt-pop .sym-btn.active{background-image:linear-gradient(140deg,var(--a-violet),#6d5cf0);border-color:transparent;box-shadow:0 10px 22px -16px rgba(87,70,240,.9)}
+.mkt-pop .sym-btn.active .sym-tag,.mkt-pop .sym-btn.active .sym-px{color:#fff}
+.mkt-pop .mkt-row .sym-btn:last-child:nth-child(odd){grid-column:1 / -1}
+.alert-float{
+  position:absolute;top:76px;left:10px;z-index:6;max-width:min(84%,404px);
+  display:flex;align-items:center;gap:7px;padding:5px 9px;border-radius:9px;cursor:pointer;
+  border:1px solid color-mix(in srgb,var(--a-violet) 34%,var(--line));
+  background:color-mix(in srgb,var(--surface) 84%,transparent);
+  -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+  box-shadow:0 12px 26px -20px rgba(15,23,42,.9),inset 0 1px 0 rgba(255,255,255,.3);
+  font-size:10px;line-height:1.25;
+}
+.alert-float[hidden]{display:none}
+.alert-float .af-badge{font-size:8.5px;font-weight:900;letter-spacing:.05em;padding:2px 6px;border-radius:5px;color:#fff;flex:0 0 auto}
+.alert-float .af-badge.buy{background-image:linear-gradient(150deg,#12b981,#0f9d67)}
+.alert-float .af-badge.sell{background-image:linear-gradient(150deg,#f4525f,#dc4444)}
+.alert-float .af-sym{font-family:ui-monospace,monospace;font-weight:800;letter-spacing:.03em;color:var(--ink)}
+.alert-float .af-vals{font-family:ui-monospace,monospace;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.alert-float .af-r{font-family:ui-monospace,monospace;font-weight:800;color:var(--gold);flex:0 0 auto}
+.alert-float .af-more{font-size:9px;font-weight:800;color:var(--muted);flex:0 0 auto}
+@media(max-width:620px){
+  #mkt-float{right:62px;height:27px;padding:0 7px;font-size:10px}
+  .mkt-pop{right:62px;top:38px}
+  .alert-float{top:74px;max-width:calc(100% - 20px);font-size:9.5px;gap:6px;padding:5px 8px}
+}
+
 .chip{background-image:var(--wash);transition:transform .18s,box-shadow .18s,background .15s,border-color .15s}
 .chip:active{transform:translateY(1px)}
 
@@ -1019,7 +1070,6 @@ body[data-view="chart"] .chart-shell{
   width:38px;height:4px;border-radius:4px;pointer-events:none;
   background:color-mix(in srgb,var(--ink) 16%,transparent);
 }
-.tg-card{background-image:var(--wash);box-shadow:inset 0 1px 0 rgba(255,255,255,.4)}
 .event-live{box-shadow:inset 0 1px 0 rgba(255,255,255,.18)}
 
 /* ---------- motion ---------- */
@@ -1104,27 +1154,6 @@ body[data-view="home"] .home>*:nth-child(4){animation-delay:.18s}
   </div>
 
   <div class="menu-sec">
-    <div class="menu-label">Signals</div>
-    <div class="menu-stats">
-      <div><b class="mono" id="menu-stat-total">0</b><span>alerts</span></div>
-      <div><b class="mono" id="menu-stat-bs">0 / 0</b><span>buy / sell</span></div>
-    </div>
-    <div id="alerts-list"><div style="padding:14px;text-align:center;color:var(--muted);font-size:11px">Loading…</div></div>
-  </div>
-
-  <div class="menu-sec">
-    <div class="menu-label">Alerts on your phone</div>
-    <div class="tg-card">
-      <div class="tg-state"><span class="tg-dot" id="tg-dot"></span><span id="tg-state">checking…</span></div>
-      <div class="tg-note" id="tg-note"></div>
-      <div class="tg-row">
-        <button class="chip" onclick="tgOpenBot()">Open the bot</button>
-        <button class="chip" onclick="tgTest(this)">Send test</button>
-      </div>
-    </div>
-  </div>
-
-  <div class="menu-sec">
     <div class="menu-label">Economic calendar</div>
     <div class="fund-strip" id="cal-strip">
       <div class="fund-row"><span class="fund-x">loading…</span></div>
@@ -1148,11 +1177,6 @@ body[data-view="home"] .home>*:nth-child(4){animation-delay:.18s}
       <div><b class="mono" id="jn-r">0.0R</b><span>total R</span></div>
     </div>
     <button class="chip" style="width:100%;justify-content:center" onclick="openJournal()">Open journal</button>
-  </div>
-
-  <div class="menu-sec">
-    <div class="menu-label">Market</div>
-    <div id="market-switch" role="group" aria-label="Market"></div>
   </div>
 
   <div class="menu-sec">
@@ -1180,14 +1204,7 @@ body[data-view="home"] .home>*:nth-child(4){animation-delay:.18s}
     </div>
   </div>
 
-  <div class="menu-sec">
-    <div class="menu-label">Links</div>
-    <a class="menu-link" href="https://astra6render.com" target="_blank" rel="noopener">astra6render.com</a>
-    <a class="menu-link" href="https://t.me/ASTRA6RENDER" target="_blank" rel="noopener">@ASTRA6RENDER · Telegram</a>
-  </div>
-
-  <div class="menu-ft">Free · no sign-in · not financial advice</div>
-</aside>
+  </aside>
 
 <div class="sheet-scrim" id="sheet-scrim" onclick="closeSheet()"></div>
 <section class="sheet" id="sheet" aria-hidden="true" aria-label="Panel">
@@ -1292,10 +1309,17 @@ body[data-view="home"] .home>*:nth-child(4){animation-delay:.18s}
     </div>
     <div class="chart-shell">
       <div id="oanda_chart">Loading chart…</div>
+      <button id="mkt-float" type="button" aria-haspopup="true" aria-expanded="false"
+              onclick="toggleMarketPicker(event)">
+        <span id="mkt-float-sym">XAUUSD</span>
+        <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      <div id="mkt-pop" class="mkt-pop" hidden role="dialog" aria-label="Switch market"></div>
       <div id="tf-float" role="group" aria-label="Chart timeframe">
         <button class="tf-btn" data-tf="M1">M1</button><button class="tf-btn" data-tf="M5">M5</button><button class="tf-btn active" data-tf="M15">M15</button><button class="tf-btn" data-tf="M30">M30</button><button class="tf-btn" data-tf="H1">H1</button><button class="tf-btn" data-tf="H4">H4</button><button class="tf-btn" data-tf="D">D1</button><button class="tf-btn" data-tf="W">W1</button>
       </div>
       <div id="chart-stale" class="chart-stale" hidden></div>
+      <div id="alert-float" class="alert-float" hidden onclick="openAlerts()"></div>
       <div id="tv-legend"><span class="lg-t" id="lg-sym">XAUUSD</span><span id="lg-tf">M15</span><span id="lg-ohlc">—</span><span class="lg-note" id="lg-note"></span></div>
       <svg id="vwap-layer" aria-hidden="true"><g id="vw-bands"></g><g id="vw-marks"></g><g id="vw-labels"></g></svg>
       <svg id="zone-layer" aria-hidden="true"></svg>
@@ -1454,48 +1478,8 @@ function paintEventLive(src){
   if(was){ el.hidden=false; syncHdH(); relayoutChart(); }
 }
 
-// ---------- alerts on the phone ----------
-// The page's alert list is the record; Telegram is the copy that reaches a pocket.
-// It stays visibly "not connected" until the server really has the bot token, so
-// nothing here can look subscribed when it is not.
-async function tgLoad(){
-  const st=document.getElementById('tg-state'), note=document.getElementById('tg-note'),
-        dot=document.getElementById('tg-dot');
-  if(!st) return;
-  try{
-    const r=await fetch('/api/telegram/status',{cache:'no-store'});
-    const d=await r.json();
-    const on=!!(d.configured && d.subscribers>0);
-    if(dot) dot.className='tg-dot '+(on?'on':'off');
-    st.textContent = on ? 'Connected · '+d.subscribers+' phone'+(d.subscribers>1?'s':'')
-                     : (d.configured?'Bot ready · waiting for Start':'Not connected');
-    if(note) note.textContent = on
-      ? 'Every BUY/SELL is pushed once - entry, stop, TP1, TP2.'
-      : (d.configured
-          ? 'Open '+(d.bot||'@astra6renderbot')+' in Telegram and press Start once.'
-          : 'One time: add TELEGRAM_BOT_TOKEN in Render → Environment. Then press Start in the bot.');
-    window._tgOn=on;
-  }catch(e){
-    if(st) st.textContent='Status unavailable';
-    if(note) note.textContent='The server did not answer - try again in a moment.';
-  }
-}
-function tgOpenBot(){ window.open('https://t.me/'+((window._tgBot||'astra6renderbot').replace('@','')),'_blank'); }
-async function tgTest(btn){
-  const note=document.getElementById('tg-note');
-  if(btn){ btn.disabled=true; const t=btn.textContent; btn.textContent='Sending…';
-           setTimeout(()=>{btn.disabled=false;btn.textContent=t;},3000); }
-  try{
-    const r=await fetch('/api/telegram/test',{method:'POST'});
-    const d=await r.json();
-    if(note) note.textContent = d.sent
-      ? 'Test sent - check your phone.'
-      : (d.how || (d.error==='no_bot_token'
-            ? 'The bot token is not set on the server yet.'
-            : 'Nothing was sent - open the bot and press Start once.'));
-    if(!d.sent) tgLoad();
-  }catch(e){ if(note) note.textContent='Could not reach the server.'; }
-}
+// (the phone-alert card was removed from the drawer: the server still has the
+//  Telegram push, but nothing on the page advertises it any more)
 
 function calHtml(d){
   if(!d || d.status!=='ok')
@@ -1822,8 +1806,12 @@ function toggleMenu(){
   m.classList.contains('open')?closeMenu():openMenu();
 }
 function renderMarketSwitch(){
-  const box=document.getElementById('market-switch');
+  const box=document.getElementById('mkt-pop');
   if(!box) return;
+  // the chip always names the market actually on screen, even after a refresh
+  const _chip=document.getElementById('mkt-float-sym'); if(_chip) _chip.textContent=currentSymbol;
+  const _hd=document.getElementById('hd-sym'); if(_hd) _hd.textContent=currentSymbol;
+  const _lg=document.getElementById('lg-sym'); if(_lg) _lg.textContent=currentSymbol;
   let html='';
   MKT_GROUPS.forEach(g=>{
     const ids=Object.keys(MKT).filter(k=>MKT[k].group===g);
@@ -1831,8 +1819,8 @@ function renderMarketSwitch(){
         + ids.map(id=>{
             const m=MKT[id];
             const on=(id===currentSymbol)?' active':'';
-            return `<button class="sym-btn${on}" data-sym="${id}" onclick="setSymbol('${id}');closeMenu()">
-              <span class="sym-tag">${m.name}</span><span class="sym-px mono" id="px-${id}">—</span></button>`;
+            return `<button class="sym-btn${on}" data-sym="${id}" onclick="pickMarket('${id}')">
+              <span class="sym-tag">${id}</span><span class="sym-px mono" id="px-${id}">—</span></button>`;
           }).join('')
         + '</div></div>';
   });
@@ -1870,6 +1858,32 @@ async function fetchBoard(){
     });
   }catch(e){console.log('board err',e);}
 }
+function toggleMarketPicker(ev){
+  if(ev) ev.stopPropagation();
+  const pop=document.getElementById('mkt-pop'), btn=document.getElementById('mkt-float');
+  if(!pop) return;
+  const open=pop.hidden;
+  pop.hidden=!open;
+  if(btn){ btn.classList.toggle('open',open); btn.setAttribute('aria-expanded',open?'true':'false'); }
+  if(open){ renderMarketSwitch(); fetchBoard(); scheduleZoneDraw(); }
+}
+function closeMarketPicker(){
+  const pop=document.getElementById('mkt-pop'), btn=document.getElementById('mkt-float');
+  if(pop) pop.hidden=true;
+  if(btn){ btn.classList.remove('open'); btn.setAttribute('aria-expanded','false'); }
+}
+function pickMarket(sym){
+  closeMarketPicker();
+  openMarket(sym);
+}
+// a tap anywhere else shuts the picker
+document.addEventListener('click',e=>{
+  const pop=document.getElementById('mkt-pop');
+  if(!pop||pop.hidden) return;
+  if(!pop.contains(e.target) && !e.target.closest('#mkt-float')) closeMarketPicker();
+});
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeMarketPicker(); });
+
 function openMarket(sym){
   setSymbol(sym);
   setView('chart');
@@ -1877,7 +1891,6 @@ function openMarket(sym){
 }
 function openMenu(){
   if(typeof loadCalendar==='function'){ loadCalendar(); loadNews(); }
-  if(typeof tgLoad==='function') tgLoad();
   const m=document.getElementById('menu'), s=document.getElementById('scrim'), b=document.getElementById('burger');
   if(m)m.classList.add('open');
   if(s)s.classList.add('on');
@@ -1905,14 +1918,15 @@ function renderCurrent(s){if(!s)return;window._lastSignal=s;const typeEl=documen
     } else sltp.innerHTML='';
   }const aiEl=document.getElementById('sig-ai');if(aiEl){let html='';if(s.ai_signal){const ai=s.ai_signal;html+=`🤖 <b>AI (pythonidae)</b>: ${ai.type||'HOLD'} ${ai.confidence||0}% • RF ${ai.rf_conf||0}% GB ${ai.gb_conf||0}% • Winrate ${ai.winrate_est||0}%<br>`;}else if(s.ai_available){html+=`🤖 <b>AI</b>: Training from pythonidae (scikit-learn) 75%+ winrate<br>`;}if(s.finance_web_signal){const fw=s.finance_web_signal;const corr=(fw.finance&&fw.finance.correlations)||{};html+=`💰 <b>Finance+Web</b>: ${fw.type||'HOLD'} ${fw.confidence||0}% • Buy:${fw.buy_score||0} Sell:${fw.sell_score||0} • Web ${fw.web?.score||0}% ${fw.web?.health||''}<br><span style="font-size:10px;color:#666">DXY:${corr.DXY?.trend||'-'} Silver:${corr.SILVER?.trend||'-'} SPX:${corr.SPX?.trend||'-'} Oil:${corr.OIL?.trend||'-'} EURUSD:${corr.EURUSD?.trend||'-'}</span><br>`;}if(s.tradingview_signal){const tv=s.tradingview_signal;const ind=tv.indicators||{};html+=`📈 <b>TradingView</b>: ${tv.type||'HOLD'} ${tv.confidence||0}% • Buy:${tv.buy_score||0} Sell:${tv.sell_score||0}<br>`;if(ind.indicators){const ii=ind.indicators;html+=`<span style="font-size:10px;color:#666">RSI:${ii.rsi_14||'-'} MACD:${ii.macd_line||'-'} EMA21:${ii.ema_21||'-'} BB:${ii.bb_position||'-'} Vol:${ii.vol_ratio||'-'}x • Pine:${tv.pine?.overall||'-'}</span><br>`;}}if(s.vibe_trading_signal){const vt=s.vibe_trading_signal;html+=`🔥 <b>Vibe-Trading</b>: ${vt.type||'HOLD'} ${vt.confidence||0}% • Buy:${vt.buy_score||0} Sell:${vt.sell_score||0}<br>`;if(vt.shadow){html+=`<span style="font-size:10px;color:#666">Shadow RSI:${vt.shadow.entry_rsi14||'-'} Prior:${vt.shadow.prior_5d_return||'-'}% • Qlib ${vt.qlib?.overall||'-'} WVMA:${Object.keys(vt.qlib?.wvma||{}).length} • Limits ${vt.limits?.can_trade?'OK':'HALT'}</span><br>`;}}if(s.strategy) html+=`<span style="font-size:10px;color:#999">Strategy: ${s.strategy}</span><br>`;if(s.buy_score!==undefined) html+=`<span style="font-size:10px;color:#666">Buy: ${s.buy_score} Sell: ${s.sell_score} • Conf: ${s.confluence||'-'}</span>`;aiEl.innerHTML=html;}console.log('Signal rendered',s.type,s.price);}
 function renderAlerts(alerts){
-  const el=document.getElementById('alerts-list');
+  // the drawer list is gone: the counters live on the signal screen, the list on the chart
   const statTotal=document.getElementById('stat-total');
   const statBS=document.getElementById('stat-bs');
   const mTotal=document.getElementById('menu-stat-total');
   const mBS=document.getElementById('menu-stat-bs');
-  if(!el)return;
+  const el=document.getElementById('alerts-list');
+  if(!el && !statTotal && !statBS) return;
   if(!alerts||alerts.length===0){
-    el.innerHTML='<div style="padding:22px;text-align:center;color:var(--muted);font-size:11.5px;line-height:1.5">No alerts yet.<br>A signal appears here when a cluster qualifies.</div>';
+    if(el) el.innerHTML='<div style="padding:22px;text-align:center;color:var(--muted);font-size:11.5px;line-height:1.5">No alerts yet.<br>A signal appears here when a cluster qualifies.</div>';
     if(statTotal)statTotal.textContent='0';
     if(statBS)statBS.textContent='0 / 0';
     if(mTotal)mTotal.textContent='0';
@@ -1925,7 +1939,7 @@ function renderAlerts(alerts){
   if(mTotal)mTotal.textContent=alerts.length;
   if(mBS)mBS.textContent=buys+' / '+sells;
 
-  el.innerHTML=alerts.map((a,i)=>{
+  if(el) el.innerHTML=alerts.map((a,i)=>{
     const t=a.type.toLowerCase();
     const entry=a.entry!=null?fmtPx(a.entry):'--';
     const pct=a.r!=null?'• '+Number(a.r).toFixed(2)+'R':'';
@@ -2284,6 +2298,9 @@ function setSymbol(sym){
   const m=mkMeta(sym);
   if(sym==='XAUUSD') currentVenue=(localStorage.getItem('astra6_venue_gold')||'OANDA:XAUUSD');
   document.querySelectorAll('.sym-btn').forEach(b=>b.classList.toggle('active',b.dataset.sym===sym));
+  const _ms=document.getElementById('mkt-float-sym'); if(_ms)_ms.textContent=sym;
+  renderZoneAlerts();                    // the chart card is this market's card, nothing else
+  closeMarketPicker();
   const _bs=document.getElementById('brand-sub'); if(_bs)_bs.textContent=m.name+' · '+m.group;
   const _hs=document.getElementById('hd-sym'); if(_hs)_hs.textContent=sym;
   updateSymTabs();fetchOtherPrice();window._zones=null;drawZones();renderZoneAlerts();renderZoneStats(null);fetchZones();lastPrice=0;lastCandles=[];priceUpdateCount=0;
@@ -2756,13 +2773,67 @@ function firedKeys(){try{return JSON.parse(localStorage.getItem('astra6_fired_'+
 function markFired(k){const f=firedKeys();if(!f.includes(k)){f.push(k);localStorage.setItem('astra6_fired_'+currentSymbol,JSON.stringify(f.slice(-400)));}}
 function zoneAlerts(){try{return JSON.parse(localStorage.getItem('astra6_zone_alerts_'+currentSymbol)||'[]');}catch(e){return [];}}
 function renderZoneAlerts(){
-  // always painted from the storage of the symbol that is on screen
-  renderAlerts(zoneAlerts().map(a=>({
-    type:a.type,
+  // always painted from the storage of the symbol that is on screen - a EURUSD
+  // alert can never appear on the gold chart, and never in one shared list
+  const list=zoneAlerts();
+  renderAlerts(list.map(a=>({
+    type:a.type, sym:a.sym||currentSymbol,
     entry:(a.entry!=null?a.entry:a.price),
     sl:a.sl, tp1:a.tp1, tp2:a.tp2, r:(a.r!=null?a.r:a.label),
     confidence:a.confidence, src:a.src, ts:(a.ts||a.timestamp)
   })));
+  paintAlertCard(list);
+}
+
+// the compact card that floats on the chart: this market, its newest signal
+function paintAlertCard(list){
+  const el=document.getElementById('alert-float');
+  if(!el) return;
+  const a=(list||[])[0];
+  if(!a){ el.hidden=true; el.innerHTML=''; return; }
+  const px=v=>fmtPx(v,mkMeta(currentSymbol).dec);
+  const t=(a.type||'').toLowerCase();
+  const vals='SL '+px(a.sl)+' · TP1 '+px(a.tp1)+' · TP2 '+px(a.tp2);
+  const more=(list.length>1)?`<span class="af-more">+${list.length-1}</span>`:'';
+  el.innerHTML='<span class="af-badge '+t+'">'+(a.type||'')+'</span>'
+    +'<span class="af-sym">'+currentSymbol+'</span>'
+    +'<span class="af-vals">'+vals+'</span>'
+    +(a.r!=null?'<span class="af-r">'+Number(a.r).toFixed(2)+'R</span>':'')+more;
+  el.hidden=false;
+  el.title=currentSymbol+' · entry '+px(a.entry!=null?a.entry:a.price)+' · tap for every alert on this market';
+}
+
+// every alert for the market on screen, and only that market
+function alertsHtml(sym){
+  const list=alertsOf(sym);
+  if(!list.length)
+    return '<div class="jn-empty">No '+sym+' signal yet.<br>One appears here when a cluster qualifies on this market.</div>';
+  return list.map((a,i)=>{
+    const d=mkMeta(sym).dec, px=v=>fmtPx(v,d);
+    const at=a.ts?new Date(a.ts*1000):null;
+    const stamp=at?(at.toLocaleDateString(undefined,{month:'short',day:'numeric'})+' '+
+                   at.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'})):'';
+    const rbit = a.r!=null ? ' · '+Number(a.r).toFixed(2)+'R' : '';
+    const cls  = i===0 ? ' latest' : '';
+    return '<div class="alert-item'+cls+'">'
+      +'<div class="alert-badge '+(a.type||'').toLowerCase()+'">'+(a.type||'')+'</div>'
+      +'<div style="flex:1;min-width:0">'
+      +'<div class="mono" style="font-weight:800;font-size:12px">entry '+px(a.entry!=null?a.entry:a.price)
+      +'<span style="color:var(--gold)">'+rbit+'</span></div>'
+      +'<div class="mono" style="font-size:9.5px;color:var(--muted);margin-top:3px">'
+      +'SL '+px(a.sl)+' · TP1 '+px(a.tp1)+' · TP2 '+px(a.tp2)+'</div>'
+      +'<div class="mono" style="font-size:8.5px;color:var(--muted);margin-top:2px">'+sym+' · '+stamp+'</div>'
+      +'</div></div>';
+  }).join('');
+}
+function alertsOf(sym){
+  try{
+    return JSON.parse(localStorage.getItem('astra6_zone_alerts_'+sym)||'[]')
+      .filter(a=>!a.sym || a.sym===sym);      // a stray record from before never leaks in
+  }catch(e){ return []; }
+}
+function openAlerts(){
+  openSheet('Alerts · '+currentSymbol, alertsHtml(currentSymbol));
 }
 // One record per trade, all five numbers, so the ladder and the card can never disagree.
 function recordZoneAlert(key,s){
@@ -2809,12 +2880,12 @@ applyTheme();document.getElementById('sound-btn')&&(document.getElementById('sou
 initClicks();document.addEventListener('DOMContentLoaded',initClicks);setTimeout(initClicks,500);
 setTimeout(()=>{renderMarketSwitch();fetchBoard();fetchDashboard();fetchLive();fetchFastPrice();},800);
 setInterval(updateTimeSmooth,500);updateTimeSmooth();
-setView('home');fitScreen();jnStats();loadCalendar();loadNews();netWatch();tgLoad();setTimeout(fitScreen,300);setTimeout(fitScreen,1200);startPriceStream();setInterval(fetchFastPrice,1500);setInterval(fetchOtherPrice,12000);
+setView('home');fitScreen();jnStats();loadCalendar();loadNews();netWatch();setTimeout(fitScreen,300);setTimeout(fitScreen,1200);startPriceStream();setInterval(fetchFastPrice,1500);setInterval(fetchOtherPrice,12000);
 setInterval(()=>{renderMarketSwitch();},60000);setInterval(fetchZones,30000);setInterval(()=>{if(window._strategy==='volume')fetchVolume();},20000);setInterval(fetchLive,10000);setInterval(()=>{fetchDashboard();},15000);
 document.getElementById('venue-select')?.addEventListener('change',e=>setVenue(e.target.value));
 loadVenues().then(()=>{if(currentSymbol==='XAUUSD')fetchTVCompare();});updateSymTabs();fetchOtherPrice();renderZoneAlerts();renderMarketSwitch();fetchZones();
 setInterval(()=>{fetch('/health').catch(()=>{});},240000);
-setInterval(paintEventLive,20000);setInterval(()=>{if(document.getElementById('menu').classList.contains('open'))tgLoad();},60000);
+setInterval(paintEventLive,20000);
 setInterval(()=>{if(chart)fetchChart(currentTF);},30000);
 console.log('ASTRA6 REBUILT SMOOTH - First upgrade clean + All data + All in one + No lag + Smooth + Free access + Market stays + Working');
 </script>

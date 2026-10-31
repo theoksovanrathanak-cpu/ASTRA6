@@ -57,6 +57,9 @@ const MKT = (() => {
   return eval('(' + m[0].replace('const MKT=', '').replace(/;$/, '') + ')');
 })();
 globalThis.MKT = MKT;
+const MKT_GROUPS_SRC = (html.match(/const MKT_GROUPS=[^;]+;/) || ['[]'])[0]
+  .replace('const MKT_GROUPS=', '').replace(/;$/, '');
+globalThis.MKT_GROUPS = eval(MKT_GROUPS_SRC);
 
 const store = {};
 const els = {};
@@ -124,6 +127,7 @@ eval([
   'renderCalStrip', 'renderNewsStrip',
   'jnKeyOf', 'jnByDay', 'jnCalHtml', 'jnListHtml', 'jnMonth', 'jnPickDay', 'jnRepaint',
   'marketOpenNow', 'setNet', 'candlesLate', 'nextOpenLocal', 'paintEventLive', 'mkMeta',
+  'paintAlertCard', 'alertsOf', 'alertsHtml', 'renderMarketSwitch',
 ].map(n => grab(n)).join('\n'));
 ['recordZoneAlert', 'renderZoneAlerts', 'zoneAlerts', 'latestTrade',
  'openMenu', 'closeMenu', 'toggleMenu', 'setView', 'endIntro', 'playIntro',
@@ -132,7 +136,11 @@ eval([
  'journalHtml', 'openJournal', 'openSheet', 'closeSheet', 'calHtml', 'newsHtml',
  'renderCalStrip', 'renderNewsStrip',
  'jnKeyOf', 'jnByDay', 'jnCalHtml', 'jnListHtml', 'jnMonth', 'jnPickDay', 'jnRepaint',
- 'marketOpenNow', 'setNet', 'candlesLate', 'nextOpenLocal', 'paintEventLive', 'mkMeta'].forEach(n => { global[n] = eval(n); });
+ 'marketOpenNow', 'setNet', 'candlesLate', 'nextOpenLocal', 'paintEventLive', 'mkMeta',
+ 'paintAlertCard', 'alertsOf', 'alertsHtml', 'renderMarketSwitch'].forEach(n => { global[n] = eval(n); });
+// the page's own price formatter, kept out of the sandbox so the older stub survives
+const realFmtPx = new Function('mkMeta', 'currentSymbol',
+  grab('fmtPx').replace('function fmtPx', 'return function fmtPx'))(mkMeta, 'XAUUSD');
 // the calendar keeps its month/day in module scope in the page; give the harness the same
 global._jnM = new Date(2026, 10, 1);
 global._jnDay = null;
@@ -179,14 +187,20 @@ section('hamburger menu');
   ok('scroll locked', document.body.style.overflow === 'hidden');
   toggleMenu();
   ok('closes', !menu.classList.contains('open') && document.body.style.overflow === '');
-  ok('the market list is built into the drawer', html.indexOf('id="market-switch"') > html.indexOf('id="menu"')
+  ok('the market picker sits on the chart, not in the drawer',
+     html.indexOf('id="mkt-float"') > html.indexOf('id="chart-section"')
+     && html.indexOf('id="market-switch"') < 0
      && /function renderMarketSwitch/.test(html));
+  ok('the drawer no longer sells phone alerts', !/Alerts on your phone/.test(html) && html.indexOf('id="tg-state"') < 0);
+  ok('the drawer no longer carries links', !/menu-label">Links</.test(html));
+  ok('the drawer has no signal list', html.indexOf('id="alerts-list"') < 0);
   ok('timeframes stay off the drawer', html.indexOf('id="tf-buttons"') < 0);
   ok('timeframes sit on the chart itself',
      html.indexOf('id="tf-float"') > html.indexOf('id="chart-section"') &&
      html.indexOf('id="tf-float"') < html.indexOf('</main>'));
   ok('all eight timeframes are on the chart', (html.slice(html.indexOf('id="tf-float"'), html.indexOf('</div>', html.indexOf('id="tf-float"'))).match(/data-tf=/g) || []).length === 8);
-  ok('ladder lives in the drawer', html.indexOf('id="alerts-list"') > html.indexOf('id="menu"'));
+  ok('the alert card lives on the chart', html.indexOf('id="alert-float"') > html.indexOf('id="chart-section"')
+     && html.indexOf('id="alert-float"') < html.indexOf('</main>'));
   ok('front page has no ladder', !html.slice(html.indexOf('<main'), html.indexOf('</main>')).includes('alerts-list'));
 }
 
@@ -573,8 +587,8 @@ section('the drawer stays clean');
   ok('it scrolls sideways on a phone', /#tf-float\{[^}]*overflow-x:auto/.test(html));
   ok('the legend moved down to make room', /#tv-legend\{position:absolute;top:44px/.test(html));
   ok('sections are divided, not stacked blindly', /\.menu-sec\{[^}]*border-top:1px solid/.test(html));
-  ok('the alert ladder is shorter now', /#alerts-list\{max-height:190px/.test(html));
-  const order = ['View', 'Signals', 'Economic calendar', 'Latest news', 'Trade journal', 'Market', 'Strategy']
+  ok('the signal list is no longer a drawer ladder', html.indexOf('id="alerts-list"') < 0);
+  const order = ['View', 'Economic calendar', 'Latest news', 'Trade journal', 'Strategy']
     .map(t => menu.indexOf(t));
   ok('the menu reads in a sane order', order.every((v, i) => v > 0 && (i === 0 || v > order[i - 1])), order);
   ok('setTimeframe still finds its buttons', /querySelectorAll\('\[data-tf\]'\)/.test(grab('setTimeframe')));
@@ -647,16 +661,65 @@ section('the high-impact countdown');
   ok('the strip is the door to the calendar', /onclick="openCalendar\(\)"/.test(html) && html.includes('id="event-live"'));
 }
 
-section('alerts on the phone');
+section('the phone-alert card is out of the drawer');
 {
-  ok('the menu carries a phone-alert card', html.includes('id="tg-state"') && html.includes('id="tg-note"'));
-  ok('it is honest about the token', /TELEGRAM_BOT_TOKEN/.test(html));
-  ok('there is a test button', /onclick="tgTest\(this\)"/.test(html));
-  ok('the bot can be opened from the menu', /function tgOpenBot\(\)/.test(html) && /t\.me\//.test(html));
-  ok('the state is read from the server, not guessed', /\/api\/telegram\/status/.test(grab('tgLoad')));
-  ok('the menu refreshes it on open', /tgLoad\(\)/.test(grab('openMenu')));
+  ok('no phone card in the page', !html.includes('id="tg-state"') && !html.includes('id="tg-note"'));
+  ok('nothing left to press for it', !/onclick="tgTest\(this\)"/.test(html) && !/tgOpenBot\(\)/.test(html));
+  ok('no code loads a card that is gone', !/tgLoad\(/.test(html) && !/tg-state|tg-note/.test(html));
+  ok('the server routes are untouched', fs.readFileSync(path.join(root, 'push.py'), 'utf8').includes('def broadcast'));
   ok('the server only pushes BUY and SELL', /not in \("BUY", "SELL"\)/.test(fs.readFileSync(path.join(root, 'push.py'), 'utf8')));
   ok('one push per box, keyed on the trade', /def signal_key/.test(fs.readFileSync(path.join(root, 'push.py'), 'utf8')));
+}
+
+section('the market picker and the alert card live on the chart');
+  // a refresh must not leave the chip naming the old market
+  {
+    const pop = els['mkt-pop'] || (els['mkt-pop'] = mkEl('mkt-pop'));
+    const chip = els['mkt-float-sym'] || (els['mkt-float-sym'] = mkEl('mkt-float-sym'));
+    const was = currentSymbol;
+    global.currentSymbol = 'EURUSD';
+    renderMarketSwitch();
+    ok('the chart chip names the market actually on screen', chip.textContent === 'EURUSD', chip.textContent);
+    global.currentSymbol = was;
+  }
+{
+  ok('a picker button floats on the chart', /#mkt-float\{[^}]*position:absolute/.test(html)
+     && html.indexOf('id="mkt-float"') > html.indexOf('id="chart-section"'));
+  ok('it opens a popover, not the drawer', html.includes('id="mkt-pop"') && /function toggleMarketPicker/.test(html));
+  ok('the popover is built from ten markets', /MKT_GROUPS\.forEach/.test(grab('renderMarketSwitch')));
+  ok('picking closes the popover', /closeMarketPicker\(\);/.test(grab('pickMarket')));
+  ok('a tap elsewhere shuts it', /document\.addEventListener\('click'/.test(html) && /closeMarketPicker\(\)/.test(html));
+  ok('the button shows the market on screen', /mkt-float-sym/.test(grab('setSymbol')));
+
+  // the alert list is per market, by construction
+  currentSymbol = 'EURUSD';
+  store.astra6_zone_alerts_EURUSD = JSON.stringify([
+    { key: 'e1', sym: 'EURUSD', type: 'BUY', entry: 1.08542, sl: 1.08380, tp1: 1.08704, tp2: 1.08866, r: 2.0, ts: 1793400000 },
+    { key: 'e2', sym: 'XAUUSD', type: 'SELL', entry: 3875, sl: 3880, tp1: 3870, tp2: 3865, r: 2.0, ts: 1793300000 },
+  ]);
+  const eur = alertsOf('EURUSD');
+  ok('a stray gold record cannot show on the euro chart', eur.length === 1 && eur[0].key === 'e1');
+  const realFmt = fmtPx;
+  global.fmtPx = realFmtPx;                    // the page's own, decimals per market
+  const htmlEur = alertsHtml('EURUSD');
+  ok('the euro sheet lists the euro trade', htmlEur.includes('1.08542') && !htmlEur.includes('3875'));
+  ok('the sheet names the market', /EURUSD/.test(htmlEur));
+  localStorage.removeItem('astra6_zone_alerts_XAUUSD');
+  const gold = alertsHtml('XAUUSD');
+  ok('an empty market says so honestly', /No XAUUSD signal yet/.test(gold));
+
+  const card = mkEl('alert-float');
+  card.hidden = true;
+  document.getElementById = (id) => (id === 'alert-float' ? card : (els[id] || null));
+  currentSymbol = 'EURUSD';
+  paintAlertCard(eur.map(a => ({ type: a.type, entry: a.entry, sl: a.sl, tp1: a.tp1, tp2: a.tp2, r: a.r, ts: a.ts })));
+  ok('the chart card shows this market only', card.hidden === false && /EURUSD/.test(card.innerHTML) && !/3,875|3875/.test(card.innerHTML));
+  ok('the card carries the levels', /1\.08380/.test(card.innerHTML) && /1\.08866/.test(card.innerHTML));
+  global.fmtPx = realFmt;
+  paintAlertCard([]);
+  ok('no alert means no card', card.hidden === true);
+  ok('the card opens the whole list', /onclick="openAlerts\(\)"/.test(html) && /openSheet\('Alerts/.test(grab('openAlerts')));
+  ok('switching market repaints the card', /renderZoneAlerts\(\)/.test(grab('setSymbol')));
 }
 
 console.log(`\n${fail ? '\x1b[31m' : '\x1b[32m'}${pass} passed, ${fail} failed\x1b[0m`);
