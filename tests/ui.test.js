@@ -129,6 +129,7 @@ eval([
   'marketOpenNow', 'setNet', 'candlesLate', 'nextOpenLocal', 'paintEventLive', 'mkMeta',
   'paintAlertCard', 'alertsOf', 'alertsHtml', 'renderMarketSwitch',
   'taSMA', 'taEMA', 'taRSI', 'taMACD', 'taBB', 'toHeikin',
+  'taATR', 'taSupertrend', 'taStoch', 'taVWAPbands',
 ].map(n => grab(n)).join('\n'));
 ['recordZoneAlert', 'renderZoneAlerts', 'zoneAlerts', 'latestTrade',
  'openMenu', 'closeMenu', 'toggleMenu', 'setView', 'endIntro', 'playIntro',
@@ -139,7 +140,8 @@ eval([
  'jnKeyOf', 'jnByDay', 'jnCalHtml', 'jnListHtml', 'jnMonth', 'jnPickDay', 'jnRepaint',
  'marketOpenNow', 'setNet', 'candlesLate', 'nextOpenLocal', 'paintEventLive', 'mkMeta',
  'paintAlertCard', 'alertsOf', 'alertsHtml', 'renderMarketSwitch',
- 'taSMA', 'taEMA', 'taRSI', 'taMACD', 'taBB', 'toHeikin'].forEach(n => { global[n] = eval(n); });
+ 'taSMA', 'taEMA', 'taRSI', 'taMACD', 'taBB', 'toHeikin',
+ 'taATR', 'taSupertrend', 'taStoch', 'taVWAPbands'].forEach(n => { global[n] = eval(n); });
 // the page's own price formatter, kept out of the sandbox so the older stub survives
 const realFmtPx = new Function('mkMeta', 'currentSymbol',
   grab('fmtPx').replace('function fmtPx', 'return function fmtPx'))(mkMeta, 'XAUUSD');
@@ -212,10 +214,10 @@ section('view switching');
   setView('chart');
   ok('chart only', document.body.attrs['data-view'] === 'chart' && localStorage.getItem('astra6_view') === 'chart');
   setView('signal');
-  ok('signal only', document.body.attrs['data-view'] === 'signal');
+  ok('a view that no longer exists falls back to the chart', document.body.attrs['data-view'] === 'chart');
   setView('all');
-  ok('both', document.body.attrs['data-view'] === 'all');
-  ok('hint text follows', els['view-hint'].textContent === 'chart and signal together');
+  ok('so does both', document.body.attrs['data-view'] === 'chart');
+  ok('hint text follows', els['view-hint'].textContent === 'trading chart only');
 }
 
 section('the ladder and the card quote the same numbers');
@@ -590,9 +592,12 @@ section('the drawer stays clean');
   ok('the legend moved down to make room', /#tv-legend\{position:absolute;top:44px/.test(html));
   ok('sections are divided, not stacked blindly', /\.menu-sec\{[^}]*border-top:1px solid/.test(html));
   ok('the signal list is no longer a drawer ladder', html.indexOf('id="alerts-list"') < 0);
-  const order = ['View', 'Economic calendar', 'Latest news', 'Trade journal', 'Strategy']
+  const order = ['View', 'Economic calendar', 'Latest news', 'Trade journal', 'Price source', 'Tools']
     .map(t => menu.indexOf(t));
   ok('the menu reads in a sane order', order.every((v, i) => v > 0 && (i === 0 || v > order[i - 1])), order);
+  ok('the drawer no longer offers a strategy switch', menu.indexOf('RENDER') < 0 && menu.indexOf('data-strategy') < 0);
+  ok('the drawer offers home and chart only', menu.indexOf("data-view=\"home\"") > 0 && menu.indexOf("data-view=\"chart\"") > 0
+     && menu.indexOf("setView('signal')") < 0 && menu.indexOf("setView('all')") < 0);
   ok('setTimeframe still finds its buttons', /querySelectorAll\('\[data-tf\]'\)/.test(grab('setTimeframe')));
 }
 
@@ -772,8 +777,59 @@ section('the chart carries real trading tools');
   ok('Heikin bars keep their time', hk[1].time === 2);
 }
 
-console.log(`\n${fail ? '\x1b[31m' : '\x1b[32m'}${pass} passed, ${fail} failed\x1b[0m`);
-process.exit(fail ? 1 : 0);
 
+
+section('one strategy, one price, more tools');
+{
+  // the render rule set is gone, everywhere
+  ok('no RENDER strategy button is left', !/>RENDER</.test(html) && html.indexOf('data-strategy="render"') < 0);
+  ok('no strategy switch is left', html.indexOf('data-strategy=') < 0);
+  ok('the strategy is fixed to volume', /window\._strategy = 'volume';/.test(html));
+  ok('the render zone feed is never called', !/setInterval\(fetchZones/.test(html) && !/fetchZones\(\);lastPrice/.test(html));
+
+  // switching market blanks the chart before the new feed lands
+  const sym = grab('setSymbol');
+  ok('a switch clears the old candles', /candleSeries\.setData\(\[\]\)/.test(sym));
+  ok('a switch drops the old last price', /lastPrice=0/.test(sym));
+  ok('a switch paints the known price at once', /paintKnownPrice\(sym\)/.test(sym));
+  ok('the board can never overwrite a live price', /window\._pxCache\[it\.id\]/.test(grab('fetchBoard')));
+
+  // more tools
+  const rail = html.slice(html.indexOf('const TV_RAIL=['), html.indexOf('const TV_TOOL_NAME='));
+  const tools = [...rail.matchAll(/\{t:'(\w+)'/g)].map(m => m[1]);
+  ok('the rail gained a ray and an ellipse', tools.includes('ray') && tools.includes('ellipse'), tools.join(','));
+  ok('the panel offers arrow, channel, text and position', /const TV_EXTRA=\[\['arrow'/.test(html)
+     && html.indexOf("['text','Text']") > 0 && html.indexOf("['position','Position']") > 0);
+
+  const inds = html.slice(html.indexOf('const IND_LIST=['), html.indexOf('const PANE_KINDS='));
+  ok('fourteen indicators are on offer', (inds.match(/\['/g) || []).length === 13, String((inds.match(/\['/g)||[]).length));
+  ok('supertrend and vwap bands are there', inds.includes("'st'") && inds.includes("'vwapb'"));
+  ok('four panes are wired', /const PANE_KINDS=\['rsi','macd','stoch','atr'\]/.test(html));
+
+  // the new maths
+  const bars = Array.from({length: 40}, (_, i) => ({
+    time: 1793000000 + i*900, open: 100+i, high: 101+i, low: 99+i, close: 100.5+i, v: 1000+i,
+  }));
+  const atr = taATR(bars, 14);
+  ok('ATR is positive and finite', atr.length === 40 && atr[39] > 0 && isFinite(atr[39]), String(atr[39]));
+  ok('ATR of a steady climb is about the bar range', Math.abs(atr[39] - 2) < 0.05, String(atr[39]));
+
+  const st = taSupertrend(bars, 10, 3);
+  ok('supertrend sits below a rising market', st.line[39] < bars[39].close && st.dir[39] === 1, st.line[39] + '/' + st.dir[39]);
+  const down = taSupertrend(bars.slice().reverse().map((b,i) => ({...b, time: b.time+i})), 10, 3);
+  ok('supertrend flips in a falling market', down.dir[down.dir.length-1] === -1, String(down.dir[down.dir.length-1]));
+
+  const stoch = taStoch(bars, 14, 3, 3);
+  ok('stochastic of a rise near the highs is high', stoch.k[39] > 80 && stoch.k[39] <= 100, String(stoch.k[39]));
+  ok('stochastic %D follows %K', stoch.d[39] != null && Math.abs(stoch.d[39] - stoch.k[39]) < 12, String(stoch.d[39]));
+
+  const vb = taVWAPbands(bars);
+  ok('vwap bands bracket the vwap', vb.up[39] > vb.mid[39] && vb.dn[39] < vb.mid[39], [vb.dn[39], vb.mid[39], vb.up[39]].join('/'));
+  ok('vwap bands are the same on a flat book', (() => {
+    const flat = bars.map(b => ({...b, high: 100, low: 100, close: 100}));
+    const f = taVWAPbands(flat);
+    return Math.abs(f.up[39] - 100) < 1e-9 && Math.abs(f.dn[39] - 100) < 1e-9;
+  })());
+}
 console.log(`\n${fail ? '\x1b[31m' : '\x1b[32m'}${pass} passed, ${fail} failed\x1b[0m`);
 process.exit(fail ? 1 : 0);
