@@ -63,7 +63,7 @@ def _calendar_tv(days_ahead):
     """TradingView public economic calendar. importance: 1 high, 0 medium, -1 low."""
     now = time.time()
     fmt = "%Y-%m-%dT%H:%M:%S.000Z"
-    url = (f"{TV_CAL}?from={time.strftime(fmt, time.gmtime(now - 3 * 3600))}"
+    url = (f"{TV_CAL}?from={time.strftime(fmt, time.gmtime(now - 26 * 3600))}"
            f"&to={time.strftime(fmt, time.gmtime(now + days_ahead * 86400))}"
            f"&countries={TV_COUNTRIES}")
     r = requests.get(url, timeout=14, headers={**_UA, "Origin": "https://www.tradingview.com",
@@ -81,6 +81,7 @@ def _calendar_tv(days_ahead):
             continue
         out.append({"time": ts, "title": str(e.get("title") or "").strip(),
                     "currency": str(e.get("country") or "").strip(), "impact": impact,
+                    "actual": "" if e.get("actual") in (None, "") else str(e.get("actual")),
                     "forecast": "" if e.get("forecast") is None else str(e.get("forecast")),
                     "previous": "" if e.get("previous") is None else str(e.get("previous")),
                     "unit": str(e.get("unit") or "")})
@@ -102,6 +103,7 @@ def _calendar_ff(days_ahead):
             continue
         out.append({"time": ts, "title": str(e.get("title") or "").strip(),
                     "currency": str(e.get("country") or "").strip(), "impact": impact,
+                    "actual": str(e.get("actual") or "").strip(),
                     "forecast": str(e.get("forecast") or "").strip(),
                     "previous": str(e.get("previous") or "").strip(), "unit": ""})
     return out

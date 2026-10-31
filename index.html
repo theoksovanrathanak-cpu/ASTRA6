@@ -397,9 +397,20 @@ body[data-view="signal"] #hero-signal{position:relative}
 .fund-hero-k{font-size:9.5px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:var(--down)}
 .fund-hero-t{font-size:14.5px;font-weight:750;letter-spacing:-.2px;margin-top:3px}
 .fund-hero-m{font-size:11px;color:var(--ink-2);margin-top:4px}
-.fund-day{font-size:10px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);margin:8px 0 2px}
-.ev{display:grid;grid-template-columns:52px 30px minmax(0,1fr) auto;gap:8px;align-items:center;
-  padding:7px 9px;border-radius:9px;border:1px solid var(--line-soft);background:#fcfcfd;font-size:11.5px}
+.fund-day{font-size:10px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);margin:8px 0 2px;
+  display:flex;align-items:center;gap:7px}
+.fund-day:after{content:"";flex:1 1 auto;height:1px;background:var(--line-soft)}
+.ev-legend{display:flex;justify-content:space-between;font-size:9px;font-weight:700;letter-spacing:.4px;
+  text-transform:uppercase;color:var(--muted);padding:0 9px 2px}
+.ev{display:grid;grid-template-columns:46px 14px 26px minmax(0,1fr) auto;gap:7px;align-items:center;
+  padding:6px 9px;border-radius:9px;border:1px solid var(--line-soft);background:#fcfcfd;font-size:11.5px}
+.imp{display:inline-flex;gap:1.5px;align-items:center}
+.imp i{width:3.5px;height:3.5px;border-radius:50%;background:var(--line);display:block}
+.imp.h i{background:var(--down)}
+.imp.m i:nth-child(1),.imp.m i:nth-child(2){background:var(--gold)}
+.ev.done{opacity:.72}
+.ev-a{font-weight:800}
+.ev-a.up{color:var(--up)} .ev-a.dn{color:var(--down)}
 [data-theme="dark"] .ev{background:var(--hold-bg)}
 .ev.hi{border-color:var(--down-line)}
 .ev-time{font-size:10.5px;color:var(--muted)}
@@ -437,6 +448,35 @@ body[data-view="signal"] #hero-signal{position:relative}
 .jn-del{flex:0 0 auto;border:0;background:transparent;color:var(--muted);font-size:15px;cursor:pointer;line-height:1}
 .jn-del:hover{color:var(--down)}
 .jn-empty{font-size:11.5px;color:var(--muted);text-align:center;padding:14px 6px;line-height:1.5}
+
+/* month calendar, the way a prop-firm journal draws it */
+.jcal-nav{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:2px 0 8px}
+.jcal-m{font-size:12.5px;font-weight:800;letter-spacing:-.2px}
+.jcal-ar{width:29px;height:29px;border-radius:8px;border:1px solid var(--line);background:var(--surface);
+  color:var(--ink-2);font-size:15px;line-height:1;cursor:pointer;padding:0}
+.jcal-ar:hover{background:var(--line-soft);color:var(--ink)}
+.jcal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.jcal-h{font-size:8.5px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);
+  text-align:center;padding-bottom:2px}
+.jcal-e{height:46px}
+.jcal-d{height:46px;border-radius:9px;border:1px solid var(--line-soft);background:var(--surface);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
+  cursor:pointer;padding:2px;font-family:inherit;color:var(--ink)}
+.jcal-d:hover{border-color:var(--line);background:var(--line-soft)}
+.jcal-n{font-size:10px;font-weight:700;color:var(--ink-2);line-height:1}
+.jcal-r{font-size:9px;font-weight:800;letter-spacing:-.2px;line-height:1.15;white-space:nowrap}
+.jcal-d.up{background:rgba(16,185,129,.13);border-color:var(--up-line)}
+.jcal-d.up .jcal-r{color:var(--up)}
+.jcal-d.dn{background:rgba(239,68,68,.11);border-color:var(--down-line)}
+.jcal-d.dn .jcal-r{color:var(--down)}
+.jcal-d.op .jcal-r{color:var(--muted)}
+.jcal-d.today .jcal-n{color:var(--ink);font-weight:900}
+.jcal-d.today{box-shadow:inset 0 0 0 1.5px var(--brand,#2962ff)}
+.jcal-d.sel{outline:2px solid var(--brand,#2962ff);outline-offset:-2px}
+.jcal-sum{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--muted);margin:8px 1px 0}
+.jcal-sum b{font-weight:800}
+.jcal-sum .up{color:var(--up)} .jcal-sum .dn{color:var(--down)}
+.jcal-all{border:0;background:transparent;color:var(--brand,#2962ff);font-size:10.5px;font-weight:700;cursor:pointer;padding:0}
 
 /* ---------- home: nothing opens by itself ---------- */
 .home{display:none}
@@ -913,16 +953,23 @@ function fundHtml(d){
      +'<div class="fund-hero-t">'+esc(nh.title)+'</div>'
      +'<div class="fund-hero-m mono">'+esc(evDay(nh.time))+' '+esc(evClock(nh.time))+(m.length?' · '+m.join(' · '):'')+'</div></div>';
   }
-  h+='<div class="sheet-sec">Economic calendar · high and medium impact</div>';
+  h+='<div class="sheet-sec">Economic calendar · high and medium impact</div>'
+   +'<div class="ev-legend"><span>time · impact · cur · event</span><span>actual · forecast · previous</span></div>';
   if(!cal.length) h+='<div class="jn-empty">No events returned right now.</div>';
   let day='';
   for(const e of cal){
     const dd=evDay(e.time);
     if(dd!==day){ day=dd; h+='<div class="fund-day">'+esc(dd)+'</div>'; }
+    const u=e.unit||'';
     const nums=[];
-    if(e.forecast) nums.push('f '+esc(e.forecast)+(e.unit||''));
-    if(e.previous) nums.push('p '+esc(e.previous)+(e.unit||''));
-    h+='<div class="ev '+(e.impact==='High'?'hi':'md')+'"><span class="ev-time mono">'+esc(evClock(e.time))+'</span>'
+    if(e.actual) nums.push('<b class="ev-a">'+esc(e.actual)+esc(u)+'</b>');
+    else if(e.time*1000<Date.now()) nums.push('<span style="color:var(--muted)">—</span>');
+    if(e.forecast) nums.push(esc(e.forecast)+esc(u));
+    if(e.previous) nums.push(esc(e.previous)+esc(u));
+    const draft=(!e.actual && e.time*1000<Date.now())?' done':'';
+    h+='<div class="ev '+(e.impact==='High'?'hi':'md')+draft+'">'
+     +'<span class="ev-time mono">'+esc(evClock(e.time))+'</span>'
+     +'<span class="imp '+(e.impact==='High'?'h':'m')+'"><i></i><i></i><i></i></span>'
      +'<span class="ev-cur">'+esc(e.currency)+'</span><span class="ev-t">'+esc(e.title)+'</span>'
      +'<span class="ev-n mono">'+nums.join(' · ')+'</span></div>';
   }
@@ -973,12 +1020,14 @@ function jnAdd(){
   const stop=parseFloat(g('jn-stop')?g('jn-stop').value:'');
   const exitRaw=g('jn-exit')?(g('jn-exit').value||'').trim():'';
   const note=g('jn-note')?(g('jn-note').value||'').trim().slice(0,180):'';
+  const dateStr=g('jn-date')?(g('jn-date').value||'').trim():'';
+  const at=dateStr?(Math.floor(new Date(dateStr+'T12:00:00').getTime()/1000)||Math.floor(Date.now()/1000)):Math.floor(Date.now()/1000);
   if(!isFinite(entry)||!isFinite(stop)){if(err)err.textContent='Entry and stop must both be numbers.';return;}
   if(entry===stop){if(err)err.textContent='Entry and stop cannot be the same price.';return;}
   const exit=exitRaw===''?null:parseFloat(exitRaw);
   if(exit!==null&&!isFinite(exit)){if(err)err.textContent='Exit must be a number, or empty for an open trade.';return;}
   const a=jnLoad();
-  a.unshift({id:Date.now(),sym,side,entry,stop,exit,note,at:Math.floor(Date.now()/1000)});
+  a.unshift({id:Date.now(),sym,side,entry,stop,exit,note,at});
   jnSave(a);
   openJournal();
 }
@@ -995,29 +1044,71 @@ function jnUseSignal(){
   const err=document.getElementById('jn-err');
   if(err) err.textContent=(s.entry==null?'No live signal right now - type the levels yourself.':'Filled from the current signal.');
 }
-function journalHtml(){
-  const st=jnStats(), a=st.a;
-  const closed=st.closed, tot=st.tot;
-  const avg=closed.length?tot/closed.length:0;
-  const open=a.length-closed.length;
-  let h='<div class="menu-stats" style="justify-content:space-between;gap:10px">'
-   +'<div><b class="mono">'+a.length+'</b><span>trades</span></div>'
-   +'<div><b class="mono">'+(closed.length?Math.round(st.wins/closed.length*100)+'%':'--')+'</b><span>win rate</span></div>'
-   +'<div><b class="mono" style="color:'+(tot>=0?'var(--up)':'var(--down)')+'">'+(tot>=0?'+':'')+tot.toFixed(1)+'R</b><span>total R</span></div>'
-   +'<div><b class="mono">'+(closed.length?((avg>=0?'+':'')+avg.toFixed(2)):'--')+'</b><span>avg R</span></div>'
-   +'<div><b class="mono">'+open+'</b><span>open</span></div></div>';
-  h+='<div class="sheet-sec">Log a trade</div><div class="jn-form">'
-   +'<label class="jn-f"><span>Market</span><select id="jn-sym"><option value="XAUUSD">GOLD · XAUUSD</option><option value="BTCUSD">BITCOIN · BTCUSD</option></select></label>'
-   +'<label class="jn-f"><span>Side</span><select id="jn-side"><option value="BUY">BUY</option><option value="SELL">SELL</option></select></label>'
-   +'<label class="jn-f"><span>Entry</span><input id="jn-entry" inputmode="decimal" placeholder="0.00"></label>'
-   +'<label class="jn-f"><span>Stop</span><input id="jn-stop" inputmode="decimal" placeholder="0.00"></label>'
-   +'<label class="jn-f"><span>Exit · empty = open</span><input id="jn-exit" inputmode="decimal" placeholder="optional"></label>'
-   +'<label class="jn-f jn-wide"><span>Note</span><textarea id="jn-note" placeholder="why you took it"></textarea></label>'
-   +'<div class="jn-acts"><button class="btn btn-dark btn-sm" onclick="jnAdd()">Save trade</button>'
-   +'<button class="btn btn-sm" onclick="jnUseSignal()">Use live signal</button></div>'
-   +'<div class="jn-wide" id="jn-err" style="font-size:11px;color:var(--down);min-height:15px"></div></div>';
-  h+='<div class="sheet-sec">Your trades</div>';
-  if(!a.length) h+='<div class="jn-empty">No trades yet.<br>Log one and it stays on this device.</div>';
+// ---- month calendar, FTMO style: a cell per day with that day's R ----
+let _jnM=new Date(); _jnM.setDate(1);
+let _jnDay=null;
+function jnKeyOf(ts){const d=new Date((ts||0)*1000);
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function jnByDay(a){
+  const m={};
+  for(const t of a){
+    const k=jnKeyOf(t.at), s=m[k]||(m[k]={n:0,closed:0,r:0});
+    s.n++; const r=jnR(t); if(r!=null){s.closed++; s.r+=r;}
+  }
+  return m;
+}
+function jnMonth(d){ _jnM=new Date(_jnM.getFullYear(),_jnM.getMonth()+d,1); _jnDay=null; jnRepaint(); }
+function jnPickDay(k){ _jnDay=(k && _jnDay!==k)?k:null; jnRepaint(); }
+function jnRepaint(){
+  const c=document.getElementById('jn-cal'); if(c) c.innerHTML=jnCalHtml();
+  const l=document.getElementById('jn-list'); if(l) l.innerHTML=jnListHtml();
+  jnStats();
+}
+function jnCalHtml(){
+  const a=jnLoad(), byDay=jnByDay(a);
+  const y=_jnM.getFullYear(), mo=_jnM.getMonth();
+  const first=new Date(y,mo,1), startCol=(first.getDay()+6)%7;   // Monday first
+  const days=new Date(y,mo+1,0).getDate();
+  const today=jnKeyOf(Math.floor(Date.now()/1000));
+  let h='<div class="jcal-nav"><button class="jcal-ar" onclick="jnMonth(-1)" aria-label="Previous month">‹</button>'
+   +'<span class="jcal-m">'+esc(first.toLocaleDateString([],{month:'long',year:'numeric'}))+'</span>'
+   +'<button class="jcal-ar" onclick="jnMonth(1)" aria-label="Next month">›</button></div><div class="jcal">';
+  for(const d of ['Mo','Tu','We','Th','Fr','Sa','Su']) h+='<div class="jcal-h">'+d+'</div>';
+  for(let i=0;i<startCol;i++) h+='<div class="jcal-e"></div>';
+  for(let d=1;d<=days;d++){
+    const k=y+'-'+String(mo+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    const s=byDay[k], cls=['jcal-d'];
+    if(s&&s.closed) cls.push(s.r>0?'up':s.r<0?'dn':'fl');
+    else if(s&&s.n) cls.push('op');
+    if(k===today) cls.push('today');
+    if(k===_jnDay) cls.push('sel');
+    const rtxt=s&&s.n?(s.closed?((s.r>=0?'+':'')+s.r.toFixed(1)+'R'):'open'):'';
+    h+='<button class="'+cls.join(' ')+'" data-day="'+k+'" onclick="jnPickDay(this.dataset.day)" aria-label="'+k+'">'
+     +'<span class="jcal-n">'+d+'</span>'
+     +(rtxt?'<span class="jcal-r">'+esc(rtxt)+'</span>':'')+'</button>';
+  }
+  h+='</div>';
+  const mk=y+'-'+String(mo+1).padStart(2,'0');
+  let n=0,c=0,tot=0;
+  for(const k in byDay) if(k.indexOf(mk)===0){ n+=byDay[k].n; c+=byDay[k].closed; tot+=byDay[k].r; }
+  h+='<div class="jcal-sum"><span><b>'+n+'</b> trade'+(n===1?'':'s')+' · <b>'+c+'</b> closed</span>'
+   +'<span class="'+(tot>=0?'up':'dn')+'"><b>'+(tot>=0?'+':'')+tot.toFixed(1)+'R</b> this month</span></div>';
+  return h;
+}
+function jnListHtml(){
+  const all=jnLoad();
+  const a=_jnDay?all.filter(t=>jnKeyOf(t.at)===_jnDay):all;
+  let head='<div class="sheet-sec">'+( _jnDay
+      ? new Date(_jnDay+'T12:00:00').toLocaleDateString([],{weekday:'short',day:'2-digit',month:'short'})+' · '+a.length+' trade'+(a.length===1?'':'s')
+      : 'All trades' )
+    +'</div>';
+  if(_jnDay) head='<div class="sheet-sec" style="display:flex;align-items:center;justify-content:space-between">'
+    +'<span>'+esc(new Date(_jnDay+'T12:00:00').toLocaleDateString([],{weekday:'short',day:'2-digit',month:'short'}))+' · '+a.length+' trade'+(a.length===1?'':'s')+'</span>'
+    +'<button class="jcal-all" onclick="jnPickDay(null)">Show all</button></div>';
+  if(!a.length) return head+'<div class="jn-empty">'+( _jnDay
+      ? 'No trades on this day.'
+      : 'No trades yet.<br>Log one and it stays on this device.')+'</div>';
+  let h=head;
   for(const t of a){
     const r=jnR(t);
     const rtxt=r==null?'open':((r>=0?'+':'')+r.toFixed(2)+'R');
@@ -1029,6 +1120,32 @@ function journalHtml(){
      +'<span class="jn-r '+cls+'">'+rtxt+'</span>'
      +'<button class="jn-del" onclick="jnDel('+JSON.stringify(t.id)+')" aria-label="Delete">×</button></div>';
   }
+  return h;
+}
+function journalHtml(){
+  const st=jnStats(), a=st.a;
+  const closed=st.closed, tot=st.tot;
+  const avg=closed.length?tot/closed.length:0;
+  const open=a.length-closed.length;
+  let h='<div class="menu-stats" style="justify-content:space-between;gap:10px">'
+   +'<div><b class="mono">'+a.length+'</b><span>trades</span></div>'
+   +'<div><b class="mono">'+(closed.length?Math.round(st.wins/closed.length*100)+'%':'--')+'</b><span>win rate</span></div>'
+   +'<div><b class="mono" style="color:'+(tot>=0?'var(--up)':'var(--down)')+'">'+(tot>=0?'+':'')+tot.toFixed(1)+'R</b><span>total R</span></div>'
+   +'<div><b class="mono">'+(closed.length?((avg>=0?'+':'')+avg.toFixed(2)):'--')+'</b><span>avg R</span></div>'
+   +'<div><b class="mono">'+open+'</b><span>open</span></div></div>';
+  h+='<div id="jn-cal">'+jnCalHtml()+'</div>';
+  h+='<div class="sheet-sec">Log a trade</div><div class="jn-form">'
+   +'<label class="jn-f"><span>Market</span><select id="jn-sym"><option value="XAUUSD">GOLD · XAUUSD</option><option value="BTCUSD">BITCOIN · BTCUSD</option></select></label>'
+   +'<label class="jn-f"><span>Side</span><select id="jn-side"><option value="BUY">BUY</option><option value="SELL">SELL</option></select></label>'
+   +'<label class="jn-f"><span>Entry</span><input id="jn-entry" inputmode="decimal" placeholder="0.00"></label>'
+   +'<label class="jn-f"><span>Stop</span><input id="jn-stop" inputmode="decimal" placeholder="0.00"></label>'
+   +'<label class="jn-f"><span>Exit · empty = open</span><input id="jn-exit" inputmode="decimal" placeholder="optional"></label>'
+   +'<label class="jn-f"><span>Date</span><input id="jn-date" type="date" value="'+new Date().toISOString().slice(0,10)+'"></label>'
+   +'<label class="jn-f jn-wide"><span>Note</span><textarea id="jn-note" placeholder="why you took it"></textarea></label>'
+   +'<div class="jn-acts"><button class="btn btn-dark btn-sm" onclick="jnAdd()">Save trade</button>'
+   +'<button class="btn btn-sm" onclick="jnUseSignal()">Use live signal</button></div>'
+   +'<div class="jn-wide" id="jn-err" style="font-size:11px;color:var(--down);min-height:15px"></div></div>';
+  h+='<div id="jn-list">'+jnListHtml()+'</div>';
   h+='<div class="sheet-note">Stored only in this browser. Nothing is sent anywhere.</div>';
   return h;
 }

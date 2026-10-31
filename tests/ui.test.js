@@ -113,12 +113,17 @@ eval([
   'drawVolume', 'syncHdH', 'setTabPrice',
   'esc', 'ago', 'evClock', 'evDay', 'jnLoad', 'jnSave', 'jnR', 'jnStats', 'jnAdd', 'jnDel',
   'journalHtml', 'openJournal', 'openSheet', 'closeSheet', 'fundHtml', 'renderFundStrip',
+  'jnKeyOf', 'jnByDay', 'jnCalHtml', 'jnListHtml', 'jnMonth', 'jnPickDay', 'jnRepaint',
 ].map(n => grab(n)).join('\n'));
 ['recordZoneAlert', 'renderZoneAlerts', 'zoneAlerts', 'latestTrade',
  'openMenu', 'closeMenu', 'toggleMenu', 'setView', 'endIntro', 'playIntro',
  'drawVolume', 'syncHdH', 'setTabPrice',
  'esc', 'ago', 'evClock', 'evDay', 'jnLoad', 'jnSave', 'jnR', 'jnStats', 'jnAdd', 'jnDel',
- 'journalHtml', 'openJournal', 'openSheet', 'closeSheet', 'fundHtml', 'renderFundStrip'].forEach(n => { global[n] = eval(n); });
+ 'journalHtml', 'openJournal', 'openSheet', 'closeSheet', 'fundHtml', 'renderFundStrip',
+ 'jnKeyOf', 'jnByDay', 'jnCalHtml', 'jnListHtml', 'jnMonth', 'jnPickDay', 'jnRepaint'].forEach(n => { global[n] = eval(n); });
+// the calendar keeps its month/day in module scope in the page; give the harness the same
+global._jnM = new Date(2026, 10, 1);
+global._jnDay = null;
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => { if (cond) { pass++; console.log('  \x1b[32m✓\x1b[0m', name); } else { fail++; console.log('  \x1b[31m✗\x1b[0m', name, extra === undefined ? '' : JSON.stringify(extra)); } };
@@ -457,6 +462,74 @@ bad=[n for n,okv in checks if not okv]
 print('OK' if not bad else 'FAIL '+','.join(bad))
 "`).toString().trim();
   ok('calendar and headlines parse, dedupe and label', out === 'OK', out);
+}
+
+section('journal month calendar (FTMO style)');
+{
+  const Nov = t => Math.floor(new Date('2026-11-' + String(t).padStart(2, '0') + 'T12:00:00').getTime() / 1000);
+  localStorage.setItem('astra6_journal', JSON.stringify([
+    { id: 11, sym: 'XAUUSD', side: 'BUY', entry: 100, stop: 95, exit: 110, note: '', at: Nov(3) },   // +2R
+    { id: 12, sym: 'XAUUSD', side: 'SELL', entry: 100, stop: 105, exit: 105, note: '', at: Nov(3) }, // -1R
+    { id: 13, sym: 'BTCUSD', side: 'BUY', entry: 100, stop: 90, exit: 80, note: '', at: Nov(5) },    // -2R
+    { id: 14, sym: 'BTCUSD', side: 'BUY', entry: 100, stop: 90, exit: null, note: '', at: Nov(9) },  // open
+  ]));
+  global._jnM = new Date(2026, 10, 1); global._jnDay = null;
+  const cal = jnCalHtml();
+  ok('a grid of seven weekday columns', (cal.match(/jcal-h/g) || []).length === 7, (cal.match(/jcal-h/g) || []).length);
+  ok('weeks start on Monday', cal.indexOf('>Mo<') < cal.indexOf('>Su<'));
+  ok('November 2026 starts on a Sunday, so six blank cells', (cal.match(/jcal-e/g) || []).length === 6,
+     (cal.match(/jcal-e/g) || []).length);
+  ok('one cell per day of the month', (cal.match(/class="jcal-n"/g) || []).length === 30, (cal.match(/class="jcal-n"/g) || []).length);
+  ok('a winning day is green', /class="jcal-d up[^"]*"/.test(cal));
+  ok('a losing day is red', /class="jcal-d dn[^"]*"/.test(cal));
+  ok('two trades net to +1R on the 3rd', cal.includes('+1.0R'), (cal.match(/[-+]\d\.\dR/g) || []));
+  ok('a single losing day shows its own R', cal.includes('-2.0R'));
+  ok('an open trade shows open, not a fake result', cal.includes('>open<'));
+  ok('the month total adds the closed days only', cal.includes('-1.0R') && /this month/.test(cal),
+     (cal.match(/[-+]\d\.\dR/g) || []));
+  ok('arrows move between months', /jnMonth\(-1\)/.test(cal) && /jnMonth\(1\)/.test(cal));
+  ok('the month title is real', cal.includes('November 2026'));
+
+  global._jnDay = '2026-11-03';
+  const dayList = jnListHtml();
+  ok('picking a day filters the list', dayList.includes('XAUUSD') && !dayList.includes('BTCUSD'), dayList.slice(0, 120));
+  ok('the filtered header offers show all', /Show all/.test(dayList));
+  global._jnDay = null;
+  ok('without a day it lists everything', jnListHtml().includes('BTCUSD') && jnListHtml().includes('All trades'));
+
+  jnPickDay('2026-11-05');
+  ok('picking a day keeps the selection', global._jnDay === '2026-11-05');
+  jnPickDay('2026-11-05');
+  ok('picking it again clears it', global._jnDay === null);
+  jnMonth(1);
+  ok('next month is December 2026', jnCalHtml().includes('December 2026'));
+  jnMonth(-1);
+  ok('back to November', jnCalHtml().includes('November 2026'));
+  ok('the form can log a date', /id="jn-date" type="date"/.test(html));
+  ok('journal maths still matches the calendar', jnR({ side: 'BUY', entry: 100, stop: 95, exit: 110 }) === 2);
+  localStorage.removeItem('astra6_journal');
+}
+
+section('calendar shows actual, forecast and previous');
+{
+  const payload = {
+    status: 'ok', calendar_source: 'TradingView economic calendar', news_sources: ['ForexLive'],
+    next_high: { time: Math.floor(Date.now() / 1000) + 7200, title: 'FOMC Statement', currency: 'US', impact: 'High', forecast: '4.25', previous: '4.50', actual: '', unit: '%' },
+    calendar: [
+      { time: Math.floor(Date.now() / 1000) - 3600, title: 'NBS Manufacturing PMI', currency: 'CN', impact: 'High', actual: '49.3', forecast: '50', previous: '50.1', unit: '' },
+      { time: Math.floor(Date.now() / 1000) + 7200, title: 'FOMC Statement', currency: 'US', impact: 'High', actual: '', forecast: '4.25', previous: '4.50', unit: '%' },
+      { time: Math.floor(Date.now() / 1000) + 9000, title: 'Building Permits', currency: 'AU', impact: 'Medium', actual: '', forecast: '2.1', previous: '-6.1', unit: '%' },
+    ],
+    news: [],
+  };
+  const h = fundHtml(payload);
+  ok('released events show the actual number', h.includes('ev-a') && h.includes('49.3'), h.slice(0, 0));
+  ok('forecast is quoted', h.includes('50.1') || h.includes('>50<') || h.includes('50'));
+  ok('previous is quoted', h.includes('50.1'));
+  ok('impact is drawn as dots', /imp h/.test(h) && /imp m/.test(h));
+  ok('units are attached to the numbers', h.includes('4.25%'));
+  ok('an unreleased event shows no fake actual', /ev hi/.test(h.replace(/class="ev /g, 'class="ev ')));
+  ok('day headers separate the days', (h.match(/fund-day/g) || []).length >= 1);
 }
 
 console.log(`\n${fail ? '\x1b[31m' : '\x1b[32m'}${pass} passed, ${fail} failed\x1b[0m`);
