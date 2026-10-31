@@ -51,6 +51,7 @@ if _LEGACY:
         print(f"Vibe-Trading not available: {e}")
 
 from fastapi import FastAPI, Header, HTTPException, Depends, Request, Query
+from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, FileResponse
@@ -520,7 +521,7 @@ def fetch_fast_price(venue=None):
     v = v.strip()
     key = v.upper() or "XAUS"
     hit = _FP_BY_VENUE.get(key)
-    if hit and now - hit["time"] < 0.8:
+    if hit and now - hit["time"] < _LIVE_TTL:
         return hit["data"]
     # 0. TradingView venue feed - REAL bid/ask from the same place the TradingView app reads
     if v and key not in ("XAUS", "XAUS.COM", "SPOT", "AUTO"):
@@ -4062,6 +4063,86 @@ def get_volume(symbol: str = "XAUUSD", venue: str = None, rows: int = 48,
         return {"status": "error", "error": str(e), "real": True, "user": email}
 
 
+# === live price push (SSE) ===================================================
+# The poller hit the server every 1.5 s and the server cached for 0.8 s, so a price
+# change could take 2.3 s to reach the screen. Instead one ticker thread keeps each
+# open stream fed, and a change is written the moment it happens.
+import threading, json as _json, queue as _queue
+
+_TICK_CACHE = {}          # (symbol, venue) -> {"data": {...}, "t": time}
+_TICK_LOCK = threading.Lock()
+_TICK_STARTED = set()
+
+
+def _ticker_loop(key):
+    """Refresh one symbol/venue pair a few times a second; one thread per key."""
+    import io, contextlib
+    symbol, venue = key
+    while True:
+        try:
+            # the fetch helpers print every price they see; on a free instance that is
+            # pure log spam, so the ticker keeps them quiet
+            with contextlib.redirect_stdout(io.StringIO()):
+                data = fetch_btc_price(venue) if symbol == "BTCUSD" else fetch_fast_price(venue)
+            if data and (data.get("mid") or data.get("price")):
+                with _TICK_LOCK:
+                    _TICK_CACHE[key] = {"data": data, "t": time.time()}
+        except Exception as e:
+            print("ticker err", key, e)
+        time.sleep(0.35)
+
+
+def _ensure_ticker(symbol, venue):
+    key = (symbol, venue or "")
+    if key in _TICK_STARTED:
+        return key
+    _TICK_STARTED.add(key)
+    threading.Thread(target=_ticker_loop, args=(key,), daemon=True).start()
+    return key
+
+
+def _stream_payload(symbol, data):
+    mid = data.get("mid") or data.get("price")
+    out = {"symbol": symbol, "price": mid, "mid": mid,
+           "bid": data.get("bid"), "ask": data.get("ask"),
+           "change_pct": data.get("change_pct"),
+           "venue": data.get("venue"), "source": data.get("source"),
+           "ts": round(time.time() * 1000),
+           "venue_ts": round(float(data.get("timestamp") or 0) * 1000) or None,
+           "real": True}
+    return out
+
+
+@app.get("/api/stream/price")
+def stream_price(symbol: str = "XAUUSD", venue: str = None):
+    """Server-sent events: one line per price change, no polling on the client."""
+    sym = "BTCUSD" if str(symbol).upper().startswith("BTC") else "XAUUSD"
+    key = _ensure_ticker(sym, venue)
+
+    def gen():
+        last = None
+        yield "retry: 2000\n\n"
+        beat = time.time()
+        while True:
+            with _TICK_LOCK:
+                hit = _TICK_CACHE.get(key)
+            if hit:
+                p = _stream_payload(sym, hit["data"])
+                stamp = (p["price"], p["bid"], p["ask"], p["venue"])
+                if stamp != last:
+                    last = stamp
+                    yield f"data: {_json.dumps(p)}\n\n"
+            if time.time() - beat > 10:
+                beat = time.time()
+                yield ": keep-alive\n\n"     # keeps proxies from dropping the stream
+            time.sleep(0.18)
+
+    return StreamingResponse(gen(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache, no-transform",
+                                      "X-Accel-Buffering": "no",
+                                      "Connection": "keep-alive"})
+
+
 @app.get("/api/btc/price")
 def btc_price(venue: str = None, email: str = "free@astra6.com"):
     px = fetch_btc_price(venue)
@@ -4161,9 +4242,13 @@ def history(granularity: str = "M15", count: int = 100, venue: str = None, email
 
 # === TradingView venue feed - REAL bid/ask/mid per venue, public scanner, no key ===
 TV_VENUES = ["OANDA:XAUUSD", "FX_IDC:XAUUSD", "FOREXCOM:XAUUSD", "TVC:GOLD"]
+# How long a price may be reused. Small on purpose: the ticker thread refreshes ~4x/s,
+# so anything above this is queued straight in front of the user's eyes.
+_LIVE_TTL = 0.4
 _TV_CACHE = {"time": 0, "data": {}}
 
-def fetch_tradingview(ttl=5):
+def fetch_tradingview(ttl=None):
+    ttl = _LIVE_TTL if ttl is None else ttl
     """REAL per-venue XAUUSD prices from TradingView's public scanner (same feed the app shows)."""
     now = time.time()
     if _TV_CACHE["data"] and now - _TV_CACHE["time"] < ttl:
