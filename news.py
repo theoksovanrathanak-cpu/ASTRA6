@@ -170,7 +170,7 @@ def headlines(limit=30):
             if len(out) >= 60:
                 break
     _cache["news"] = {"t": now, "d": out, "sources": reachable}
-    return out
+    return out[:limit]      # the cache keeps 60; the caller gets what it asked for
 
 
 def fundamentals(limit=30):

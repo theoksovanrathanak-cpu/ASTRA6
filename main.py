@@ -4088,6 +4088,36 @@ def get_volume(symbol: str = "XAUUSD", venue: str = None, rows: int = 48,
         return {"status": "error", "error": str(e), "real": True, "user": email}
 
 
+@app.get("/api/calendar")
+def get_calendar(days: int = 10):
+    """Just the economic calendar: High/Medium impact events, soonest first."""
+    try:
+        import news as NEWS
+        cal = NEWS.calendar(days_ahead=max(1, min(30, int(days or 10))))
+        now_ts = int(time.time())
+        nxt = next((e for e in cal if e["impact"] == "High" and e["time"] >= now_ts), None)
+        if nxt is None:
+            nxt = next((e for e in cal if e["time"] >= now_ts), None)
+        return {"status": "ok", "updated": now_ts, "calendar": cal, "next_high": nxt,
+                "source": NEWS._cache["cal"].get("src") or NEWS.CAL_SOURCE_TV, "real": True}
+    except Exception as e:
+        print("calendar err", e)
+        return {"status": "error", "error": str(e), "real": True}
+
+
+@app.get("/api/news")
+def get_news(limit: int = 24):
+    """Just the headlines: market feeds, newest first, each with its source and link."""
+    try:
+        import news as NEWS
+        rows = NEWS.headlines(limit=max(5, min(60, int(limit or 24))))
+        return {"status": "ok", "updated": int(time.time()), "news": rows,
+                "sources": NEWS._cache["news"].get("sources", []), "real": True}
+    except Exception as e:
+        print("news err", e)
+        return {"status": "error", "error": str(e), "real": True}
+
+
 @app.get("/api/fundamentals")
 def get_fundamentals(limit: int = 24):
     """Real market-moving news: economic calendar + live headlines from public feeds.

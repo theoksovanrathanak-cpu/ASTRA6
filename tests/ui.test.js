@@ -112,14 +112,16 @@ eval([
   'openMenu', 'closeMenu', 'toggleMenu', 'setView', 'endIntro', 'playIntro',
   'drawVolume', 'syncHdH', 'setTabPrice',
   'esc', 'ago', 'evClock', 'evDay', 'jnLoad', 'jnSave', 'jnR', 'jnStats', 'jnAdd', 'jnDel',
-  'journalHtml', 'openJournal', 'openSheet', 'closeSheet', 'fundHtml', 'renderFundStrip',
+  'journalHtml', 'openJournal', 'openSheet', 'closeSheet', 'calHtml', 'newsHtml',
+  'renderCalStrip', 'renderNewsStrip',
   'jnKeyOf', 'jnByDay', 'jnCalHtml', 'jnListHtml', 'jnMonth', 'jnPickDay', 'jnRepaint',
 ].map(n => grab(n)).join('\n'));
 ['recordZoneAlert', 'renderZoneAlerts', 'zoneAlerts', 'latestTrade',
  'openMenu', 'closeMenu', 'toggleMenu', 'setView', 'endIntro', 'playIntro',
  'drawVolume', 'syncHdH', 'setTabPrice',
  'esc', 'ago', 'evClock', 'evDay', 'jnLoad', 'jnSave', 'jnR', 'jnStats', 'jnAdd', 'jnDel',
- 'journalHtml', 'openJournal', 'openSheet', 'closeSheet', 'fundHtml', 'renderFundStrip',
+ 'journalHtml', 'openJournal', 'openSheet', 'closeSheet', 'calHtml', 'newsHtml',
+ 'renderCalStrip', 'renderNewsStrip',
  'jnKeyOf', 'jnByDay', 'jnCalHtml', 'jnListHtml', 'jnMonth', 'jnPickDay', 'jnRepaint'].forEach(n => { global[n] = eval(n); });
 // the calendar keeps its month/day in module scope in the page; give the harness the same
 global._jnM = new Date(2026, 10, 1);
@@ -168,7 +170,11 @@ section('hamburger menu');
   toggleMenu();
   ok('closes', !menu.classList.contains('open') && document.body.style.overflow === '');
   ok('market switch lives in the drawer', html.indexOf('data-sym="XAUUSD"') > html.indexOf('id="menu"'));
-  ok('timeframes live in the drawer', html.indexOf('id="tf-buttons"') > html.indexOf('id="menu"'));
+  ok('timeframes stay off the drawer', html.indexOf('id="tf-buttons"') < 0);
+  ok('timeframes sit on the chart itself',
+     html.indexOf('id="tf-float"') > html.indexOf('id="chart-section"') &&
+     html.indexOf('id="tf-float"') < html.indexOf('</main>'));
+  ok('all eight timeframes are on the chart', (html.slice(html.indexOf('id="tf-float"'), html.indexOf('</div>', html.indexOf('id="tf-float"'))).match(/data-tf=/g) || []).length === 8);
   ok('ladder lives in the drawer', html.indexOf('id="alerts-list"') > html.indexOf('id="menu"'));
   ok('front page has no ladder', !html.slice(html.indexOf('<main'), html.indexOf('</main>')).includes('alerts-list'));
 }
@@ -352,32 +358,42 @@ print('OK' if not bad else 'FAIL '+','.join(bad))
      /sg\.entry=_lv\.entry/.test(grab('drawVolumeLevels')));
 }
 
-section('fundamentals live in the menu');
+section('calendar and news are separate');
 {
-  ok('menu has a fundamentals section', /menu-label">Fundamentals</.test(html));
-  ok('menu shows the next high-impact event', html.includes('id="fund-strip"'));
-  ok('menu opens the full panel', /onclick="openFundamentals\(\)"/.test(html));
+  ok('menu has an economic calendar section', /menu-label">Economic calendar</.test(html));
+  ok('menu has a latest news section', /menu-label">Latest news</.test(html));
+  ok('the old mixed section is gone', !/menu-label">Fundamentals</.test(html));
+  ok('calendar has its own preview strip', html.includes('id="cal-strip"'));
+  ok('news has its own preview strip', html.includes('id="news-strip"'));
+  ok('calendar opens its own panel', /onclick="openCalendar\(\)"/.test(html));
+  ok('news opens its own panel', /onclick="openNews\(\)"/.test(html));
+  ok('two endpoints, not one', /\/api\/calendar/.test(html) && /\/api\/news/.test(html));
   ok('the panel is a sheet, not a new page', html.includes('id="sheet"') && html.includes('id="sheet-body"'));
-  const payload = {
-    status: 'ok',
-    calendar_source: 'TradingView economic calendar',
-    news_sources: ['ForexLive', 'CoinDesk'],
-    next_high: { time: 1793600000, title: 'ISM Manufacturing PMI', currency: 'US', impact: 'High', forecast: '54.7', previous: '54.5', unit: '' },
+
+  const cal = {
+    status: 'ok', source: 'TradingView economic calendar',
+    next_high: { time: Math.floor(Date.now() / 1000) + 7200, title: 'FOMC Statement', currency: 'US', impact: 'High', forecast: '4.25', previous: '4.50', actual: '', unit: '%' },
     calendar: [
-      { time: 1793600000, title: 'ISM Manufacturing PMI', currency: 'US', impact: 'High', forecast: '54.7', previous: '54.5', unit: '' },
-      { time: 1793603600, title: 'Building Permits', currency: 'AU', impact: 'Medium', forecast: '2.1', previous: '-6.1', unit: '%' },
+      { time: Math.floor(Date.now() / 1000) - 3600, title: 'NBS Manufacturing PMI', currency: 'CN', impact: 'High', actual: '49.3', forecast: '50', previous: '50.1', unit: '' },
+      { time: Math.floor(Date.now() / 1000) + 9000, title: 'Building Permits', currency: 'AU', impact: 'Medium', actual: '', forecast: '2.1', previous: '-6.1', unit: '%' },
     ],
-    news: [{ time: 1793590000, title: 'Bitcoin & gold move <b>together</b>', url: 'https://example.com/a?x=1&y=2', source: 'CoinDesk', kind: 'crypto' }],
   };
-  const h = fundHtml(payload);
-  ok('shows the next high impact event', h.includes('ISM Manufacturing PMI'));
-  ok('shows forecast and previous', h.includes('forecast 54.7') && h.includes('previous 54.5'));
-  ok('lists every event with its currency', h.includes('AU') && h.includes('Building Permits'));
-  ok('links the headline to its source', h.includes('https://example.com/a?x=1&amp;y=2'));
-  ok('names the source of every item', h.includes('CoinDesk'));
-  ok('escapes feed text', !/<b>together<\/b>/.test(h) && h.includes('&lt;b&gt;'));
-  ok('names the feeds it used', h.includes('TradingView economic calendar') && h.includes('ForexLive'));
-  ok('a dead feed says so, it does not invent news', /unreachable/.test(fundHtml(null)));
+  const h = calHtml(cal);
+  ok('calendar shows the next high impact event', h.includes('FOMC Statement'));
+  ok('calendar shows actual, forecast and previous', h.includes('ev-a') && h.includes('49.3') && h.includes('50.1'));
+  ok('impact is drawn as dots', /imp h/.test(h) && /imp m/.test(h));
+  ok('calendar has no headlines in it', !h.includes('nw-t') && !h.includes('class="nw"'));
+  ok('a dead calendar feed says so, it does not invent events', /unreachable/.test(calHtml(null)));
+
+  const news = { status: 'ok', sources: ['ForexLive', 'CoinDesk'], news: [
+    { time: Math.floor(Date.now() / 1000) - 600, title: 'Bitcoin & gold move <b>together</b>', url: 'https://example.com/a?x=1&y=2', source: 'CoinDesk', kind: 'crypto' },
+  ] };
+  const n = newsHtml(news);
+  ok('news links the headline to its source', n.includes('https://example.com/a?x=1&amp;y=2'));
+  ok('news names the feed', n.includes('CoinDesk') && n.includes('ForexLive'));
+  ok('news escapes feed text', !/<b>together<\/b>/.test(n) && n.includes('&lt;b&gt;'));
+  ok('news has no calendar in it', !n.includes('class="ev '));
+  ok('a dead news feed says so', /unreachable/.test(newsHtml(null)));
 }
 
 section('trade journal');
@@ -513,16 +529,15 @@ section('journal month calendar (FTMO style)');
 section('calendar shows actual, forecast and previous');
 {
   const payload = {
-    status: 'ok', calendar_source: 'TradingView economic calendar', news_sources: ['ForexLive'],
+    status: 'ok', source: 'TradingView economic calendar',
     next_high: { time: Math.floor(Date.now() / 1000) + 7200, title: 'FOMC Statement', currency: 'US', impact: 'High', forecast: '4.25', previous: '4.50', actual: '', unit: '%' },
     calendar: [
       { time: Math.floor(Date.now() / 1000) - 3600, title: 'NBS Manufacturing PMI', currency: 'CN', impact: 'High', actual: '49.3', forecast: '50', previous: '50.1', unit: '' },
       { time: Math.floor(Date.now() / 1000) + 7200, title: 'FOMC Statement', currency: 'US', impact: 'High', actual: '', forecast: '4.25', previous: '4.50', unit: '%' },
       { time: Math.floor(Date.now() / 1000) + 9000, title: 'Building Permits', currency: 'AU', impact: 'Medium', actual: '', forecast: '2.1', previous: '-6.1', unit: '%' },
     ],
-    news: [],
   };
-  const h = fundHtml(payload);
+  const h = calHtml(payload);
   ok('released events show the actual number', h.includes('ev-a') && h.includes('49.3'), h.slice(0, 0));
   ok('forecast is quoted', h.includes('50.1') || h.includes('>50<') || h.includes('50'));
   ok('previous is quoted', h.includes('50.1'));
@@ -530,6 +545,21 @@ section('calendar shows actual, forecast and previous');
   ok('units are attached to the numbers', h.includes('4.25%'));
   ok('an unreleased event shows no fake actual', /ev hi/.test(h.replace(/class="ev /g, 'class="ev ')));
   ok('day headers separate the days', (h.match(/fund-day/g) || []).length >= 1);
+}
+
+section('the drawer stays clean');
+{
+  const menu = html.slice(html.indexOf('<aside class="menu"'), html.indexOf('</aside>'));
+  ok('no timeframe row inside the menu', !/data-tf=/.test(menu));
+  ok('the timeframe bar floats over the chart', /#tf-float\{[^}]*position:absolute/.test(html));
+  ok('it scrolls sideways on a phone', /#tf-float\{[^}]*overflow-x:auto/.test(html));
+  ok('the legend moved down to make room', /#tv-legend\{position:absolute;top:44px/.test(html));
+  ok('sections are divided, not stacked blindly', /\.menu-sec\{[^}]*border-top:1px solid/.test(html));
+  ok('the alert ladder is shorter now', /#alerts-list\{max-height:190px/.test(html));
+  const order = ['View', 'Signals', 'Economic calendar', 'Latest news', 'Trade journal', 'Market', 'Strategy']
+    .map(t => menu.indexOf(t));
+  ok('the menu reads in a sane order', order.every((v, i) => v > 0 && (i === 0 || v > order[i - 1])), order);
+  ok('setTimeframe still finds its buttons', /querySelectorAll\('\[data-tf\]'\)/.test(grab('setTimeframe')));
 }
 
 console.log(`\n${fail ? '\x1b[31m' : '\x1b[32m'}${pass} passed, ${fail} failed\x1b[0m`);

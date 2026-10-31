@@ -166,8 +166,9 @@ body.intro-open{overflow:hidden}
 .menu-title{font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--ink)}
 .menu-x{width:32px;height:32px;border:1px solid var(--line);border-radius:9px;background:var(--panel);color:var(--ink);
   font-size:18px;line-height:1;cursor:pointer}
-.menu-sec{display:flex;flex-direction:column;gap:7px}
-.menu-label{font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.menu-sec{display:flex;flex-direction:column;gap:7px;padding-top:12px;border-top:1px solid var(--line-soft)}
+.menu-sec:first-of-type{padding-top:0;border-top:0}
+.menu-label{font-size:9.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
 .menu-hint{font-size:10.5px;color:var(--muted);line-height:1.4;word-break:break-word}
 .menu-btns{display:flex;flex-wrap:wrap;gap:6px}
 .menu-select{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:9px;background:var(--panel);color:var(--ink);font-size:12px}
@@ -299,7 +300,18 @@ body.intro-open{overflow:hidden}
 /* ---------- charts ---------- */
 #oanda_chart{width:100%;height:420px;border-radius:10px;background:#fbfcfd;border:1px solid var(--line-soft);overflow:hidden;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px}
 .chart-shell{position:relative}
-#tv-legend{position:absolute;top:8px;left:10px;z-index:4;pointer-events:none;display:flex;align-items:center;gap:10px;font-size:11px;font-weight:600;letter-spacing:.2px;color:var(--muted);background:color-mix(in srgb,var(--surface) 78%,transparent);padding:4px 8px;border-radius:7px;border:1px solid var(--line-soft)}
+/* the timeframe belongs to the chart, not the drawer */
+#tf-float{
+  position:absolute;top:6px;left:8px;z-index:6;display:flex;gap:3px;padding:3px;border-radius:10px;
+  background:color-mix(in srgb,var(--surface) 84%,transparent);border:1px solid var(--line-soft);
+  backdrop-filter:blur(8px);max-width:calc(100% - 16px);overflow-x:auto;scrollbar-width:none;
+  box-shadow:0 2px 10px -6px rgba(15,23,42,.35);
+}
+#tf-float::-webkit-scrollbar{display:none}
+#tf-float .tf-btn{height:23px;min-width:30px;padding:0 7px;font-size:10.5px;border-radius:7px;flex:0 0 auto}
+@media(max-width:620px){#tf-float .tf-btn{min-width:27px;padding:0 5px;font-size:10px}}
+
+#tv-legend{position:absolute;top:44px;left:10px;z-index:4;pointer-events:none;display:flex;align-items:center;gap:10px;font-size:11px;font-weight:600;letter-spacing:.2px;color:var(--muted);background:color-mix(in srgb,var(--surface) 78%,transparent);padding:4px 8px;border-radius:7px;border:1px solid var(--line-soft)}
 #tv-legend b{color:var(--ink);font-weight:800}
 #tv-legend .lg-t{font-weight:800;color:var(--ink)}
 #tv-legend .lg-c.up{color:var(--up)} #tv-legend .lg-c.dn{color:var(--down)}
@@ -312,7 +324,7 @@ body.intro-open{overflow:hidden}
 .meta-row .ok{color:var(--up);font-weight:650}
 
 /* ---------- alerts ---------- */
-#alerts-list{max-height:290px;overflow-y:auto;display:flex;flex-direction:column;gap:5px;padding-right:3px}
+#alerts-list{max-height:190px;overflow-y:auto;display:flex;flex-direction:column;gap:5px;padding-right:3px}
 .alert-item{display:flex;gap:8px;align-items:flex-start;padding:7px 8px;border:1px solid var(--line);
   border-radius:9px;background:var(--panel)}
 .alert-item.latest{border-color:var(--brand);box-shadow:0 0 0 1px rgba(41,98,255,.16)}
@@ -668,11 +680,19 @@ body[data-view="signal"] .wrap{
   </div>
 
   <div class="menu-sec">
-    <div class="menu-label">Fundamentals</div>
-    <div class="fund-strip" id="fund-strip">
-      <div class="fund-row"><span class="fund-x">calendar loading…</span></div>
+    <div class="menu-label">Economic calendar</div>
+    <div class="fund-strip" id="cal-strip">
+      <div class="fund-row"><span class="fund-x">loading…</span></div>
     </div>
-    <button class="chip" style="width:100%;justify-content:center" onclick="openFundamentals()">News &amp; calendar</button>
+    <button class="chip" style="width:100%;justify-content:center" onclick="openCalendar()">Open calendar</button>
+  </div>
+
+  <div class="menu-sec">
+    <div class="menu-label">Latest news</div>
+    <div class="fund-strip" id="news-strip">
+      <div class="fund-row"><span class="fund-x">loading…</span></div>
+    </div>
+    <button class="chip" style="width:100%;justify-content:center" onclick="openNews()">Open news</button>
   </div>
 
   <div class="menu-sec">
@@ -703,13 +723,6 @@ body[data-view="signal"] .wrap{
       <button class="tf-btn" data-strategy="render">RENDER</button><button class="tf-btn active" data-strategy="volume">VOLUME</button>
     </div>
     <div class="menu-hint" id="strategy-hint">volume clusters · daily VWAP</div>
-  </div>
-
-  <div class="menu-sec">
-    <div class="menu-label">Chart timeframe</div>
-    <div class="tf-row" id="tf-buttons">
-      <button class="tf-btn" data-tf="M1">M1</button><button class="tf-btn" data-tf="M5">M5</button><button class="tf-btn active" data-tf="M15">M15</button><button class="tf-btn" data-tf="M30">M30</button><button class="tf-btn" data-tf="H1">H1</button><button class="tf-btn" data-tf="H4">H4</button><button class="tf-btn" data-tf="D">D1</button><button class="tf-btn" data-tf="W">W1</button>
-    </div>
   </div>
 
   <div class="menu-sec">
@@ -828,6 +841,9 @@ body[data-view="signal"] .wrap{
     </div>
     <div class="chart-shell">
       <div id="oanda_chart">Loading chart…</div>
+      <div id="tf-float" role="group" aria-label="Chart timeframe">
+        <button class="tf-btn" data-tf="M1">M1</button><button class="tf-btn" data-tf="M5">M5</button><button class="tf-btn active" data-tf="M15">M15</button><button class="tf-btn" data-tf="M30">M30</button><button class="tf-btn" data-tf="H1">H1</button><button class="tf-btn" data-tf="H4">H4</button><button class="tf-btn" data-tf="D">D1</button><button class="tf-btn" data-tf="W">W1</button>
+      </div>
       <div id="tv-legend"><span class="lg-t" id="lg-sym">XAUUSD</span><span id="lg-tf">M15</span><span id="lg-ohlc">—</span><span class="lg-note" id="lg-note"></span></div>
       <svg id="vwap-layer" aria-hidden="true"><g id="vw-bands"></g><g id="vw-marks"></g><g id="vw-labels"></g></svg>
       <svg id="zone-layer" aria-hidden="true"></svg>
@@ -906,44 +922,40 @@ function playIntro(){
   playIntro();
 })();
 
-// ---------- fundamentals: the real calendar + the real headlines ----------
+// ---------- economic calendar: one panel, real events only ----------
 // Nothing here is written by ASTRA6. The calendar comes from TradingView (ForexFactory
-// as backup) and the headlines from public RSS. Each item shows its source and its own
-// time; if a feed is down the panel says so instead of inventing a story.
-let _fund=null, _fundAt=0, _fundBusy=false;
+// as backup) and every event keeps its own time, forecast, previous and actual.
+let _cal=null, _calAt=0, _calBusy=false;
 function esc(x){return String(x==null?'':x).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function ago(ts){const s=Math.max(0,Math.floor(Date.now()/1000-ts));
   if(s<90)return 'just now'; if(s<3600)return Math.floor(s/60)+' min ago';
   if(s<86400)return Math.floor(s/3600)+' h ago'; return Math.floor(s/86400)+' d ago';}
 function evClock(ts){return new Date(ts*1000).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});}
 function evDay(ts){return new Date(ts*1000).toLocaleDateString([],{weekday:'short',day:'2-digit',month:'short'});}
-async function loadFundamentals(force){
-  if(_fundBusy) return _fund;
-  if(!force && _fund && Date.now()-_fundAt < 5*60*1000) return _fund;
-  _fundBusy=true;
+async function loadCalendar(force){
+  if(_calBusy) return _cal;
+  if(!force && _cal && Date.now()-_calAt < 5*60*1000) return _cal;
+  _calBusy=true;
   try{
-    const r=await fetch('/api/fundamentals?limit=24',{cache:'no-store'});
+    const r=await fetch('/api/calendar',{cache:'no-store'});
     const d=await r.json();
-    if(d && d.status==='ok'){ _fund=d; _fundAt=Date.now(); renderFundStrip(d); }
-  }catch(e){ console.log('fundamentals err',e); }
-  _fundBusy=false;
-  return _fund;
+    if(d && d.status==='ok'){ _cal=d; _calAt=Date.now(); renderCalStrip(d); }
+  }catch(e){ console.log('calendar err',e); }
+  _calBusy=false;
+  return _cal;
 }
-function renderFundStrip(d){
-  const box=document.getElementById('fund-strip'); if(!box) return;
-  const nh=d.next_high, news=(d.news||[]).slice(0,2);
-  let h='';
-  if(nh) h+='<div class="fund-row"><span class="fund-t hi">'+esc(nh.currency)+'</span><span class="fund-x">'
-         +esc(nh.title)+' · '+esc(evDay(nh.time))+' '+esc(evClock(nh.time))+'</span></div>';
-  else h+='<div class="fund-row"><span class="fund-x">no high-impact event scheduled</span></div>';
-  for(const n of news)
-    h+='<div class="fund-row"><span class="fund-t">'+esc(n.source)+'</span><span class="fund-x">'+esc(n.title)+'</span></div>';
-  box.innerHTML=h;
+function renderCalStrip(d){
+  const box=document.getElementById('cal-strip'); if(!box) return;
+  const nh=d.next_high;
+  box.innerHTML = nh
+    ? '<div class="fund-row"><span class="fund-t hi">'+esc(nh.currency)+'</span><span class="fund-x">'
+      +esc(nh.title)+' · '+esc(evDay(nh.time))+' '+esc(evClock(nh.time))+'</span></div>'
+    : '<div class="fund-row"><span class="fund-x">no high-impact event scheduled</span></div>';
 }
-function fundHtml(d){
+function calHtml(d){
   if(!d || d.status!=='ok')
-    return '<div class="jn-empty">The news feeds are unreachable right now.<br>Nothing is invented - open this again in a minute.</div>';
-  const cal=d.calendar||[], news=d.news||[], nh=d.next_high;
+    return '<div class="jn-empty">The calendar feed is unreachable right now.<br>Nothing is invented - open this again in a minute.</div>';
+  const cal=d.calendar||[], nh=d.next_high;
   let h='';
   if(nh){
     const m=[];
@@ -953,7 +965,7 @@ function fundHtml(d){
      +'<div class="fund-hero-t">'+esc(nh.title)+'</div>'
      +'<div class="fund-hero-m mono">'+esc(evDay(nh.time))+' '+esc(evClock(nh.time))+(m.length?' · '+m.join(' · '):'')+'</div></div>';
   }
-  h+='<div class="sheet-sec">Economic calendar · high and medium impact</div>'
+  h+='<div class="sheet-sec">High and medium impact</div>'
    +'<div class="ev-legend"><span>time · impact · cur · event</span><span>actual · forecast · previous</span></div>';
   if(!cal.length) h+='<div class="jn-empty">No events returned right now.</div>';
   let day='';
@@ -966,27 +978,65 @@ function fundHtml(d){
     else if(e.time*1000<Date.now()) nums.push('<span style="color:var(--muted)">—</span>');
     if(e.forecast) nums.push(esc(e.forecast)+esc(u));
     if(e.previous) nums.push(esc(e.previous)+esc(u));
-    const draft=(!e.actual && e.time*1000<Date.now())?' done':'';
-    h+='<div class="ev '+(e.impact==='High'?'hi':'md')+draft+'">'
+    const done=(!e.actual && e.time*1000<Date.now())?' done':'';
+    h+='<div class="ev '+(e.impact==='High'?'hi':'md')+done+'">'
      +'<span class="ev-time mono">'+esc(evClock(e.time))+'</span>'
      +'<span class="imp '+(e.impact==='High'?'h':'m')+'"><i></i><i></i><i></i></span>'
      +'<span class="ev-cur">'+esc(e.currency)+'</span><span class="ev-t">'+esc(e.title)+'</span>'
      +'<span class="ev-n mono">'+nums.join(' · ')+'</span></div>';
   }
-  h+='<div class="sheet-sec">Latest headlines</div>';
-  if(!news.length) h+='<div class="jn-empty">No headlines returned right now.</div>';
-  for(const n of news){
-    h+='<a class="nw" href="'+esc(n.url)+'" target="_blank" rel="noopener"><span class="nw-src">'+esc(n.source)+'</span>'
-     +'<span class="nw-t">'+esc(n.title)+'</span><span class="nw-time mono">'+esc(ago(n.time))+'</span></a>';
-  }
-  h+='<div class="sheet-note">Sources: '+esc(d.calendar_source||'')+' · '+esc((d.news_sources||[]).join(' · '))
-   +'. Times are in your own timezone. Nothing here is written or summarised by ASTRA6.</div>';
+  h+='<div class="sheet-note">Source: '+esc(d.source||d.calendar_source||'')+'. Times are in your own timezone. '
+   +'Nothing here is written or summarised by ASTRA6.</div>';
   return h;
 }
-async function openFundamentals(){
-  openSheet('Fundamentals','<div class="jn-empty">Loading the real calendar and headlines…</div>');
-  const d=await loadFundamentals(true);
-  const b=document.getElementById('sheet-body'); if(b) b.innerHTML=fundHtml(d);
+async function openCalendar(){
+  openSheet('Economic calendar','<div class="jn-empty">Loading the calendar…</div>');
+  const d=await loadCalendar(true);
+  const b=document.getElementById('sheet-body'); if(b) b.innerHTML=calHtml(d);
+}
+
+// ---------- latest news: its own panel, own sources ----------
+// Every headline keeps its feed, its link and its own timestamp.
+let _news=null, _newsAt=0, _newsBusy=false;
+async function loadNews(force){
+  if(_newsBusy) return _news;
+  if(!force && _news && Date.now()-_newsAt < 5*60*1000) return _news;
+  _newsBusy=true;
+  try{
+    const r=await fetch('/api/news?limit=24',{cache:'no-store'});
+    const d=await r.json();
+    if(d && d.status==='ok'){ _news=d; _newsAt=Date.now(); renderNewsStrip(d); }
+  }catch(e){ console.log('news err',e); }
+  _newsBusy=false;
+  return _news;
+}
+function renderNewsStrip(d){
+  const box=document.getElementById('news-strip'); if(!box) return;
+  const n=(d.news||[])[0];
+  box.innerHTML = n
+    ? '<div class="fund-row"><span class="fund-t">'+esc(n.source)+'</span><span class="fund-x">'+esc(n.title)+'</span></div>'
+    : '<div class="fund-row"><span class="fund-x">no headlines right now</span></div>';
+}
+function newsHtml(d){
+  if(!d || d.status!=='ok')
+    return '<div class="jn-empty">The news feeds are unreachable right now.<br>Nothing is invented - open this again in a minute.</div>';
+  const news=d.news||[];
+  if(!news.length) return '<div class="jn-empty">No headlines returned right now.</div>';
+  let h='<div class="sheet-sec">Latest headlines</div>';
+  for(const n of news){
+    h+='<a class="nw" href="'+esc(n.url)+'" target="_blank" rel="noopener">'
+     +'<span class="nw-src">'+esc(n.source)+'</span>'
+     +'<span class="nw-t">'+esc(n.title)+'</span>'
+     +'<span class="nw-time mono">'+esc(ago(n.time))+'</span></a>';
+  }
+  h+='<div class="sheet-note">Sources: '+esc((d.sources||[]).join(' · '))
+   +'. Every headline links to the original article. Nothing here is written or summarised by ASTRA6.</div>';
+  return h;
+}
+async function openNews(){
+  openSheet('Latest news','<div class="jn-empty">Loading the headlines…</div>');
+  const d=await loadNews(true);
+  const b=document.getElementById('sheet-body'); if(b) b.innerHTML=newsHtml(d);
 }
 
 // ---------- trade journal: yours, kept on this device ----------
@@ -1227,7 +1277,7 @@ function toggleMenu(){
   m.classList.contains('open')?closeMenu():openMenu();
 }
 function openMenu(){
-  if(typeof loadFundamentals==='function' && (!_fundAt || Date.now()-_fundAt>5*60*1000)) loadFundamentals();
+  if(typeof loadCalendar==='function'){ loadCalendar(); loadNews(); }
   const m=document.getElementById('menu'), s=document.getElementById('scrim'), b=document.getElementById('burger');
   if(m)m.classList.add('open');
   if(s)s.classList.add('on');
@@ -2048,7 +2098,7 @@ applyTheme();document.getElementById('sound-btn')&&(document.getElementById('sou
 initClicks();document.addEventListener('DOMContentLoaded',initClicks);setTimeout(initClicks,500);
 setTimeout(()=>{if(currentSymbol==='BTCUSD'){const b=document.querySelector('.sym-btn[data-sym="BTCUSD"]');if(b)b.classList.add('active');const g=document.querySelector('.sym-btn[data-sym="XAUUSD"]');if(g)g.classList.remove('active');document.querySelector('.brand-sub').textContent='Bitcoin · 15m / 5m';}else{fetchDashboard();}fetchLive();fetchFastPrice();},800);
 setInterval(updateTimeSmooth,500);updateTimeSmooth();
-setView('home');fitScreen();jnStats();loadFundamentals();setTimeout(fitScreen,300);setTimeout(fitScreen,1200);startPriceStream();setInterval(fetchFastPrice,1500);setInterval(fetchOtherPrice,12000);setInterval(fetchZones,30000);setInterval(()=>{if(window._strategy==='volume')fetchVolume();},20000);setInterval(fetchLive,10000);setInterval(()=>{if(currentSymbol!=='BTCUSD')fetchDashboard();},15000);
+setView('home');fitScreen();jnStats();loadCalendar();loadNews();setTimeout(fitScreen,300);setTimeout(fitScreen,1200);startPriceStream();setInterval(fetchFastPrice,1500);setInterval(fetchOtherPrice,12000);setInterval(fetchZones,30000);setInterval(()=>{if(window._strategy==='volume')fetchVolume();},20000);setInterval(fetchLive,10000);setInterval(()=>{if(currentSymbol!=='BTCUSD')fetchDashboard();},15000);
 document.getElementById('venue-select')?.addEventListener('change',e=>setVenue(e.target.value));
 loadVenues().then(()=>{if(currentSymbol==='BTCUSD')fetchBtcCompare();else fetchTVCompare();});updateSymTabs();fetchOtherPrice();renderZoneAlerts();fetchZones();
 setInterval(()=>{fetch('/health').catch(()=>{});},240000);
