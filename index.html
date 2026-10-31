@@ -106,6 +106,24 @@ button,select{font-family:inherit}
   opacity:0;animation:introRise .6s ease .6s both}
 .intro-bar i{display:block;height:100%;width:40%;border-radius:2px;
   background:linear-gradient(90deg,#2962ff,#eab308);animation:introSweep 1.05s ease .65s both}
+.intro-tap{display:flex;align-items:center;gap:7px;justify-content:center;margin-top:26px;
+  font:700 10.5px/1 ui-sans-serif,system-ui,sans-serif;letter-spacing:.16em;text-transform:uppercase;
+  color:#9fb2d4;opacity:0;animation:introRise .7s ease 1.15s both}
+.intro-tap svg{opacity:.85}
+.intro-arrow{animation:introNudge 1.4s ease-in-out 1.8s infinite}
+@keyframes introNudge{0%,100%{transform:translate(0,0)}50%{transform:translate(3px,-3px)}}
+
+/* while the welcome is up, the header sits above it so the burger is the way in */
+body.intro-open .hd{z-index:210;background:transparent;border-bottom-color:transparent;backdrop-filter:none}
+body.intro-open .brand-name{color:#fff}
+body.intro-open .brand-sub{color:#7f92b3}
+body.intro-open .price-block{opacity:0;pointer-events:none;transition:opacity .3s ease}
+body.intro-open .burger{border-color:rgba(255,255,255,.22);background:rgba(255,255,255,.08)}
+body.intro-open .burger span{background:#fff}
+body.intro-open .burger{box-shadow:0 0 0 0 rgba(96,165,250,.55);animation:introPulse 1.9s ease-out 1.4s infinite}
+@keyframes introPulse{0%{box-shadow:0 0 0 0 rgba(96,165,250,.5)}70%{box-shadow:0 0 0 14px rgba(96,165,250,0)}100%{box-shadow:0 0 0 0 rgba(96,165,250,0)}}
+body.intro-open{overflow:hidden}
+
 .intro-skip{position:absolute;right:16px;bottom:16px;padding:8px 14px;border-radius:9px;
   border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.06);color:#c7d3e8;
   font:600 11px/1 ui-sans-serif,system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;cursor:pointer}
@@ -413,8 +431,13 @@ body[data-view="signal"] #hero-signal{position:relative}
     <div class="intro-title">WELCOME TO <b>ASTRA</b></div>
     <div class="intro-sub">gold · bitcoin · volume clusters</div>
     <div class="intro-bar"><i></i></div>
+    <div class="intro-tap">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      <span>tap the menu to open</span>
+      <svg class="intro-arrow" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M9 7h8v8"/></svg>
+    </div>
   </div>
-  <button class="intro-skip" id="intro-skip" aria-label="Skip intro">skip</button>
+  <button class="intro-skip" id="intro-skip" aria-label="Open the menu">Open menu</button>
 </div>
 
 <header class="hd">
@@ -627,6 +650,7 @@ function endIntro(){
   const el=document.getElementById('intro');
   if(!el||el.classList.contains('gone'))return;
   clearTimeout(window._introTimer);
+  document.body.classList.remove('intro-open');
   el.classList.add('gone');
   setTimeout(()=>{if(el.classList.contains('gone'))el.style.display='none';},650);
   // the chart sized itself while hidden behind the intro; re-measure now
@@ -648,10 +672,11 @@ function playIntro(){
   const mark=el.querySelector('.intro-mark');
   if(mark){mark.style.animation='none';void mark.offsetWidth;mark.style.animation='';}
   clearTimeout(window._introTimer);
+  document.body.classList.add('intro-open');
+  // no auto-dismiss: the welcome stays until you open the menu (or skip / tap the backdrop)
   const skip=document.getElementById('intro-skip');
-  if(skip)skip.onclick=endIntro;
+  if(skip)skip.onclick=()=>{endIntro();openMenu();};
   el.onclick=(e)=>{if(e.target===el)endIntro();};
-  window._introTimer=setTimeout(endIntro,2600);
 }
 (function bootIntro(){
   const el=document.getElementById('intro');
@@ -682,7 +707,13 @@ function setView(v){
 }
 
 // ---- hamburger menu ----
-function toggleMenu(){ const m=document.getElementById('menu'); if(!m)return; m.classList.contains('open')?closeMenu():openMenu(); }
+function toggleMenu(){
+  const m=document.getElementById('menu'); if(!m)return;
+  // arriving from the welcome: clear it first, then open the drawer
+  const intro=document.getElementById('intro');
+  if(intro && !intro.classList.contains('gone')) endIntro();
+  m.classList.contains('open')?closeMenu():openMenu();
+}
 function openMenu(){
   const m=document.getElementById('menu'), s=document.getElementById('scrim'), b=document.getElementById('burger');
   if(m)m.classList.add('open');
