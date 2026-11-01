@@ -436,13 +436,14 @@ print('OK' if not bad else 'FAIL '+','.join(bad))
 section('calendar and news are separate');
 {
   ok('menu has an economic calendar section', /menu-label">Economic calendar</.test(html));
-  ok('menu has a latest news section', /menu-label">Latest news</.test(html));
+  ok('menu has a gold fundamentals section', /menu-label">Gold fundamentals/.test(html));
   ok('the old mixed section is gone', !/menu-label">Fundamentals</.test(html));
   ok('calendar has its own preview strip', html.includes('id="cal-strip"'));
   ok('news has its own preview strip', html.includes('id="news-strip"'));
   ok('calendar opens its own panel', /onclick="openCalendar\(\)"/.test(html));
-  ok('news opens its own panel', /onclick="openNews\(\)"/.test(html));
-  ok('two endpoints, not one', /\/api\/calendar/.test(html) && /\/api\/news/.test(html));
+  ok('the gold reading opens its own panel', /onclick="openGoldFundamentals\(\)"/.test(html));
+  ok('its own endpoint, plus the calendar and the headlines', /\/api\/fundamentals\/gold/.test(html)
+     && /\/api\/calendar/.test(html) && /\/api\/news/.test(html));
   ok('the panel is a sheet, not a new page', html.includes('id="sheet"') && html.includes('id="sheet-body"'));
 
   const cal = {
@@ -637,7 +638,7 @@ section('the drawer stays clean');
      && /body\[data-view="chart"\] \.hd-quote\{left:auto;right:9px/.test(html));
   ok('sections are divided, not stacked blindly', /\.menu-sec\{[^}]*border-top:1px solid/.test(html));
   ok('the signal list is no longer a drawer ladder', html.indexOf('id="alerts-list"') < 0);
-  const order = ['View', 'Economic calendar', 'Latest news', 'Trade journal', 'Price source', 'Tools']
+  const order = ['View', 'Economic calendar', 'Gold fundamentals', 'Trade journal', 'Price source', 'Tools']
     .map(t => menu.indexOf(t));
   ok('the menu reads in a sane order', order.every((v, i) => v > 0 && (i === 0 || v > order[i - 1])), order);
   ok('the drawer no longer offers a strategy switch', menu.indexOf('RENDER') < 0 && menu.indexOf('data-strategy') < 0);

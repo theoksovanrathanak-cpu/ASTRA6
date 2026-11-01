@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <script>
 /* In-app browsers (Instagram, Facebook, TikTok, Snapchat, Line, WeChat, GSA…) run the
    page inside a WebView: no backdrop-filter GPU path, slower canvas compositing, and a
@@ -759,6 +759,54 @@ body[data-view="signal"] #hero-signal{position:relative}
 .nw-src{font-size:9px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--brand,#2962ff)}
 .nw-t{font-size:12px;line-height:1.4;font-weight:600}
 .nw-time{font-size:9.5px;color:var(--muted)}
+/* ---------- gold fundamentals: one reading, on a timetable ---------- */
+.gf-hours{margin:8px 2px 0;padding:7px 10px;border-radius:10px;font-size:11.5px;line-height:1.4;
+  color:var(--ink2,#9fb0c8);border:1px solid var(--line);background:rgba(255,255,255,.03)}
+.gf-hero{border-radius:13px;padding:12px 13px;border:1px solid var(--line);
+  background:linear-gradient(180deg,var(--line-soft),transparent 80%)}
+.gf-top{display:flex;align-items:center;gap:10px}
+.gf-bias{font:900 20px/1 ui-sans-serif,system-ui,sans-serif;letter-spacing:.02em;padding:7px 12px;border-radius:10px;
+  color:#04120a;background:#12b981;box-shadow:0 8px 22px -14px #12b981}
+.gf-bias.sell{color:#1a0507;background:#f4525f;box-shadow:0 8px 22px -14px #f4525f}
+.gf-bias.hold{color:#141414;background:#94a3b8;box-shadow:none}
+.gf-title{display:flex;flex-direction:column;min-width:0}
+.gf-kicker{font:800 9.5px/1.3 ui-sans-serif,system-ui,sans-serif;letter-spacing:.13em;text-transform:uppercase;color:var(--muted)}
+.gf-what{font:800 13px/1.3 ui-sans-serif,system-ui,sans-serif;color:var(--ink);margin-top:3px}
+.gf-meter{position:relative;height:8px;border-radius:6px;margin-top:11px;overflow:hidden;
+  background:linear-gradient(90deg,#f4525f 0%,#334155 46%,#334155 54%,#12b981 100%)}
+.gf-meter i{position:absolute;top:-3px;width:3px;height:14px;border-radius:2px;background:#fff;
+  box-shadow:0 0 0 1.5px rgba(0,0,0,.45);transform:translateX(-50%)}
+.gf-scale{display:flex;justify-content:space-between;font:700 8.5px/1 ui-monospace,monospace;
+  letter-spacing:.1em;color:var(--muted);margin-top:5px;text-transform:uppercase}
+.gf-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.gf-chip{font:700 9.5px/1 ui-monospace,monospace;letter-spacing:.03em;padding:4px 7px;border-radius:7px;
+  border:1px solid var(--line);color:var(--ink-2);background:var(--surface)}
+.gf-chip.b{color:#12b981;border-color:rgba(18,185,129,.45)}
+.gf-chip.s{color:#f4525f;border-color:rgba(244,82,95,.45)}
+.gf-chip.t{color:var(--muted)}
+.gf-story{display:flex;gap:8px;padding:8px 9px;border:1px solid var(--line-soft);border-radius:9px;
+  background:#fcfcfd;text-decoration:none;color:inherit}
+[data-theme="dark"] .gf-story{background:var(--hold-bg)}
+.gf-story:hover{background:var(--line-soft)}
+.gf-side{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:3px;padding-top:1px}
+.gf-tag{font:900 8.5px/1 ui-sans-serif,system-ui,sans-serif;letter-spacing:.06em;padding:4px 5px;border-radius:5px;
+  color:#04120a;background:#12b981}
+.gf-tag.sell{color:#1a0507;background:#f4525f}
+.gf-tag.hold{color:#141414;background:#94a3b8}
+.gf-str{font:700 8px/1 ui-monospace,monospace;color:var(--muted)}
+.gf-body{min-width:0;display:flex;flex-direction:column;gap:3px}
+.gf-t{font-size:12px;line-height:1.35;font-weight:650}
+.gf-why{font-size:10px;line-height:1.35;color:var(--muted)}
+.gf-row2{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;font:700 9px/1.35 ui-monospace,monospace;
+  color:var(--muted);letter-spacing:.01em;text-transform:uppercase;overflow-wrap:anywhere}
+.gf-row2 span{white-space:nowrap}
+.gf-gold{color:var(--gold)}
+.gf-sched{display:flex;align-items:center;justify-content:space-between;gap:8px;border-top:1px solid var(--line-soft);
+  padding-top:9px;margin-top:2px;font:700 10px/1.3 ui-monospace,monospace;color:var(--muted)}
+.gf-sched b{color:var(--ink)}
+.gf-watch{border:1px dashed var(--line);border-radius:10px;padding:9px 10px;display:flex;flex-direction:column;gap:6px}
+.gf-w{border-top:1px solid var(--line-soft);padding-top:6px;display:flex;flex-direction:column;gap:2px}
+.gf-w:first-child{border-top:0;padding-top:0}
 
 .jn-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .jn-f{display:flex;flex-direction:column;gap:4px}
@@ -992,7 +1040,10 @@ body.cc-open{overflow:hidden}
 .shake{animation:lockShake .3s}
 @keyframes lockShake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
 html{height:100%}
-html,body{overscroll-behavior:none}
+html,body{overscroll-behavior:none;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+/* a double tap and a pinch are chart gestures, never a page zoom */
+body{touch-action:manipulation}
+#oanda_chart,#oanda_chart *,.ctx-overlay{touch-action:none}
 body{min-height:100%}
 body.locked{overflow:hidden}
 body.locked .hd,body.locked .wrap,body.locked .foot,body.locked #intro,
@@ -1974,11 +2025,11 @@ body[data-view="chart"] .hd-quote{left:auto;right:9px;bottom:2px;text-align:righ
   </div>
 
   <div class="menu-sec">
-    <div class="menu-label">Latest news</div>
+    <div class="menu-label">Gold fundamentals · XAUUSD</div>
     <div class="fund-strip" id="news-strip">
-      <div class="fund-row"><span class="fund-x">loading…</span></div>
+      <div class="fund-row"><span class="fund-x">reading the news…</span></div>
     </div>
-    <button class="chip" style="width:100%;justify-content:center" onclick="openNews()">Open news</button>
+    <button class="chip" style="width:100%;justify-content:center" onclick="openGoldFundamentals()">Open gold fundamentals</button>
   </div>
 
   <div class="menu-sec">
@@ -2754,6 +2805,156 @@ async function openCalendar(){
   const b=document.getElementById('sheet-body'); if(b) b.innerHTML=calHtml(d);
 }
 
+// ---------- gold fundamentals: one reading, rebuilt on the clock ----------
+// The server rebuilds the reading once per 5-minute bucket and hands back the timestamp of
+// the next one, so this client never guesses: it shows the countdown and fetches again when
+// that second arrives. Same inputs, same answer, and the change always lands on :00 :05 :10.
+let _gf=null,_gfBusy=false,_gfTimer=0,_gfAligned=false;
+function gfFmt(ts){ try{ return new Date(ts*1000).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); }catch(e){ return ''; } }
+function gfCountdown(){
+  if(!_gf||!_gf.next_update) return '';
+  const s=Math.max(0,Math.round(_gf.next_update - Date.now()/1000));
+  const m=Math.floor(s/60), r=s%60;
+  return (m>0?m+'m ':'')+String(r).padStart(2,'0')+'s';
+}
+function gfSpan(ms){
+  if(!(ms>0)) return 'now';
+  const m=Math.round(ms/60000), h=Math.floor(m/60);
+  if(h>=24){ const d=Math.floor(h/24); return d+'d '+String(h%24).padStart(2,'0')+'h'; }
+  if(h>0) return h+'h '+String(m%60).padStart(2,'0')+'m';
+  return Math.max(1,m)+'m';
+}
+function gfHoursLine(){
+  if(!_gf||_gf.market_open) return '';
+  const r=_gf.reopen_at;
+  return 'Gold is closed for the weekend'+(r?(' \u00b7 reopens '+gfFmt(r)+' (in '+gfSpan(r*1000-Date.now())+')'):'');
+}
+function gfBiasWord(b){ return b==='BUY'?'BUY gold':(b==='SELL'?'SELL gold':'NO EDGE'); }
+function gfAge(h){
+  if(h==null) return 'no headline';
+  if(h<1) return 'newest headline just now';
+  if(h<24) return 'newest headline '+Math.round(h)+'h ago';
+  return 'newest headline '+Math.round(h/24)+'d ago';
+}
+function gfShortWord(){
+  if(!_gf||_gf.status!=='ok') return 'N/A';
+  if(_gf.stale) return 'NO NEWS';
+  return _gf.bias==='BUY'?'BUY':(_gf.bias==='SELL'?'SELL':'NO EDGE');
+}
+function gfHeadWord(){
+  if(!_gf||_gf.status!=='ok') return 'NO READING';
+  if(_gf.stale) return 'NO FRESH NEWS';
+  return gfBiasWord(_gf.bias);
+}
+function renderGoldStrip(){
+  const box=document.getElementById('news-strip'); if(!box) return;
+  if(!_gf||_gf.status!=='ok'){
+    box.innerHTML='<div class="fund-row"><span class="fund-x">fundamentals unavailable right now - nothing is invented</span></div>';
+    return;
+  }
+  const cls=(_gf.stale||_gf.bias==='NEUTRAL')?' hold':(_gf.bias==='SELL'?' sell':'');
+  const top=(_gf.stories||[])[0];
+  box.innerHTML='<div class="fund-row"><span class="gf-tag'+cls+'">'+gfShortWord()+'</span>'
+    +'<span class="fund-x">'+(top?esc(top.title):'no gold headline right now')+'</span></div>'
+    +'<div class="fund-row"><span class="fund-x mono">next reading in <b id="gf-cd">'+gfCountdown()+'</b> · '
+    +(_gf.market_open?'every 5 min':'gold closed · 5-min clock')+'</span></div>';
+}
+function gfStoryHtml(s){
+  const cls=s.impact==='BUY'?'':(s.impact==='SELL'?' sell':' hold');
+  const side=s.impact==='BUY'?'higher':(s.impact==='SELL'?'lower':'no edge');
+  return '<a class="gf-story" href="'+esc(s.url)+'" target="_blank" rel="noopener">'
+    +'<span class="gf-side"><span class="gf-tag'+cls+'">'+esc(s.impact)+'</span>'
+    +'<span class="gf-str">'+(s.weight?(s.impact==='BUY'?'+':'\u2212')+s.weight:'·')+'</span></span>'
+    +'<span class="gf-body"><span class="gf-t">'+esc(s.title)+'</span>'
+    +'<span class="gf-why">'+esc(s.why)+'</span>'
+    +'<span class="gf-row2"><span>'+esc(s.source||'')+'</span><span>'+esc(ago(s.time))+'</span>'
+    +(s.gold?'<span class="gf-gold">gold news</span>':'<span>gold driver</span>')
+    +'<span>reads '+side+' for XAUUSD</span></span></span></a>';
+}
+function goldFundHtml(){
+  if(!_gf||_gf.status!=='ok')
+    return '<div class="jn-empty">The gold feeds are unreachable right now.<br>Nothing is invented - this retries on the next 5-minute mark.</div>';
+  const cls=(_gf.stale||_gf.bias==='NEUTRAL')?' hold':(_gf.bias==='SELL'?' sell':'');
+  const pos=Math.round(((_gf.score+1)/2)*100);
+  const what=_gf.stale?'no fresh headline to score - the market is quiet'
+    :(_gf.bias==='BUY'?'the news is bidding gold':(_gf.bias==='SELL'?'the news is offering gold':'the news is balanced'));
+  let h='<div class="gf-hero"><div class="gf-top">'
+    +'<span class="gf-bias'+cls+'">'+gfHeadWord()+'</span>'
+    +'<span class="gf-title"><span class="gf-kicker">XAUUSD · fundamentals</span>'
+    +'<span class="gf-what">'+what
+    +'</span></span></div>'
+    +'<div class="gf-meter"><i style="left:'+pos+'%"></i></div>'
+    +'<div class="gf-scale"><span>sell · '+_gf.sell+'</span><span>neutral</span><span>buy · '+_gf.buy+'</span></div>'
+    +'<div class="gf-meta">'
+    +'<span class="gf-chip">score '+(_gf.score>0?'+':'')+_gf.score.toFixed(2)+'</span>'
+    +'<span class="gf-chip">confidence '+_gf.confidence+'%</span>'
+    +'<span class="gf-chip b">'+_gf.buy+' buy</span><span class="gf-chip s">'+_gf.sell+' sell</span>'
+    +'<span class="gf-chip t">'+_gf.voters+' news drivers</span>'
+    +'<span class="gf-chip t">'+esc(gfAge(_gf.freshest_h))+'</span></div></div>';
+  if(gfHoursLine()) h+='<div class="gf-hours">'+esc(gfHoursLine())+'</div>';
+  h+='<div class="sheet-sec">What the headlines say about gold</div>';
+  ( _gf.stories||[]).forEach(s=>{ h+=gfStoryHtml(s); });
+  if(!(_gf.stories||[]).length) h+='<div class="jn-empty">No gold headline in the last few hours.</div>';
+  if((_gf.watch||[]).length){
+    h+='<div class="sheet-sec">What to watch · how this event moves gold</div><div class="gf-watch">';
+    _gf.watch.forEach(w=>{ h+='<div class="gf-w"><span class="gf-row2">'+esc(evDay(w.time))+' '+esc(evClock(w.time))
+      +' · '+esc(w.currency||'')+' · '+esc(w.impact||'')+'</span>'
+      +'<span class="gf-t">'+esc(w.title)+'</span><span class="gf-why">'+esc(w.note)+'</span></div>'; });
+    h+='</div>';
+  }
+  h+='<div class="gf-sched"><span>next reading <b id="gf-cd2">'+gfCountdown()+'</b> · '+esc(gfFmt(_gf.next_update))+'</span>'
+    +'<span>on the 5-minute clock (:00 :05 :10 …)</span></div>';
+  h+='<div class="sheet-note">'+esc(_gf.method||'')+'<br>'
+    +'Rule-based reading of published headlines from '+esc((_gf.sources||[]).join(', ')||'public feeds')
+    +'. It is not a forecast and not advice. Times are your own timezone.</div>';
+  return h;
+}
+function scheduleGoldRefresh(){
+  clearTimeout(_gfTimer);
+  if(!_gf||!_gf.next_update) return;
+  // fetch ~1.5 s after the bucket turns, so the server has certainly rebuilt it
+  const wait=Math.max(1200,(_gf.next_update+1.5)*1000-Date.now());
+  _gfTimer=setTimeout(function(){ loadGoldFundamentals(true); },wait);
+}
+async function loadGoldFundamentals(force){
+  if(_gfBusy) return _gf;
+  _gfBusy=true;
+  try{
+    const r=await fetch('/api/fundamentals/gold?limit=12',{cache:'no-store'});
+    const d=await r.json();
+    if(d&&d.status==='ok'){
+      _gf=d;
+      renderGoldStrip();
+      scheduleGoldRefresh();
+      const body=document.getElementById('sheet-body');
+      if(body&&document.getElementById('sheet')&&document.getElementById('sheet').classList.contains('open')
+         &&/gold fundamentals/i.test((document.getElementById('sheet-title')||{}).textContent||''))
+        body.innerHTML=goldFundHtml();
+    }
+  }catch(e){ console.log('gold fundamentals err',e); }
+  _gfBusy=false;
+  return _gf;
+}
+async function openGoldFundamentals(){
+  openSheet('Gold fundamentals · XAUUSD','<div class="jn-empty">Reading the gold headlines…</div>');
+  await loadGoldFundamentals(true);
+  const b=document.getElementById('sheet-body'); if(b) b.innerHTML=goldFundHtml();
+}
+// the countdown is text only: one interval, no layout work, and it stops when the page is hidden
+function gfTick(){
+  if(document.hidden) return;
+  const c=gfCountdown();
+  const a=document.getElementById('gf-cd'), b=document.getElementById('gf-cd2');
+  if(a)a.textContent=c;
+  if(b)b.textContent=c;
+  // a bucket that has turned while the tab was asleep: fetch on the next tick
+  if(_gf&&_gf.next_update&&Date.now()/1000>_gf.next_update+2&&!_gfBusy&&_gfAligned!==_gf.next_update){
+    _gfAligned=_gf.next_update; loadGoldFundamentals(true);
+  }
+}
+setInterval(gfTick,1000);
+document.addEventListener('visibilitychange',function(){ if(!document.hidden){ gfTick(); try{loadGoldFundamentals();}catch(e){} } });
+
 // ---------- latest news: its own panel, own sources ----------
 // Every headline keeps its feed, its link and its own timestamp.
 let _news=null, _newsAt=0, _newsBusy=false;
@@ -2770,11 +2971,9 @@ async function loadNews(force){
   return _news;
 }
 function renderNewsStrip(d){
-  const box=document.getElementById('news-strip'); if(!box) return;
-  const n=(d.news||[])[0];
-  box.innerHTML = n
-    ? '<div class="fund-row"><span class="fund-t">'+esc(n.source)+'</span><span class="fund-x">'+esc(n.title)+'</span></div>'
-    : '<div class="fund-row"><span class="fund-x">no headlines right now</span></div>';
+  // #news-strip belongs to the gold reading now: a mixed feed writing here was what made
+  // the line look like it changed at random. One owner, one timetable.
+  return;
 }
 function newsHtml(d){
   if(!d || d.status!=='ok')
@@ -3136,6 +3335,46 @@ if(window.visualViewport){
 try{new ResizeObserver(scheduleFit).observe(document.querySelector('.hd'));}catch(e){}
 try{new ResizeObserver(function(){if(!document.body.classList.contains('is-resizing')){syncChrome();relayoutChart();}}).observe(document.getElementById('bnav'));}catch(e){}
 
+// ---- two fingers are the chart's, not the browser's ----------------------
+// On iOS a pinch is a *page* zoom even when the element under the fingers says
+// touch-action:none, and the page then stays zoomed (the header half off screen, the
+// candles blurry). Safari's own gesture events are the only thing that stops it, and a
+// double tap is stopped by touch-action:manipulation above. Pinches that start on the
+// plot are left alone: that is the chart zooming its own time scale.
+function initZoomGuard(){
+  if(window._zoomGuard) return; window._zoomGuard=true;
+  ['gesturestart','gesturechange','gestureend'].forEach(function(ev){
+    document.addEventListener(ev,function(e){ e.preventDefault(); },{passive:false});
+  });
+  // iOS Safari fires these on the element that was scaled
+  document.addEventListener('touchmove',function(e){
+    if(e.touches&&e.touches.length>1){
+      const t=e.target;
+      const onPlot=t&&t.closest&&t.closest('#oanda_chart');
+      if(!onPlot) e.preventDefault();          // page pinch anywhere else: block it
+    }
+  },{passive:false});
+  // a pinch that ends leaves the visual viewport offset; snap it back
+  if(window.visualViewport) window.visualViewport.addEventListener('resize',function(){
+    try{ if(visualViewport.scale>1.02) visualViewport.scale=1; }catch(e){}
+    try{ if(visualViewport.offsetTop||visualViewport.offsetLeft) window.scrollTo(0,0); }catch(e){}
+  });
+  // some Android browsers zoom the layout on a double tap even with touch-action set
+  let lastTap=0;
+  document.addEventListener('touchend',function(e){
+    const now=Date.now();
+    if(now-lastTap<300){
+      const t=e.target;
+      if(!(t&&t.closest&&t.closest('#oanda_chart'))) e.preventDefault();
+    }
+    lastTap=now;
+  },{passive:false});
+}
+try{ initZoomGuard(); }catch(e){}
+// the gold reading starts on its own, on the same 5-minute grid as the server - opening the
+// menu later shows the reading that is already current instead of fetching a fresh one
+setTimeout(function(){ try{ loadGoldFundamentals(); }catch(e){} }, 1600);
+
 // ---- hamburger menu ----
 function toggleMenu(){
   const m=document.getElementById('menu'); if(!m)return;
@@ -3282,7 +3521,8 @@ function paintInstall(){
 function openMenu(){
   try{paintMenuAlerts();}catch(e){}
   try{paintInstall();}catch(e){}
-  if(typeof loadCalendar==='function'){ loadCalendar(); loadNews(); }
+  if(typeof loadCalendar==='function'){ loadCalendar(); }
+  if(typeof loadGoldFundamentals==='function'){ loadGoldFundamentals(); }
   const m=document.getElementById('menu'), s=document.getElementById('scrim'), b=document.getElementById('burger');
   if(m)m.classList.add('open');
   if(s)s.classList.add('on');
@@ -4643,8 +4883,48 @@ function paintLivePill(){
   }catch(e){}
   el.hidden=!away;
 }
+// Following the live edge is explicit, never a side effect. A pan or a zoom the reader made
+// is the truth until they ask for the live candle again (the LIVE pill, a double tap, or a
+// timeframe change). These three helpers are the only places that move the window on
+// their own, and every one of them is skipped while a gesture is in flight.
+let _rangeLock=0;                       // ms timestamp: do not move the window before this
+function rangeLock(ms){ _rangeLock=Date.now()+(ms||1200); }
+function setRangeQuiet(from,to){
+  if(!chart) return false;
+  if(_gestActive||Date.now()<_rangeLock) return false;
+  try{
+    const cur=chart.timeScale().getVisibleLogicalRange();
+    if(cur&&Math.abs(cur.from-from)<0.01&&Math.abs(cur.to-to)<0.01) return false;  // already there
+    chart.timeScale().setVisibleLogicalRange({from:from,to:to});
+    return true;
+  }catch(e){ return false; }
+}
+// is the newest candle already in view? then following it costs the reader nothing
+function atLiveEdge(){
+  try{
+    const n=lastCandles.length;
+    if(!n) return false;
+    const r=chart.timeScale().getVisibleLogicalRange();
+    if(!r) return false;
+    return (n-1-r.to)<=2.5;
+  }catch(e){ return false; }
+}
+function followLive(){
+  if(_gestActive||Date.now()<_rangeLock||!atLiveEdge()) return;
+  try{ chart.timeScale().scrollToRealTime(); }catch(e){}
+}
 function goLive(){
-  try{chart.timeScale().scrollToRealTime();}catch(e){}
+  // park the newest candle at the right edge, with the same breathing room the chart keeps
+  try{
+    const n=lastCandles.length, ts=chart.timeScale();
+    if(n){
+      const off=(typeof CHART_VIEW!=='undefined'&&CHART_VIEW.roff)||4;
+      const cur=ts.getVisibleLogicalRange();
+      const w=cur&&(cur.to-cur.from)>2?(cur.to-cur.from):40;
+      rangeLock(700);
+      ts.setVisibleLogicalRange({from:n-1+off-w, to:n-1+off});
+    }else{ ts.scrollToRealTime(); }
+  }catch(e){ try{chart.timeScale().scrollToRealTime();}catch(_){} }
   setTimeout(function(){paintLivePill();scheduleDraw();},140);
 }
 
@@ -5533,6 +5813,10 @@ function tvChartOptions(){
     // ticks on the axis, a wider bar, and a right offset that leaves the newest candle air
     timeScale:{borderColor:p.border,timeVisible:true,secondsVisible:false,rightOffset:8,barSpacing:9,
                fixLeftEdge:false,lockVisibleTimeRangeOnResize:true,borderVisible:true,ticksVisible:true,
+               // A new bar must never jump the chart under the reader's finger. Following the
+               // live edge is done by goLive() and by followLive(), and only when the newest
+               // candle is already on screen (see comment there).
+               shiftVisibleRangeOnNewBar:false,
                tickMarkMaxCharacterLength:6},
     handleScroll:{mouseWheel:true,pressedMouseMove:true,horzTouchDrag:true,vertTouchDrag:true,
                   kineticScroll:{touch:true,mouse:true}},
@@ -5660,6 +5944,11 @@ const url=cfg.chart+_sep+`granularity=${base}&count=${count}`+(cfg.venues?`&venu
       if(_ex){clean=toTF(clean,tf).slice(-showBars);if(!clean.length){return;} }
 const _key=currentSymbol+'|'+tf,_same=(window._chartKey===_key);window._chartKey=_key;
 let _vr=null;try{if(_same)_vr=chart.timeScale().getVisibleLogicalRange();}catch(e){}
+// A background refresh must never move the window: the range the reader is looking at is
+// captured before the series is replaced and put back, untouched, right after it.
+let _keep=null;
+try{ _keep=chart.timeScale().getVisibleLogicalRange(); }catch(e){}
+if(_keep) rangeLock(900);
 try{setTimeout(function(){try{alertIndTick();}catch(e){}},900);
   paintSeries(clean);
   // the feed's newest bar can sit one interval behind the clock. Keep the bar that is
@@ -5675,7 +5964,15 @@ try{setTimeout(function(){try{alertIndTick();}catch(e){}},900);
   try{const _cv=document.getElementById('oanda_chart');if(_cv)_cv.classList.remove('swapping');
       const _sn=document.getElementById('swap-note');if(_sn)_sn.hidden=true;
       clearTimeout(window._swapTimer);}catch(e){}
-  if(_vr) chart.timeScale().setVisibleLogicalRange(_vr);   // no jump every refresh
+  if(_vr||_keep){
+    // put the reader's own window back exactly (never while a finger is down: the gesture
+    // owns the window and will re-anchor itself when it ends)
+    const _r=_vr||_keep;
+    try{ if(!_gestActive&&_r) chart.timeScale().setVisibleLogicalRange({from:_r.from,to:_r.to}); }catch(e){}
+    // a fresh bar on a chart that is sitting at the live edge is followed; a reader who
+    // scrolled back keeps their place
+    setTimeout(function(){ try{ followLive(); }catch(e){} }, 60);
+  }
   else{
     // A market the user just opened shows from its first bar to its last. The range is
     // set after the series has the data (a range set before setData is clamped to the
@@ -5688,6 +5985,7 @@ try{setTimeout(function(){try{alertIndTick();}catch(e){}},900);
       return Math.max(10,Math.min(400,Math.round((w-56)/px)));};
     const _fit=()=>{try{
       const n=clean.length, show=Math.min(n,_want());
+      rangeLock(900);
       chart.timeScale().setVisibleLogicalRange({from:n-show-0.5,to:n+2.5});
     }catch(e){}};
     _fit();
@@ -5833,6 +6131,7 @@ function liveBarOpen(px){
   try{ glideReset(); glidePrice(p,k); }catch(e){}
   try{ scheduleTickDraw(); }catch(e){}
   try{ paintLivePill(); }catch(e){}
+  try{ followLive(); }catch(e){}
   if(window._motionDebug) window._motionDebug.liveBars=(window._motionDebug.liveBars||0)+1;
   return bar;
 }

@@ -4734,6 +4734,24 @@ def get_news(limit: int = 24):
         return {"status": "error", "error": str(e), "real": True}
 
 
+@app.get("/api/fundamentals/gold")
+def get_gold_fundamentals(limit: int = 12):
+    """What the published news says about XAUUSD, rebuilt on the 5-minute clock.
+
+    Gold-only: the metal itself plus the macro drivers that move it (Fed, real yields,
+    dollar, inflation, safe-haven demand, central banks, ETFs). Each story carries the
+    BUY / SELL direction a fixed rule table gives it and the rule that fired; the reading
+    is the sum. Deterministic for a given bucket, so the same 5 minutes always return the
+    same numbers, and the next update is a timestamp instead of a surprise.
+    """
+    try:
+        import news as NEWS
+        return NEWS.gold_fundamentals(limit=max(6, min(24, int(limit or 12))))
+    except Exception as e:
+        print("gold fundamentals err", e)
+        return {"status": "error", "error": str(e), "market": "XAUUSD", "real": True}
+
+
 @app.get("/api/fundamentals")
 def get_fundamentals(limit: int = 24):
     """Real market-moving news: economic calendar + live headlines from public feeds.
