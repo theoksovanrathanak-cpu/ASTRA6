@@ -62,7 +62,7 @@ def main():
     up = HTTPServer(("127.0.0.1", 8899), H)
     threading.Thread(target=up.serve_forever, daemon=True).start()
 
-    base = "http://127.0.0.1:8010"
+    base = "http://127.0.0.1:8020"
     # a clean slate: subscriptions left by an earlier run would decrypt to nothing
     here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     try:

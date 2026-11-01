@@ -242,6 +242,11 @@ def quote(sym):
     return None
 
 
+# ONE MARKET: the site is a gold terminal. A rule saved for any other pair (from an older
+# build) is ignored here rather than waking a phone for something that cannot be traded.
+ALLOWED_SYMBOLS = ("XAUUSD",)
+
+
 def eval_rules(rec):
     """Every armed rule on this device, checked against the real price now."""
     out = []
@@ -254,6 +259,8 @@ def eval_rules(rec):
         if r.get("done") or str(r.get("id")) in fired:
             continue
         sym = r["sym"]
+        if str(sym).upper() not in ALLOWED_SYMBOLS:
+            continue          # a rule for a pair this site no longer carries is dead weight
         kind = r["kind"]
         lvl = float(r.get("price") or 0)
         # the signal rule rings with whatever side the read gives - SELL when the read
@@ -330,6 +337,8 @@ def read_cards(rec):
     state = rec.setdefault("readState", {})
     out = []
     for sym in rc.get("syms") or []:
+        if str(sym).upper() not in ALLOWED_SYMBOLS:
+            continue
         try:
             d = _read_fn(sym)
         except Exception as e:

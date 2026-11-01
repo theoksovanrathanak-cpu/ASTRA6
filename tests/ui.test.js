@@ -361,10 +361,16 @@ section('nothing opens by itself');
      && !html.includes('id="home-px-EURUSD"') && !html.includes('id="home-px-ES"')
      && !/class="home-tiles"/.test(html));
   ok('home offers one chart button instead', /class="home-cta"[^>]*onclick="setView\('chart'\)/.test(html));
-  // crypto came back by request, priced off the exchange book, never guessed
-  ok('bitcoin and ether are on the platform with a real feed', /BTCUSD:\{name:'Bitcoin'/.test(html)
-     && /ETHUSD:\{name:'Ethereum'/.test(html) && /\/api\/crypto\/chart/.test(html));
-  ok('the welcome subtitle names metals and futures', /metals · futures/.test(html) && !/metals · forex/.test(html));
+  // GOLD ONLY: the platform carries one market, by explicit request
+  const mktBlock = html.slice(html.indexOf('const MKT={'), html.indexOf('const MKT_GROUPS'));
+  ok('the market table holds gold and nothing else', /XAUUSD:/.test(mktBlock)
+     && !/XAGUSD:|XPTUSD:|XPDUSD:|BTCUSD:|ETHUSD:|\bES:|\bNQ:|\bCL:/.test(mktBlock), mktBlock.slice(0, 200));
+  ok('one market is flagged so the pickers can stand down', /const ONE_MARKET=\(Object\.keys\(MKT\)\.length===1\)/.test(html));
+  ok('the picker cannot open', /if\(ONE_MARKET\)\{ if\(ev&&ev\.preventDefault\)ev\.preventDefault\(\); return; \}/.test(grab('toggleMarketPicker')));
+  ok('old watchlists and alerts for other pairs are pruned on boot', /function pruneSymbols\(\)/.test(html)
+     && /pruneSymbols\(\);/.test(html) && /SITE_SYMBOL/.test(html));
+  ok('the welcome subtitle names the one market', /gold · xauusd/.test(html) && !/metals · futures|metals · forex/.test(html));
+  ok('the page description names gold', /Live gold/.test(html) && !/live metals and futures/i.test(html));
   ok('the welcome has no price header', /body\[data-view="home"\] \.hd \.price-block/.test(html));
   ok('home still points at menu → Chart', /menu → Chart/.test(html));
   ok('menu has a Home choice', /data-view="home"/.test(html));
@@ -635,9 +641,8 @@ section('the page says when the data stops');
   const at = s => new Date(s).getTime();
   ok('the metals shut at the weekend', !marketOpenNow('XAGUSD', at('2026-10-31T12:00:00Z')));
   ok('forex reopens Sunday 22:00', marketOpenNow('EURUSD', at('2026-11-01T22:30:00Z')));
-  ok('futures open later on Sunday than forex', !marketOpenNow('ES', at('2026-11-01T22:30:00Z'))
-     && marketOpenNow('ES', at('2026-11-01T23:30:00Z')));
-  ok('futures trade on a Friday morning', marketOpenNow('NQ', at('2026-10-30T09:00:00Z')));
+  ok('an unknown symbol follows the only market on the site', marketOpenNow('ES', at('2026-11-01T22:30:00Z'))
+     && !marketOpenNow('ES', at('2026-10-31T12:00:00Z')));
   ok('gold is shut on Saturday', !marketOpenNow('XAUUSD', at('2026-10-31T12:00:00Z')));
   ok('gold is shut on Sunday morning', !marketOpenNow('XAUUSD', at('2026-11-01T12:00:00Z')));
   ok('gold opens Sunday 22:00 UTC', marketOpenNow('XAUUSD', at('2026-11-01T22:30:00Z')));
@@ -728,30 +733,30 @@ section('the market picker and the alert card live on the chart');
   ok('a tap elsewhere shuts it', /document\.addEventListener\('click'/.test(html) && /closeMarketPicker\(\)/.test(html));
   ok('the button shows the market on screen', /mkt-float-sym/.test(grab('setSymbol')));
 
-  // the alert list is per market, by construction
-  currentSymbol = 'XAGUSD';
-  store.astra6_zone_alerts_XAGUSD = JSON.stringify([
-    { key: 'e1', sym: 'XAGUSD', type: 'BUY', entry: 48.512, sl: 48.240, tp1: 48.784, tp2: 48.966, r: 2.0, ts: 1793400000 },
-    { key: 'e2', sym: 'XAUUSD', type: 'SELL', entry: 3875, sl: 3880, tp1: 3870, tp2: 3865, r: 2.0, ts: 1793300000 },
+  // the alert list is per market, by construction - gold is the only market on the site
+  currentSymbol = 'XAUUSD';
+  store.astra6_zone_alerts_XAUUSD = JSON.stringify([
+    { key: 'e1', sym: 'XAUUSD', type: 'BUY', entry: 3876.42, sl: 3872.1, tp1: 3879.66, tp2: 3884.05, r: 2.0, ts: 1793400000 },
+    { key: 'e2', sym: 'XAGUSD', type: 'SELL', entry: 48.512, sl: 48.24, tp1: 48.78, tp2: 48.97, r: 2.0, ts: 1793300000 },
   ]);
-  const sil = alertsOf('XAGUSD');
-  ok('a stray gold record cannot show on the silver chart', sil.length === 1 && sil[0].key === 'e1');
+  const goldRows = alertsOf('XAUUSD');
+  ok('a record for a pair the site no longer carries cannot show', goldRows.length === 1 && goldRows[0].key === 'e1');
   const realFmt = fmtPx;
   global.fmtPx = realFmtPx;                    // the page's own, decimals per market
-  const htmlSil = alertsHtml('XAGUSD');
-  ok('the silver sheet lists the silver trade', htmlSil.includes('48.512') && !htmlSil.includes('3875'));
-  ok('the sheet names the market', /XAGUSD/.test(htmlSil));
+  const htmlGold = alertsHtml('XAUUSD');
+  ok('the sheet lists the gold trade only', htmlGold.includes('3,876.42') && !htmlGold.includes('48.512'));
+  ok('the sheet names the market', /XAUUSD/.test(htmlGold));
   localStorage.removeItem('astra6_zone_alerts_XAUUSD');
-  const gold = alertsHtml('XAUUSD');
-  ok('an empty market says so honestly', /No XAUUSD signal yet/.test(gold));
+  const empty = alertsHtml('XAUUSD');
+  ok('an empty market says so honestly', /No XAUUSD signal yet/.test(empty));
 
   const card = mkEl('alert-float');
   card.hidden = true;
   document.getElementById = (id) => (id === 'alert-float' ? card : (els[id] || null));
-  currentSymbol = 'XAGUSD';
-  paintAlertCard(sil.map(a => ({ type: a.type, entry: a.entry, sl: a.sl, tp1: a.tp1, tp2: a.tp2, r: a.r, ts: a.ts })));
-  ok('the chart card shows this market only', card.hidden === false && /XAGUSD/.test(card.innerHTML) && !/3,875|3875/.test(card.innerHTML));
-  ok('the card carries the levels', /48\.240/.test(card.innerHTML) && /48\.966/.test(card.innerHTML));
+  currentSymbol = 'XAUUSD';
+  paintAlertCard(goldRows.map(a => ({ type: a.type, entry: a.entry, sl: a.sl, tp1: a.tp1, tp2: a.tp2, r: a.r, ts: a.ts })));
+  ok('the chart card shows this market only', card.hidden === false && /XAUUSD/.test(card.innerHTML) && !/48\.24/.test(card.innerHTML));
+  ok('the card carries the levels', /3,872\.10/.test(card.innerHTML) && /3,884\.05/.test(card.innerHTML));
   global.fmtPx = realFmt;
   paintAlertCard([]);
   ok('no alert means no card', card.hidden === true);
@@ -1071,7 +1076,10 @@ print('|'.join([rej['type'], rej.get('style') or '-', rejh['type'], base['type']
   ok('the strategy readout sits under the chart', /id="flow-line"/.test(html) && /function paintFlowLine/.test(html));
   ok('the readout prints entry, stop and both targets', /flow-k">SL<\/span>/.test(html) && /flow-k">TP2<\/span>/.test(html));
   ok('forex pairs are gone from the market table', !/'EUR\/USD'/.test(html) && !/'USD\/JPY'/.test(html) && !/'GBP\/USD'/.test(html));
-  ok('the market picker lists metals, futures and crypto', /MKT_GROUPS=\['Metals','Futures','Crypto'\]/.test(html));
+  ok('the market chip is a label, not a picker', /<span id="mkt-float"/.test(html)
+     && !/<button id="mkt-float"[^>]*onclick="toggleMarketPicker/.test(html));
+  ok('the groups are derived from what is actually on the site',
+     /const MKT_GROUPS=Array\.from\(new Set\(Object\.keys\(MKT\)/.test(html));
   ok('forex is still gone from the market table',
      !/EURUSD:|GBPUSD:|USDJPY:/.test(html.slice(html.indexOf('const MKT={'), html.indexOf('const MKT_GROUPS'))));
   ok('no pop-up alert card exists any more', !html.includes('id="alert-float"'));

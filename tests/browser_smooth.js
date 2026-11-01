@@ -141,48 +141,38 @@ async function setPinThroughUi(page, pin = '1234') {
     ok('SMC is rebuilt far less often during a pan', fS > gS * 1.5, { gS, fS });
     ok('the value-area bands are rebuilt far less often too', fZ > gZ * 1.5, { gZ, fZ });
 
-    // ------------------------------------------------------------ 3. pair switch
-    const timeline = await page.evaluate(async () => {
+    // ---------------------------------------------------- 3. one market, one chart
+    // The site carries gold only now. What still has to hold: asking for another pair
+    // quietly keeps gold on screen, raises no loading cover and never blanks the chart.
+    const ask = await page.evaluate(async () => {
       const frames = [];
       const t0 = performance.now();
       setSymbol('BTCUSD');
       const tick = () => {
         const c = document.getElementById('swap-cover');
-        const n = (lastCandles || []).length;
-        frames.push({ t: Math.round(performance.now() - t0), cover: c && c.classList.contains('on'), n });
-        if (performance.now() - t0 < 6000) requestAnimationFrame(tick);
+        frames.push({ cover: c && c.classList.contains('on'), n: (lastCandles || []).length });
+        if (performance.now() - t0 < 3000) requestAnimationFrame(tick);
       };
       requestAnimationFrame(tick);
-      await new Promise(r => setTimeout(r, 6200));
+      await new Promise(r => setTimeout(r, 3200));
       return { frames, sym: currentSymbol, candles: (lastCandles || []).length };
     });
-    const covered = timeline.frames.filter(f => f.cover).length;
-    const blankWhileCovered = timeline.frames.filter(f => f.cover && f.n === 0).length;
-    const blankUncovered = timeline.frames.filter(f => !f.cover && f.n === 0).length;
-    ok('the switch shows a cover instead of a blank chart', covered > 0, { covered, total: timeline.frames.length });
-    ok('the old series stays under the cover (nothing flashes empty)', blankWhileCovered === 0, { blankWhileCovered });
-    ok('the new pair is drawn after the switch', timeline.sym === 'BTCUSD' && timeline.candles > 20, { sym: timeline.sym, n: timeline.candles });
-    ok('the cover is gone once the candles are real', !timeline.frames[timeline.frames.length - 1].cover, timeline.frames.slice(-1)[0]);
-    ok('no empty (uncovered) chart at any point', blankUncovered === 0, { blankUncovered });
-    await page.screenshot({ path: '/home/user/switch-smooth.png' });
+    ok('asking for a pair the site does not carry keeps gold on screen',
+      ask.sym === 'XAUUSD' && ask.candles > 20, ask);
+    ok('no loading cover is raised', ask.frames.every(f => !f.cover), ask.frames.filter(f => f.cover).length);
+    ok('the chart is never blank', ask.frames.every(f => f.n > 0), ask.frames.filter(f => !f.n).length);
 
-    // a mid-switch frame, to show what the cover actually looks like
-    await page.evaluate(() => { setSymbol('ETHUSD'); });
-    await sleep(120);
-    await page.screenshot({ path: '/home/user/switch-cover.png' });
-    await sleep(4000);
-
-    // ---------------------------------------------------- 3b. two switches in quick succession
-    const rapid = await page.evaluate(async () => {
-      setSymbol('BTCUSD');
-      await new Promise(r => setTimeout(r, 180));
-      setSymbol('XAUUSD');
-      await new Promise(r => setTimeout(r, 7000));
-      const c = document.getElementById('swap-cover');
-      return { sym: currentSymbol, candles: (lastCandles || []).length, cover: c.classList.contains('on'), key: window._chartKey };
+    // a layout change is the switch a user can still make: 2 and 4 gold timeframes
+    const lay = await page.evaluate(async () => {
+      setLayout(4);
+      await new Promise(r => setTimeout(r, 3200));
+      const out = [...document.querySelectorAll('.mv-cell')].map(c => ({ tf: c.dataset.tf, px: c.querySelector('.mv-px').textContent }));
+      setLayout(1);
+      return out;
     });
-    ok('a second switch during the first still lands on the newest pair', rapid.sym === 'XAUUSD' && rapid.candles > 20, rapid);
-    ok('the cover never stays stuck after a rapid switch', !rapid.cover, rapid);
+    ok('four charts are four timeframes of gold', lay.length === 4 && lay.every(c => /^[MH]\d+$/.test(c.tf)) && lay.every(c => /\$/.test(c.px)), lay);
+
+    await page.screenshot({ path: '/home/user/switch-smooth.png' });
     await page.close();
   }
 

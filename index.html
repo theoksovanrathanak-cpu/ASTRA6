@@ -28,9 +28,9 @@
 })();
 </script>
 <title>ASTRA6</title>
-<meta name="description" content="ASTRA6 — live metals and futures with order-flow volume, value area and daily VWAP. Free, no sign-in.">
+<meta name="description" content="ASTRA6 — live gold (XAUUSD) with order-flow volume, value area and daily VWAP. Free, no sign-in.">
 <meta property="og:title" content="ASTRA6">
-<meta property="og:description" content="Live metals and futures. Order flow, value area, daily VWAP and real OHLC.">
+<meta property="og:description" content="Live gold. Order flow, value area, daily VWAP and real OHLC.">
 <meta property="og:url" content="https://astra6render.com">
 <meta name="theme-color" content="#0b1220">
 <link rel="icon" href="/logo.png">
@@ -1367,7 +1367,7 @@ body[data-view="home"] .wrap{position:relative;overflow:hidden}
 #tf-float{max-width:calc(100% - 96px)}
 #mkt-float{
   position:absolute;top:44px;left:8px;z-index:7;display:inline-flex;align-items:center;gap:5px;width:auto;max-width:132px;
-  height:26px;padding:0 8px;border-radius:8px;cursor:pointer;
+  height:26px;padding:0 8px;border-radius:8px;cursor:default;pointer-events:none;
   border:1px solid color-mix(in srgb,var(--a-violet) 30%,var(--line));
   background:color-mix(in srgb,var(--surface) 88%,transparent);
   -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
@@ -1823,7 +1823,7 @@ body[data-view="chart"] .hd-quote{left:auto;right:9px;bottom:2px;text-align:righ
     <div class="intro-ring"></div>
     <div class="intro-mark"><span>A6</span><i class="intro-shine"></i></div>
     <div class="intro-title">WELCOME TO <b>ASTRA</b></div>
-    <div class="intro-sub">metals · futures</div>
+    <div class="intro-sub">gold · xauusd</div>
     <div class="intro-bar"><i></i></div>
     <div class="intro-tap">
       <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
@@ -1991,7 +1991,7 @@ body[data-view="chart"] .hd-quote{left:auto;right:9px;bottom:2px;text-align:righ
     <div class="home-mark-wrap"><div class="home-mark">A6</div></div>
     <div>
       <div class="home-title">ASTRA6</div>
-      <div class="home-sub">metals · futures</div>
+      <div class="home-sub">gold · xauusd · live</div>
     </div>
     <button class="home-cta" type="button" onclick="setView('chart');if(typeof closeMenu==='function')closeMenu()">
       <span class="cta-ico" aria-hidden="true">
@@ -2072,11 +2072,10 @@ body[data-view="chart"] .hd-quote{left:auto;right:9px;bottom:2px;text-align:righ
         <div class="swap-bar"><i></i></div>
       </div>
       <div id="sub-panes" hidden></div>
-      <button id="mkt-float" type="button" aria-haspopup="true" aria-expanded="false"
-              onclick="toggleMarketPicker(event)">
+      <!-- one market: this is a label that names what is on screen, not a menu -->
+      <span id="mkt-float" class="mkt-float-label" role="note" aria-label="Market: gold, XAUUSD">
         <span id="mkt-float-sym">XAUUSD</span>
-        <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
-      </button>
+      </span>
       <div id="mkt-pop" class="mkt-pop" hidden role="dialog" aria-label="Switch market"></div>
       <div id="chart-toolbar" role="toolbar" aria-label="Chart">
         <button type="button" class="ctb" onclick="resetZoom()" title="Reset the view" aria-label="Reset the view">
@@ -2231,21 +2230,31 @@ let currentVenue=localStorage.getItem('astra6_venue')||'OANDA:XAUUSD';
 let _unusedVenue=null;      // gold is the only venue-priced market now
 // The markets ASTRA6 trades. Gold is the flagship and keeps its own feed; the rest
 // come from the market layer. No bitcoin anywhere.
+// ONE MARKET. The app is a gold terminal: XAUUSD only. Every list in the page - the market
+// picker, the watchlist, the alert pair chips, the multi-chart cells, the journal form -
+// is generated from this object, so removing the others here removes them everywhere at
+// once, rather than leaving a dead button behind on some screen.
 const MKT={
-  XAUUSD:{name:'Gold',      group:'Metals', dec:2, unit:'$', vol:true,  venue:true},
-  XAGUSD:{name:'Silver',    group:'Metals', dec:3, unit:'$', vol:true},
-  XPTUSD:{name:'Platinum',  group:'Metals', dec:1, unit:'$', vol:true},
-  XPDUSD:{name:'Palladium', group:'Metals', dec:1, unit:'$', vol:true},
-  ES:    {name:'S&P 500',   group:'Futures',dec:2, unit:'',  vol:true},
-  NQ:    {name:'Nasdaq 100',group:'Futures',dec:2, unit:'',  vol:true},
-  CL:    {name:'WTI Crude', group:'Futures',dec:2, unit:'$', vol:true},
-  BTCUSD:{name:'Bitcoin',   group:'Crypto', dec:2, unit:'$', vol:true, crypto:'BTCUSDT'},
-  ETHUSD:{name:'Ethereum',  group:'Crypto', dec:2, unit:'$', vol:true, crypto:'ETHUSDT'}
+  XAUUSD:{name:'Gold', group:'Metals', dec:2, unit:'$', vol:true, venue:true}
 };
-const MKT_GROUPS=['Metals','Futures','Crypto'];
+const MKT_GROUPS=Array.from(new Set(Object.keys(MKT).map(function(k){return MKT[k].group})));
+const ONE_MARKET=(Object.keys(MKT).length===1);
+const SITE_SYMBOL='XAUUSD';
+// anything the browser still remembers about another pair is dropped on boot, so an old
+// watchlist entry or a saved alert can never resurrect a market that no longer exists
+function pruneSymbols(){
+  try{const w=JSON.parse(localStorage.getItem('astra6_watch')||'null');
+    if(Array.isArray(w)){const k=w.filter(function(x){return !!MKT[x];});
+      localStorage.setItem('astra6_watch',JSON.stringify(k.length?k:[SITE_SYMBOL]));}}catch(e){}
+  try{const a=JSON.parse(localStorage.getItem('astra6_alt_alerts')||'[]');
+    if(Array.isArray(a)){const k=a.filter(function(x){return x&&MKT[x.sym];});
+      if(k.length!==a.length)localStorage.setItem('astra6_alt_alerts',JSON.stringify(k));}}catch(e){}
+  try{localStorage.setItem('astra6_symbol',SITE_SYMBOL);}catch(e){}
+}
 function mkMeta(sym){return MKT[sym]||MKT.XAUUSD;}
-let currentSymbol=localStorage.getItem('astra6_symbol')||'XAUUSD';
-if(!MKT[currentSymbol]){currentSymbol='XAUUSD';localStorage.setItem('astra6_symbol','XAUUSD');}
+pruneSymbols();
+let currentSymbol=localStorage.getItem('astra6_symbol')||SITE_SYMBOL;
+if(!MKT[currentSymbol]){currentSymbol=SITE_SYMBOL;try{localStorage.setItem('astra6_symbol',SITE_SYMBOL);}catch(e){}}
 function getToken(){return localStorage.getItem('astra6_token')||sessionStorage.getItem('astra6_token')||window.token||'';}
 function setToken(t){if(t){localStorage.setItem('astra6_token',t);sessionStorage.setItem('astra6_token',t);window.token=t;}else{localStorage.removeItem('astra6_token');sessionStorage.removeItem('astra6_token');window.token='';}}
 function authHeaders(){const t=getToken();return t?{'Authorization':'Bearer '+t}:{};}
@@ -2843,7 +2852,7 @@ function journalHtml(){
    +'<div><b class="mono">'+open+'</b><span>open</span></div></div>';
   h+='<div id="jn-cal">'+jnCalHtml()+'</div>';
   h+='<div class="sheet-sec">Log a trade</div><div class="jn-form">'
-   +'<label class="jn-f"><span>Market</span><select id="jn-sym"><option value="XAUUSD">GOLD · XAUUSD</option><option value="XAGUSD">SILVER · XAGUSD</option><option value="ES">S&amp;P 500</option><option value="NQ">NASDAQ 100</option><option value="CL">CRUDE OIL</option></select></label>'
+   +'<label class="jn-f"><span>Market</span><select id="jn-sym"><option value="XAUUSD">GOLD · XAUUSD</option></select></label>'
    +'<label class="jn-f"><span>Side</span><select id="jn-side"><option value="BUY">BUY</option><option value="SELL">SELL</option></select></label>'
    +'<label class="jn-f"><span>Entry</span><input id="jn-entry" inputmode="decimal" placeholder="0.00"></label>'
    +'<label class="jn-f"><span>Stop</span><input id="jn-stop" inputmode="decimal" placeholder="0.00"></label>'
@@ -2999,6 +3008,8 @@ async function fetchBoard(){
 }
 function toggleMarketPicker(ev){
   if(ev) ev.stopPropagation();
+  // one market: the chip is a label, not a menu
+  if(ONE_MARKET){ if(ev&&ev.preventDefault)ev.preventDefault(); return; }
   const pop=document.getElementById('mkt-pop'), btn=document.getElementById('mkt-float');
   if(!pop) return;
   const open=pop.hidden;
@@ -6632,7 +6643,7 @@ function watchLoad(){
     const a=JSON.parse(localStorage.getItem('astra6_watch')||'null');
     if(Array.isArray(a)&&a.length)return a.filter(function(x){return !!MKT[x];});
   }catch(e){}
-  return ['XAUUSD','XAGUSD','BTCUSD','ETHUSD','ES','NQ','CL'];
+  return [SITE_SYMBOL];
 }
 function watchSave(a){try{localStorage.setItem('astra6_watch',JSON.stringify(a));}catch(e){}renderWatchPanel();}
 function watchAdd(sym){if(!MKT[sym])return;const a=watchLoad();if(a.indexOf(sym)>=0)return;watchSave(a.concat([sym]));}
@@ -6830,19 +6841,35 @@ function setLayout(n,quiet){
   renderMulti(n);
   if(!quiet)closePanels();
 }
+// With a single market, four copies of the same chart would be four copies of the same
+// picture. The cells are timeframes of gold instead: the multi-view is now a way to see
+// structure across horizons, which is the only reason to have more than one chart here.
+const MV_TFS={2:['M15','H1'],4:['M5','M15','H1','H4']};
+function mvTfs(n){
+  const cur=(typeof tfNorm==='function')?tfNorm(currentTF):currentTF;
+  let set=(MV_TFS[n]||[]).slice(0,n);
+  if(!ONE_MARKET)set=[cur];
+  return set;
+}
 function renderMulti(n){
   const mv=document.getElementById('multi-view');
   if(!mv)return;
   const wl=watchLoad();
-  const syms=[currentSymbol];
-  wl.forEach(function(s){if(syms.length<n&&syms.indexOf(s)<0)syms.push(s);});
-  while(syms.length<n)syms.push('XAUUSD');
-  let h='<div class="mv-bar"><b>'+n+' charts</b><span>'+currentTF+' · synced</span>'
+  const tfs=mvTfs(n);
+  let syms=[currentSymbol];
+  if(!ONE_MARKET){
+    wl.forEach(function(s){if(syms.length<n&&syms.indexOf(s)<0)syms.push(s);});
+    while(syms.length<n)syms.push('XAUUSD');
+  }else{
+    syms=new Array(n).fill(currentSymbol);
+  }
+  let h='<div class="mv-bar"><b>'+n+' charts</b><span>'+(ONE_MARKET?tfs.join(' · ')+' · gold':currentTF+' · synced')+'</span>'
     +'<button class="mv-x" onclick="setLayout(1)" aria-label="Back to one chart">✕</button></div>'
     +'<div class="mv-grid g'+n+'">';
   syms.forEach(function(sym,i){
-    h+='<div class="mv-cell" data-i="'+i+'">'
-      +'<div class="mv-hd"><button class="mv-sym" onclick="mvPick('+i+')">'+sym+'</button><span class="mv-px mono" id="mvpx-'+i+'">—</span></div>'
+    const tag=ONE_MARKET?(tfs[i]||currentTF):sym;
+    h+='<div class="mv-cell" data-i="'+i+'" data-tf="'+(tfs[i]||currentTF)+'">'
+      +'<div class="mv-hd"><button class="mv-sym"'+(ONE_MARKET?' disabled':' onclick="mvPick('+i+')"')+'>'+tag+'</button><span class="mv-px mono" id="mvpx-'+i+'">—</span></div>'
       +'<div class="mv-chart" id="mvc-'+i+'"></div></div>';
   });
   h+='</div>';
@@ -6877,8 +6904,14 @@ function renderMulti(n){
     mvLoadCell(i,sym);
   });
 }
-async function mvLoadCell(i,sym){
-  const tf=(typeof tfNorm==='function')?tfNorm(currentTF):currentTF;
+async function mvLoadCell(i,sym,tfIn){
+  let tf=tfIn;
+  if(!tf){
+    // a single-market cell carries its own timeframe, read back off the cell itself
+    try{const c=document.querySelector('.mv-cell[data-i="'+i+'"]');tf=c&&c.dataset.tf;}catch(e){}
+    tf=tf||((typeof tfNorm==='function')?tfNorm(currentTF):currentTF);
+  }
+  tf=(typeof tfNorm==='function')?tfNorm(tf):tf;
   const ex=TF_EXTRA[tf],base=ex?ex[0]:tf,ratio=(ex&&ex[2])||1;
   const count=Math.min(1000,Math.round(((base==='D'||base==='W')?200:150)*(ex?ratio:1)));
   const url=(MKT[sym]&&MKT[sym].crypto?'/api/crypto/chart?symbol='+sym:'/api/market/chart?symbol='+sym)
@@ -6898,7 +6931,11 @@ async function mvLoadCell(i,sym){
 }
 function mvRefresh(){
   if(!window._lay||window._lay<2)return;
-  (window.mvSyms||[]).forEach(function(sym,i){mvLoadCell(i,sym);});
+  (window.mvSyms||[]).forEach(function(sym,i){
+    let tf=null;
+    try{const c=document.querySelector('.mv-cell[data-i="'+i+'"]');tf=c&&c.dataset.tf;}catch(e){}
+    mvLoadCell(i,sym,tf);
+  });
 }
 function mvPick(i){
   const syms=window.mvSyms||[];
@@ -6961,7 +6998,7 @@ function pushRules(){
     return {id:a.id,sym:a.sym,kind:a.kind,price:a.price};
   });
 }
-function pushReadCard(){return {on:!!PUSH_READ,syms:['XAUUSD','BTCUSD','ETHUSD']};}
+function pushReadCard(){return {on:!!PUSH_READ,syms:[SITE_SYMBOL]};}
 function pushStateText(){
   if(!pushSupported())return 'This browser cannot receive push notifications.';
   if(pushState==='on')return 'On — the card arrives even with the app closed.';
@@ -7461,11 +7498,13 @@ function alertsListHtml(){
 function priceAlertsHtml(){
   const cur=altPair();
   let h=pushBlockHtml();
-  h+='<div class="tp-h">Pair for the next alert</div><div class="alt-pairs">';
-  Object.keys(MKT).forEach(function(s){
-    h+='<button class="tp-chip'+(s===cur?' on':'')+'" onclick="altPickSym(\''+s+'\')">'+s+'</button>';
-  });
-  h+='</div>';
+  if(!ONE_MARKET){
+    h+='<div class="tp-h">Pair for the next alert</div><div class="alt-pairs">';
+    Object.keys(MKT).forEach(function(s){
+      h+='<button class="tp-chip'+(s===cur?' on':'')+'" onclick="altPickSym(\''+s+'\')">'+s+'</button>';
+    });
+    h+='</div>';
+  }
   h+='<div class="alt-add">';
   h+='<button class="tp-chip alt-sig" onclick="alertSignal()">Signal alert · BUY or SELL</button>';
   h+='<button class="tp-chip" onclick="alertQuick(\'above\')">Above the price</button>';

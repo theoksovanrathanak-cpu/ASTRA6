@@ -4276,22 +4276,11 @@ def api_markets():
                 it["price"] = round(float(fp["mid"]), 2)
                 it["source"] = fp.get("source") or it.get("source")
                 it["age_min"] = 0.0
-        # forex stays off this platform; and crypto is refreshed off the live book so
-        # the picker, the tiles and the watchlist can never disagree with the chart
-        b["markets"] = [m for m in b["markets"] if m.get("group") != "Forex"]
-        by_id = {m["id"]: m for m in b["markets"]}
-        for cid in ("BTCUSD", "ETHUSD"):
-            tk = fetch_crypto_tick(cid)
-            row = by_id.get(cid)
-            if row is None:
-                row = {"id": cid, "name": "Bitcoin" if cid == "BTCUSD" else "Ethereum",
-                       "group": "Crypto", "dec": 2, "unit": "$", "volume": True}
-                b["markets"].append(row)
-                by_id[cid] = row
-            if tk:
-                row.update({"price": round(tk["mid"], 2), "change_pct": tk["change_pct"],
-                            "age_min": 0.0, "source": tk.get("source")})
-        b["groups"] = ["Metals", "Futures", "Crypto"]
+        # ONE MARKET: this site is a gold terminal. Only gold is returned, so no screen -
+        # picker, watchlist, alert roster, layout cell - can offer a pair that is not there.
+        b["markets"] = [m for m in b["markets"] if m.get("id") == "XAUUSD"]
+        b["groups"] = ["Metals"]
+        b["only"] = "XAUUSD"
         return b
     except Exception as e:
         return {"status": "error", "error": str(e), "markets": []}
@@ -4492,8 +4481,9 @@ def push_scan_once():
     if not PUSH.configured() or not PUSH.subscribers():
         return 0
     sent = 0
-    # the markets that have a real volume to read a cluster from
-    for sym, venue in (("XAUUSD", "XAUS"), ("XAGUSD", "COMEX"), ("ES", "CME"), ("CL", "NYMEX")):
+    # ONE MARKET: only gold is scanned, so a phone can never be woken for a pair the
+    # site no longer shows (an old saved rule for one is ignored in pushweb.eval_rules too)
+    for sym, venue in (("XAUUSD", "XAUS"),):
         try:
             d = get_volume(symbol=sym, venue=venue, tf="M15", bars=150)
             if not ((d or {}).get("verify") or {}).get("ok", True):
