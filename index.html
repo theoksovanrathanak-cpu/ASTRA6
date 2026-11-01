@@ -7130,19 +7130,20 @@ function paintSMC(){
     if(yA==null||yB==null)return;
     const y=Math.min(yA,yB),hh=Math.max(1.5,Math.abs(yB-yA));
     const bw=Math.max(1,xb-xa), fat=ST.fill==='solid';
-    // a box a few pixels wide with a full-height spine reads as a bright bar, not as a zone
-    const thin=bw<16;
-    const fa0=ST.fill==='none'?0:(fat?.13:.07);
-    const fa=hh>120?fa0*0.55:fa0;
-    if(ST.glow&&fat&&!thin){
+    // a box a few pixels wide with a full-height spine reads as a bright bar, not as a zone;
+    // a box hundreds of pixels tall gets a whisper of a fill, or it paints over the candles
+    const thin=bw<16, tall=hh>150, mid=hh>=14&&hh<=90;
+    const fa=ST.fill==='none'?0:(tall?(fat?.05:.028):(fat?.13:.07));
+    const so=tall?.26:(fat?.55:.34);
+    if(ST.glow&&fat&&mid&&!thin){
       out+='<rect x="'+(xa-1).toFixed(1)+'" y="'+(y-1).toFixed(1)+'" width="'+(bw+2).toFixed(1)+'" height="'+(hh+2).toFixed(1)+
-        '" rx="4" fill="none" stroke="'+z.c+'" stroke-opacity=".16" stroke-width="5"/>';
+        '" rx="5" fill="none" stroke="'+z.c+'" stroke-opacity=".12" stroke-width="4"/>';
     }
     out+='<rect x="'+xa.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+bw.toFixed(1)+
       '" height="'+hh.toFixed(1)+'" rx="'+(hh>7?4:2)+'" fill="'+z.c+'" fill-opacity="'+fa+'" stroke="'+z.c+
-      '" stroke-opacity="'+(fat?.55:.34)+'" stroke-width="'+ST.stroke+'"'+
+      '" stroke-opacity="'+so+'" stroke-width="'+(tall?Math.min(1.2,ST.stroke):ST.stroke)+'"'+
       (ST.dash||z.k==='ob'?' stroke-dasharray="'+(ST.dash==='dash'?'5 4':'4 3')+'"':'')+'/>';
-    if(ST.fill!=='none'&&hh>=5&&!thin){
+    if(ST.fill!=='none'&&hh>=5&&!thin&&!tall){
       out+='<rect x="'+xa.toFixed(1)+'" y="'+(y+0.6).toFixed(1)+'" width="'+ST.spine+'" height="'+Math.max(2,hh-1.2).toFixed(1)+
         '" rx="'+(ST.spine/2)+'" fill="'+z.c+'" fill-opacity=".8"/>';
     }
