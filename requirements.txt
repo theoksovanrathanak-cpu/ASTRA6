@@ -7,3 +7,4 @@ websocket-client==1.8.0
 numpy
 pandas
 yfinance
+pywebpush==2.5.0

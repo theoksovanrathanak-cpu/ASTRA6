@@ -1429,6 +1429,11 @@ body.has-bnav{--bnav-h:52px}
 body.has-bnav .sheet-body{padding-bottom:calc(64px + env(safe-area-inset-bottom))}
 body.has-bnav .meta-row{padding-bottom:calc(var(--bnav-h) + env(safe-area-inset-bottom))}
 body.has-bnav #alert-toast,body.has-bnav #app-toast{bottom:calc(var(--bnav-h) + 14px)}
+.push-row{display:flex;align-items:center;gap:7px;padding:7px 8px;border-radius:9px;
+  background:rgba(167,139,250,.10);border:1px solid rgba(167,139,250,.32)}
+.push-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.push-main b{font-size:10px;letter-spacing:.6px;color:var(--a-violet,#a78bfa)}
+.push-main span{font-size:9.5px;line-height:1.35;color:var(--muted)}
 #app-toast{position:fixed;left:50%;bottom:70px;transform:translate(-50%,10px);z-index:9400;
   padding:9px 14px;border-radius:10px;font-size:11.5px;color:#f4f4f8;background:rgba(24,20,38,.97);
   border:1px solid rgba(167,139,250,.45);box-shadow:0 10px 26px rgba(0,0,0,.55);opacity:0;pointer-events:none;
@@ -2418,6 +2423,7 @@ async function openNews(){
 // marked with how old it is: a blank page or a made-up candle would both be worse.
 let _swReady=false,_wasOnline=navigator.onLine!==false;
 function registerOfflineShell(){
+  setTimeout(function(){try{pushRestore();}catch(e){}},2500);
   if(!('serviceWorker' in navigator)) return;
   // a file:// or embedded preview has no worker scope; nothing to do there
   if(location.protocol!=='https:'&&location.hostname!=='127.0.0.1'&&location.hostname!=='localhost') return;
@@ -6464,6 +6470,168 @@ function paintBnav(){
   if(before!==ph||!b.hidden){setTimeout(function(){try{relayoutChart();}catch(e){}},40);}
 }
 
+// ---------- phone notifications: the card lands while the app is shut ----------
+// The browser's own push service wakes the phone; the server only sends what the
+// trader armed, off the same real prices the chart draws.
+let PUSH_ON=false,PUSH_READ=(function(){try{return localStorage.getItem('astra6_push_read')==='1';}catch(e){return false;}})(),
+    _pushEp='',_pushReg=null,_pushTimer=0,pushState='off';
+function pushSupported(){
+  return ('serviceWorker' in navigator)&&('PushManager' in window)&&('Notification' in window);
+}
+function pushStandalone(){
+  return (window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches)||window.navigator.standalone===true;
+}
+function pushIsIOS(){
+  return /iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+}
+function b64ToU8(s){
+  const pad=s.length%4?('='.repeat(4-(s.length%4))):'';
+  const raw=atob((s+pad).replace(/-/g,'+').replace(/_/g,'/'));
+  const out=new Uint8Array(raw.length);
+  for(let i=0;i<raw.length;i++)out[i]=raw.charCodeAt(i);
+  return out;
+}
+function pushRules(){
+  return alertsLoad().filter(function(a){return a.on&&!a.fired;}).map(function(a){
+    return {id:a.id,sym:a.sym,kind:a.kind,price:a.price};
+  });
+}
+function pushReadCard(){return {on:!!PUSH_READ,syms:['XAUUSD','BTCUSD','ETHUSD']};}
+function pushStateText(){
+  if(!pushSupported())return 'This browser cannot receive push notifications.';
+  if(pushState==='on')return 'On — the card arrives even with the app closed.';
+  if(pushState==='denied')return 'Blocked in the browser settings. Allow notifications for this site, then try again.';
+  return 'Off — alerts only ring while this tab is open.';
+}
+async function pushEnable(){
+  if(!pushSupported()){toast('This browser has no push support');return;}
+  try{
+    try{await navigator.serviceWorker.register('/sw.js',{scope:'/'});}catch(e){}
+    const reg=await navigator.serviceWorker.ready;
+    _pushReg=reg;
+    const perm=await Notification.requestPermission();
+    if(perm!=='granted'){pushState='denied';renderAlertsPanel();toast('Notifications blocked');return;}
+    const v=await (await fetch('/api/push/vapid',{cache:'no-store'})).json();
+    if(!v||v.status!=='ok'||!v.publicKey){toast('Server push is not configured');return;}
+    let sub=await reg.pushManager.getSubscription();
+    if(!sub){
+      sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64ToU8(v.publicKey)});
+    }
+    _pushEp=sub.endpoint;
+    const r=await (await fetch('/api/push/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({subscription:sub,rules:pushRules(),readCard:pushReadCard(),ua:navigator.userAgent.slice(0,110)})})).json();
+    if(!r||r.status!=='ok'){toast('The server did not accept the subscription');return;}
+    PUSH_ON=true;pushState='on';
+    try{localStorage.setItem('astra6_push','1');}catch(e){}
+    pushHeartbeat();
+    renderAlertsPanel();
+    toast('Phone notifications on');
+    pushTest(true);
+  }catch(e){
+    pushState='error';
+    toast('Could not turn notifications on');
+    renderAlertsPanel();
+  }
+}
+async function pushDisable(){
+  PUSH_ON=false;pushState='off';
+  try{localStorage.setItem('astra6_push','0');}catch(e){}
+  try{
+    const reg=_pushReg||await navigator.serviceWorker.ready;
+    const sub=await reg.pushManager.getSubscription();
+    if(sub){
+      await fetch('/api/push/sync',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({endpoint:sub.endpoint,unsubscribe:true})});
+      await sub.unsubscribe();
+    }
+  }catch(e){}
+  _pushEp='';
+  renderAlertsPanel();toast('Phone notifications off');
+}
+async function pushSync(){
+  if(!PUSH_ON||!_pushEp)return;
+  try{
+    await fetch('/api/push/sync',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({endpoint:_pushEp,rules:pushRules(),readCard:pushReadCard(),awake:document.visibilityState==='visible'})});
+  }catch(e){}
+}
+function pushHeartbeat(){
+  if(_pushTimer)clearInterval(_pushTimer);
+  _pushTimer=setInterval(function(){
+    if(document.visibilityState==='visible')pushSync();      // "I am here" - no double ring
+  },15000);
+}
+async function pushTest(quiet){
+  if(!_pushEp){if(!quiet)toast('Turn phone notifications on first');return;}
+  try{
+    const r=await (await fetch('/api/push/test',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({endpoint:_pushEp,sym:currentSymbol})})).json();
+    if(!quiet)toast(r&&r.sent?'Sent — check the phone':'The push service refused it');
+  }catch(e){if(!quiet)toast('Test failed');}
+}
+function togglePushRead(){
+  PUSH_READ=!PUSH_READ;
+  try{localStorage.setItem('astra6_push_read',PUSH_READ?'1':'0');}catch(e){}
+  renderAlertsPanel();pushSync();
+}
+async function pushRestore(){
+  if(!pushSupported())return;
+  let want=false;
+  try{want=localStorage.getItem('astra6_push')==='1';}catch(e){}
+  if(!want)return;
+  if(Notification.permission!=='granted'){pushState='denied';return;}
+  try{
+    const reg=await navigator.serviceWorker.ready;
+    _pushReg=reg;
+    const sub=await reg.pushManager.getSubscription();
+    if(!sub)return;
+    _pushEp=sub.endpoint;PUSH_ON=true;pushState='on';
+    await fetch('/api/push/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({subscription:sub,rules:pushRules(),readCard:pushReadCard(),ua:navigator.userAgent.slice(0,110)})});
+    pushHeartbeat();
+    renderAlertsPanel();
+  }catch(e){}
+}
+function pushBlockHtml(){
+  if(!pushSupported())return '';
+  const on=PUSH_ON;
+  let h='<div class="tp-h">Phone notifications</div>';
+  h+='<div class="push-row"><div class="push-main"><b>'+(on?'ON':'OFF')+'</b><span>'+esc(pushStateText())+'</span></div>'
+    +'<button class="alt-btn'+(on?' on':'')+'" onclick="'+(on?'pushDisable()':'pushEnable()')+'">'+(on?'TURN OFF':'TURN ON')+'</button></div>';
+  if(on){
+    h+='<div class="tp-chips"><button class="tp-chip" onclick="pushTest()">Send a test card</button>'
+      +'<button class="tp-chip'+(PUSH_READ?' on':'')+'" onclick="togglePushRead()">Market read card</button></div>';
+    h+='<div class="tp-note">The read card is the same market read the app shows — a read, not a guarantee, and only when it changes.</div>';
+  }
+  if(pushIsIOS()&&!pushStandalone()){
+    h+='<div class="tp-note">iPhone: tap Share → Add to Home Screen, then open ASTRA6 from the icon — iOS only delivers push to an installed app.</div>';
+  }
+  if(!pushStandalone()&&!pushIsIOS()){
+    h+='<div class="tp-chips"><button class="tp-chip" onclick="pushInstall()">Install on this device</button></div>';
+  }
+  return h;
+}
+let _installPrompt=null;
+window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();_installPrompt=e;});
+function pushInstall(){
+  if(_installPrompt){_installPrompt.prompt();_installPrompt=null;return;}
+  openSheet('Install ASTRA6','<div class="tp-note" style="line-height:1.7">'
+    +'<b>Android / Chrome</b> · menu ⋮ → “Install app” or “Add to Home screen”.<br>'
+    +'<b>iPhone / Safari</b> · Share → Add to Home Screen.<br>'
+    +'<b>Desktop</b> · the install icon in the address bar.<br><br>'
+    +'Installed, ASTRA6 opens full screen and its notifications arrive with the app closed.</div>');
+}
+// a tap on the notification brings the trader to that market
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.addEventListener('message',function(e){
+    const d=e.data||{};
+    if(d.type==='astra6-notify-click'){
+      if(d.sym){try{openMarket(d.sym);}catch(err){}}
+      try{setView('chart');}catch(err){}
+    }
+  });
+}
+
 // ---------- price alerts: what the trader asked to be told, nothing else ----------
 function alertsLoad(){
   try{const a=JSON.parse(localStorage.getItem('astra6_alt_alerts')||'[]');return Array.isArray(a)?a:[];}catch(e){return [];}
@@ -6474,13 +6642,12 @@ function alertAdd(kind,price,note){
   const a=alertsLoad();
   a.push({id:'a'+Date.now()+Math.floor(Math.random()*99),sym:currentSymbol,kind:kind,
     price:+Number(price).toFixed(4),note:(note||'').slice(0,60),on:true,fired:0,created:Date.now(),last:null});
-  alertsSave(a);renderAlertsPanel();
-  if('Notification' in window&&Notification.permission==='default'){try{Notification.requestPermission();}catch(e){}}
+  alertsSave(a);renderAlertsPanel();pushSync();
   return true;
 }
-function alertDel(id){alertsSave(alertsLoad().filter(function(a){return a.id!==id;}));renderAlertsPanel();}
+function alertDel(id){alertsSave(alertsLoad().filter(function(a){return a.id!==id;}));renderAlertsPanel();pushSync();}
 function alertToggle(id){
-  const a=alertsLoad();a.forEach(function(x){if(x.id===id){x.on=!x.on;x.fired=0;}});alertsSave(a);renderAlertsPanel();
+  const a=alertsLoad();a.forEach(function(x){if(x.id===id){x.on=!x.on;x.fired=0;}});alertsSave(a);renderAlertsPanel();pushSync();
 }
 function alertsActive(sym){return alertsFor(sym).filter(function(a){return a.on;});}
 // an RSI alert is checked against the same closes the chart is drawing
@@ -6563,7 +6730,7 @@ function alertToast(text,px){
 }
 function priceAlertsHtml(){
   const list=alertsFor(currentSymbol);
-  let h='<div class="alt-add">';
+  let h=pushBlockHtml()+'<div class="alt-add">';
   h+='<button class="tp-chip" onclick="alertQuick(\'above\')">Alert above the price</button>';
   h+='<button class="tp-chip" onclick="alertQuick(\'below\')">Alert below the price</button>';
   h+='<button class="tp-chip" onclick="alertQuick(\'cross\')">Alert on a cross</button>';

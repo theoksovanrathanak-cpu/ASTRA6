@@ -4454,6 +4454,192 @@ try:
 except Exception as _pe:
     print("push thread:", _pe)
 
+# === phone push: the card on the lock screen, while the app is shut ===
+def _push_quote(sym):
+    """The same price the chart would show, for the rule engine."""
+    s = str(sym or "").upper()
+    if s in ("BTCUSD", "ETHUSD"):
+        d = fetch_crypto_tick(s)
+        if d:
+            return {"price": d["mid"], "change_pct": d["change_pct"], "source": d["source"]}
+        return None
+    try:
+        if s == "XAUUSD":
+            d = fetch_live_tick("XAUUSD")
+            if d and d.get("mid"):
+                return {"price": d["mid"], "change_pct": d.get("change_pct"),
+                        "source": d.get("source") or "gold feed"}
+            return None
+        import markets as MKT
+        q = MKT.quote(s)
+        if q:
+            return {"price": q["price"], "change_pct": q.get("change_pct"), "source": q.get("source")}
+    except Exception as e:
+        print("push quote", s, str(e)[:80])
+    return None
+
+
+def _push_rsi(sym):
+    """RSI(14) on the 15m candles the chart draws. None when the feed is quiet."""
+    try:
+        import markets as MKT
+        rows, _src, err = MKT.candles(str(sym).upper(), "M15", 260)
+        if not rows or len(rows) < 20:
+            return None
+        closes = [float(r["close"]) for r in rows]
+        n = 14
+        gain = loss = 0.0
+        for i in range(1, n + 1):
+            d = closes[i] - closes[i - 1]
+            gain += max(d, 0.0)
+            loss += max(-d, 0.0)
+        gain /= n
+        loss /= n
+        rsi = 100.0 if loss == 0 else 100.0 - 100.0 / (1.0 + gain / loss)
+        for i in range(n + 1, len(closes)):
+            d = closes[i] - closes[i - 1]
+            gain = (gain * (n - 1) + max(d, 0.0)) / n
+            loss = (loss * (n - 1) + max(-d, 0.0)) / n
+            rsi = 100.0 if loss == 0 else 100.0 - 100.0 / (1.0 + gain / loss)
+        return round(rsi, 2)
+    except Exception as e:
+        print("push rsi", sym, str(e)[:80])
+        return None
+
+
+_PUSH_VENUE = {"XAUUSD": "XAUS", "XAGUSD": "COMEX", "ES": "CME", "NQ": "CME", "CL": "NYMEX"}
+
+
+def _push_read(sym):
+    """The market-read card the app itself shows, from the same cluster maths."""
+    try:
+        d = get_volume(symbol=sym, venue=_PUSH_VENUE.get(sym, sym), tf="M15", rows=48, bars=150)
+    except Exception as e:
+        print("push read", sym, str(e)[:80])
+        return None
+    if not d or d.get("status") not in (None, "ok"):
+        return None
+    sig = d.get("signal") or {}
+    typ = str(sig.get("type") or "").upper()
+    price = sig.get("price") or sig.get("entry")
+    if not typ or price is None:
+        return None
+    money = lambda v: ("$" + format(float(v), ",.2f")) if v is not None else "—"
+    if typ in ("BUY", "SELL"):
+        body = "entry %s · stop %s · TP1 %s · TP2 %s · %s cluster · read, not a guarantee" % (
+            money(sig.get("entry") or price), money(sig.get("sl")),
+            money(sig.get("tp1")), money(sig.get("tp2")), "15m")
+        title = "%s · %s setup at %s" % (sym, typ, money(price))
+    else:
+        box = sig.get("row") or {}
+        where = ""
+        if box.get("bot") is not None and box.get("top") is not None:
+            where = " · box %s–%s" % (money(box["bot"]), money(box["top"]))
+        body = "price %s · no edge right now%s · read, not a guarantee" % (money(price), where)
+        title = "%s · watching at %s" % (sym, money(price))
+    return {"state": "%s|%s" % (typ, money(price)), "title": title, "body": body}
+
+
+try:
+    import pushweb as PUSHWEB
+    PUSHWEB.configure(quote_fn=_push_quote, rsi_fn=_push_rsi, read_fn=_push_read)
+    PUSHWEB.start()
+except Exception as _pwe:
+    print("pushweb:", _pwe)
+    PUSHWEB = None
+
+
+@app.get("/api/push/status")
+def push_status():
+    if not PUSHWEB:
+        return {"status": "error", "error": "push module missing", "ready": False}
+    return PUSHWEB.status()
+
+
+@app.get("/api/push/vapid")
+def push_vapid():
+    if not PUSHWEB or not PUSHWEB.ready():
+        return {"status": "error", "error": "no_vapid_keys", "ready": False,
+                "how": "VAPID_PRIVATE_KEY and VAPID_PUBLIC_KEY must be set in the environment"}
+    return {"status": "ok", "ready": True, "publicKey": PUSHWEB.public_key()}
+
+
+@app.post("/api/push/subscribe")
+async def push_subscribe(request: Request):
+    """A phone asks to be told. Its own rules travel with the subscription."""
+    try:
+        body = await request.json()
+    except Exception:
+        return {"status": "error", "error": "bad_json"}
+    sub = body.get("subscription") or {}
+    if not sub.get("endpoint"):
+        return {"status": "error", "error": "no_endpoint"}
+    rec = {"subscription": sub, "rules": body.get("rules") or [],
+           "readCard": body.get("readCard") or {"on": False, "syms": []},
+           "ua": str(body.get("ua") or "")[:120]}
+    if not PUSHWEB or not PUSHWEB.add(rec):
+        return {"status": "error", "error": "push_unavailable"}
+    PUSHWEB.set_rules(sub["endpoint"], body.get("rules") or [], body.get("readCard"))
+    return {"status": "ok", "subscribers": len(PUSHWEB.subscribers())}
+
+
+@app.post("/api/push/sync")
+async def push_sync(request: Request):
+    """Rules changed, or the page is open and says so (so no double notification)."""
+    try:
+        body = await request.json()
+    except Exception:
+        return {"status": "error", "error": "bad_json"}
+    ep = body.get("endpoint") or ""
+    if not ep:
+        return {"status": "error", "error": "no_endpoint"}
+    if body.get("unsubscribe"):
+        PUSHWEB.remove(ep)
+        return {"status": "ok", "unsubscribed": True}
+    PUSHWEB.set_rules(ep, body.get("rules") or [], body.get("readCard"),
+                      awake=bool(body.get("awake", True)))
+    return {"status": "ok"}
+
+
+@app.post("/api/push/scan")
+def push_scan():
+    """Check every armed rule once, right now (the background thread also does this)."""
+    if not PUSHWEB:
+        return {"status": "error", "error": "push_unavailable"}
+    try:
+        return {"status": "ok", "sent": PUSHWEB.scan_once()}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+
+@app.post("/api/push/test")
+async def push_test(request: Request):
+    """Send the card now, so the trader can see it work."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    ep = body.get("endpoint") or ""
+    rows = [r for r in PUSHWEB.subscribers() if not ep or r.get("endpoint") == ep]
+    if not rows:
+        return {"status": "error", "error": "no_subscription",
+                "how": "Turn on phone notifications first"}
+    q = _push_quote(body.get("sym") or "XAUUSD") or {}
+    px = q.get("price")
+    ev = PUSHWEB.card(
+        "ASTRA6 · test card",
+        ("%s %s · %s · this is the card you will get when a rule fires" %
+         (body.get("sym") or "XAUUSD", ("$" + format(float(px), ",.2f")) if px else "live",
+          ("%+.2f%% today" % float(q["change_pct"])) if q.get("change_pct") is not None else "live feed")),
+        body.get("sym") or "XAUUSD", "test", "astra6-test")
+    sent = 0
+    for r in rows:
+        ok, _code = PUSHWEB.send_to(r, ev)
+        sent += 1 if ok else 0
+    return {"status": "ok" if sent else "error", "sent": sent,
+            "error": None if sent else "push_service_rejected"}
+
+
 @app.get("/api/calendar")
 def get_calendar(days: int = 10):
     """Just the economic calendar: High/Medium impact events, soonest first."""

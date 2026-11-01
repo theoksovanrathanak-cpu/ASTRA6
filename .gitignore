@@ -14,3 +14,4 @@ mt5_trades.json
 .DS_Store
 telegram_subs.json
 telegram_seen.json
+push_subs.json
