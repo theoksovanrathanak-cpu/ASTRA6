@@ -31,6 +31,9 @@ MARKETS = {
     "ES":     {"name": "S&P 500",     "group": "Futures", "src": "yahoo", "yahoo": "ES=F",     "dec": 2, "unit": "",   "vol": True},
     "NQ":     {"name": "Nasdaq 100",  "group": "Futures", "src": "yahoo", "yahoo": "NQ=F",     "dec": 2, "unit": "",   "vol": True},
     "CL":     {"name": "WTI Crude", "group": "Futures", "src": "yahoo", "yahoo": "CL=F",   "dec": 2, "unit": "$",  "vol": True},
+    # crypto: the exchange's own book, no key needed, volume on every bar
+    "BTCUSD": {"name": "Bitcoin",  "group": "Crypto", "src": "binance", "bin": "BTCUSDT", "dec": 2, "unit": "$", "vol": True},
+    "ETHUSD": {"name": "Ethereum", "group": "Crypto", "src": "binance", "bin": "ETHUSDT", "dec": 2, "unit": "$", "vol": True},
 }
 GROUPS = ["Metals", "Forex", "Futures"]
 
@@ -142,6 +145,35 @@ def _yahoo_rows(symbol, tf):
     return rows, "Yahoo Finance"
 
 
+_BIN_TF = {"M1": "1m", "M5": "5m", "M15": "15m", "M30": "30m", "H1": "1h", "H4": "4h", "D": "1d", "W": "1w"}
+_BIN_HOSTS = ("https://data-api.binance.vision", "https://api.binance.com")
+
+
+def _binance_rows(bin_pair, tf):
+    """Spot klines off the exchange. The .vision host serves the same book and is not
+    geo-blocked where the main api is, so it is asked first."""
+    import requests
+    iv = _BIN_TF.get(norm_tf(tf), "15m")
+    limit = 1000 if norm_tf(tf) not in ("M1", "M5") else 1000
+    last = None
+    for host in _BIN_HOSTS:
+        try:
+            r = requests.get(host + "/api/v3/klines",
+                             params={"symbol": bin_pair, "interval": iv, "limit": limit},
+                             timeout=8, headers={"User-Agent": "ASTRA6/1.0"})
+            r.raise_for_status()
+            rows = [{"time": int(k[0] // 1000), "open": float(k[1]), "high": float(k[2]),
+                     "low": float(k[3]), "close": float(k[4]), "volume": float(k[5])}
+                    for k in r.json()]
+            if rows:
+                return rows, "Binance spot · " + iv
+        except Exception as e:
+            last = e
+    if last:
+        raise last
+    return [], None
+
+
 def candles(mid, tf="M15", count=150):
     """Real OHLCV bars for a market. Returns (rows, source, error)."""
     m = meta(mid)
@@ -153,6 +185,8 @@ def candles(mid, tf="M15", count=150):
     def load():
         if m["src"] == "xaus":
             rows, src = _xaus_rows(m["xaus"], tf)
+        elif m["src"] == "binance":
+            rows, src = _binance_rows(m["bin"], tf)
         else:
             rows, src = _yahoo_rows(m["yahoo"], tf)
         if not rows:
@@ -186,6 +220,8 @@ def _prev_daily_close(m):
     def load():
         if m["src"] == "xaus":
             rows, _ = _xaus_rows(m["xaus"], "D")
+        elif m["src"] == "binance":
+            rows, _ = _binance_rows(m["bin"], "D")
         else:
             rows, _ = _yahoo_rows(m["yahoo"], "D")
         return rows[-2]["close"] if len(rows) > 1 else None

@@ -4252,6 +4252,22 @@ def api_markets():
                 it["price"] = round(float(fp["mid"]), 2)
                 it["source"] = fp.get("source") or it.get("source")
                 it["age_min"] = 0.0
+        # forex stays off this platform; and crypto is refreshed off the live book so
+        # the picker, the tiles and the watchlist can never disagree with the chart
+        b["markets"] = [m for m in b["markets"] if m.get("group") != "Forex"]
+        by_id = {m["id"]: m for m in b["markets"]}
+        for cid in ("BTCUSD", "ETHUSD"):
+            tk = fetch_crypto_tick(cid)
+            row = by_id.get(cid)
+            if row is None:
+                row = {"id": cid, "name": "Bitcoin" if cid == "BTCUSD" else "Ethereum",
+                       "group": "Crypto", "dec": 2, "unit": "$", "volume": True}
+                b["markets"].append(row)
+                by_id[cid] = row
+            if tk:
+                row.update({"price": round(tk["mid"], 2), "change_pct": tk["change_pct"],
+                            "age_min": 0.0, "source": tk.get("source")})
+        b["groups"] = ["Metals", "Futures", "Crypto"]
         return b
     except Exception as e:
         return {"status": "error", "error": str(e), "markets": []}
@@ -4559,8 +4575,93 @@ def _btc_tick():
         return None
 
 
+# ---------- crypto: Binance public spot. Real book, no key, no mock ----------
+_CRYPTO = {"BTCUSD": "BTCUSDT", "ETHUSD": "ETHUSDT"}
+_BIN_TF = {"M1": "1m", "M5": "5m", "M15": "15m", "M30": "30m", "H1": "1h", "H4": "4h", "D": "1d", "W": "1w"}
+
+
+_BIN_HOSTS = ("https://data-api.binance.vision", "https://api.binance.com")
+
+
+def _bin_get(path, **params):
+    """Binance public market data. The .vision host serves the same book and is not
+    geo-blocked the way the main API is from some regions, so it is asked first."""
+    import requests as _req
+    last = None
+    for host in _BIN_HOSTS:
+        try:
+            r = _req.get(host + path, params=params, timeout=8,
+                         headers={"User-Agent": "ASTRA6/1.0"})
+            r.raise_for_status()
+            return r.json()
+        except Exception as e:
+            last = e
+    raise last
+
+
+def fetch_crypto_tick(symbol="BTCUSD"):
+    """Last price, real bid/ask and the 24h change straight off the exchange book."""
+    pair = _CRYPTO.get(str(symbol).upper())
+    if not pair:
+        return None
+    try:
+        bk = _bin_get("/api/v3/ticker/bookTicker", symbol=pair)
+        t24 = _bin_get("/api/v3/ticker/24hr", symbol=pair)
+        bid, ask = float(bk["bidPrice"]), float(bk["askPrice"])
+        last, pct = float(t24["lastPrice"]), float(t24["priceChangePercent"])
+        return {"mid": last, "price": last, "bid": bid, "ask": ask, "change_pct": pct,
+                "venue": "BINANCE:" + pair, "source": "Binance spot (real book)",
+                "timestamp": time.time()}
+    except Exception as e:
+        print("crypto tick err", e)
+        return None
+
+
+def crypto_candles(symbol="BTCUSD", granularity="M15", count=150):
+    pair = _CRYPTO.get(str(symbol).upper())
+    if not pair:
+        return [], "unknown_symbol"
+    g = str(granularity).upper().replace("D1", "D").replace("W1", "W")
+    iv = _BIN_TF.get(g, "15m")
+    try:
+        j = _bin_get("/api/v3/klines", symbol=pair, interval=iv,
+                     limit=max(20, min(int(count or 150), 1000)))
+        rows = [{"time": int(k[0] // 1000), "open": float(k[1]), "high": float(k[2]),
+                 "low": float(k[3]), "close": float(k[4]), "volume": float(k[5]),
+                 "complete": True} for k in j]
+        return rows, "Binance spot klines · " + iv
+    except Exception as e:
+        print("crypto candles err", e)
+        return [], str(e)
+
+
+@app.get("/api/crypto/price")
+def api_crypto_price(symbol: str = "BTCUSD"):
+    d = fetch_crypto_tick(symbol)
+    if not d:
+        return {"status": "error", "error": "feed_unavailable", "real": True}
+    return {"status": "ok", "symbol": str(symbol).upper(), "price": d["mid"],
+            "live_price": {"bid": d["bid"], "ask": d["ask"]}, "change_pct": d["change_pct"],
+            "source": d["source"], "venue": d["venue"], "real": True, "dec": 2, "unit": "$"}
+
+
+@app.get("/api/crypto/chart")
+def api_crypto_chart(symbol: str = "BTCUSD", granularity: str = "M15", count: int = 150):
+    rows, src = crypto_candles(symbol, granularity, count)
+    if not rows:
+        return {"status": "error", "error": "feed_unavailable", "candles": [], "real": True,
+                "note": "No fabricated candles - the exchange feed is not answering"}
+    return {"status": "ok", "symbol": str(symbol).upper(), "granularity": granularity,
+            "count": len(rows), "candles": rows, "source": src, "dec": 2, "unit": "$",
+            "real": True, "stale": False, "last_bar_age_min": 0}
+
+
 def fetch_live_tick(symbol):
     """A price that moves. Falls back to the venue chain when the fast feed is down."""
+    if _CRYPTO.get(str(symbol).upper()):
+        fast = fetch_crypto_tick(symbol)
+        if fast:
+            return fast
     sym = "BTCUSD" if str(symbol).upper().startswith("BTC") else "XAUUSD"
     try:
         fast = _btc_tick() if sym == "BTCUSD" else _swiss_gold()
@@ -4615,7 +4716,8 @@ def _stream_payload(symbol, data):
 @app.get("/api/stream/price")
 def stream_price(symbol: str = "XAUUSD", venue: str = None):
     """Server-sent events: one line per price change, no polling on the client."""
-    sym = "BTCUSD" if str(symbol).upper().startswith("BTC") else "XAUUSD"
+    _su = str(symbol).upper()
+    sym = _su if _su in _CRYPTO else ("BTCUSD" if _su.startswith("BTC") else "XAUUSD")
     key = _ensure_ticker(sym, venue)
 
     def gen():

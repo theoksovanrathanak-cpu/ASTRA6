@@ -128,6 +128,11 @@ eval([
   'jnKeyOf', 'jnByDay', 'jnCalHtml', 'jnListHtml', 'jnMonth', 'jnPickDay', 'jnRepaint',
   'marketOpenNow', 'setNet', 'candlesLate', 'nextOpenLocal', 'paintEventLive', 'mkMeta',
   'paintAlertCard', 'alertsOf', 'alertsHtml', 'renderMarketSwitch',
+  'alertsLoad', 'alertsSave', 'alertsFor', 'alertAdd', 'alertDel', 'alertToggle', 'alertTick',
+  'alertsActive', 'fireAlert', 'alertToast', 'renderAlertsPanel', 'openAlertsSheet', 'alertQuick',
+  'priceAlertsHtml', 'alertKindLabel', 'alertRsiNow', 'alertIndTick', 'watchLoad', 'watchSave',
+  'watchAdd', 'watchDel', 'watchMove', 'renderWatchPanel', 'watchPaint', 'wsState', 'wsList',
+  'wsPut', 'wsHtml', 'setLayout', 'bnavGo', 'paintBnav',
   'taSMA', 'taEMA', 'taRSI', 'taMACD', 'taBB', 'toHeikin',
   'taATR', 'taSupertrend', 'taStoch', 'taVWAPbands',
   'taDonchian', 'taKeltner', 'taIchimoku', 'taPSAR', 'taADX', 'taCCI', 'taWilliams', 'taOBV',
@@ -325,7 +330,9 @@ section('the cluster sits on its own candles');
 
 section('the profile uses the chart timeframe');
 {
-  ok('every request carries the timeframe', /\/api\/volume\?symbol=\$\{encodeURIComponent\(sym\)\}&venue=\$\{encodeURIComponent\(venue\)\}&tf=\$\{encodeURIComponent\(tf\)\}/.test(html));
+  // a folded timeframe is measured on the interval the feed really serves
+  ok('every request carries the timeframe it can be measured on', /\/api\/volume\?symbol=\$\{encodeURIComponent\(sym\)\}&venue=\$\{encodeURIComponent\(venue\)\}&tf=\$\{encodeURIComponent\(askTf\)\}/.test(html)
+     && /const askTf = \(typeof tfBase==='function'\)\?tfBase\(tf\):tf/.test(html));
   ok('clipped to the oldest candle on screen', /&since=\$\{since\}/.test(html));
   ok('switching timeframe rebuilds the clusters', /window\._volume=null;window\._volSigKey=null;if\(window\._strategy==='volume'\)setTimeout\(fetchVolume,120\)/.test(html));
   ok('a new candle set refreshes them too', /scheduleVolume\(\)/.test(grab('fetchChart')));
@@ -346,7 +353,9 @@ section('nothing opens by itself');
      && !html.includes('id="home-px-EURUSD"') && !html.includes('id="home-px-ES"')
      && !/class="home-tiles"/.test(html));
   ok('home offers one chart button instead', /class="home-cta"[^>]*onclick="setView\('chart'\)/.test(html));
-  ok('bitcoin is gone from the page', !/BTCUSD|BITCOIN|Bitcoin/.test(html.replace(/bitcoin is gone[^<]*/,'')));
+  // crypto came back by request, priced off the exchange book, never guessed
+  ok('bitcoin and ether are on the platform with a real feed', /BTCUSD:\{name:'Bitcoin'/.test(html)
+     && /ETHUSD:\{name:'Ethereum'/.test(html) && /\/api\/crypto\/chart/.test(html));
   ok('the welcome subtitle names metals and futures', /metals · futures/.test(html) && !/metals · forex/.test(html));
   ok('the welcome has no price header', /body\[data-view="home"\] \.hd \.price-block/.test(html));
   ok('home still points at menu → Chart', /menu → Chart/.test(html));
@@ -814,7 +823,7 @@ section('the chart carries real trading tools');
   ok('the chart type sticks too', html.includes("localStorage.setItem('astra6_ctype',t)"));
 
   // every fetch paints through the type-aware painter, live ticks too
-  ok('candles go through paintSeries', /try\{paintSeries\(clean\);/.test(html));
+  ok('candles go through paintSeries', /paintSeries\(clean\);/.test(html));
   ok('ticks go through the glide, not a raw jump', /glidePrice\(newPrice,lc\.time\)/.test(html)
      && /function _glideStep\(now\)/.test(html) && /function glideReset\(\)/.test(html));
   ok('a big jump or a new bar is painted at once, never eased', /Math\.abs\(price-_gShown\)>Math\.abs\(price\)\*0\.0025/.test(html)
@@ -1054,7 +1063,9 @@ print('|'.join([rej['type'], rej.get('style') or '-', rejh['type'], base['type']
   ok('the strategy readout sits under the chart', /id="flow-line"/.test(html) && /function paintFlowLine/.test(html));
   ok('the readout prints entry, stop and both targets', /flow-k">SL<\/span>/.test(html) && /flow-k">TP2<\/span>/.test(html));
   ok('forex pairs are gone from the market table', !/'EUR\/USD'/.test(html) && !/'USD\/JPY'/.test(html) && !/'GBP\/USD'/.test(html));
-  ok('the market picker only lists metals and futures', /MKT_GROUPS=\['Metals','Futures'\]/.test(html));
+  ok('the market picker lists metals, futures and crypto', /MKT_GROUPS=\['Metals','Futures','Crypto'\]/.test(html));
+  ok('forex is still gone from the market table',
+     !/EURUSD:|GBPUSD:|USDJPY:/.test(html.slice(html.indexOf('const MKT={'), html.indexOf('const MKT_GROUPS'))));
   ok('no pop-up alert card exists any more', !html.includes('id="alert-float"'));
 }
 console.log(`\n${fail ? '\x1b[31m' : '\x1b[32m'}${pass} passed, ${fail} failed\x1b[0m`);
