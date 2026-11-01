@@ -153,7 +153,7 @@ eval([
  'segDist', 'shapeDist'].forEach(n => { global[n] = eval(n); });
 // the page's own price formatter, kept out of the sandbox so the older stub survives
 const realFmtPx = new Function('mkMeta', 'currentSymbol',
-  grab('fmtPx').replace('function fmtPx', 'return function fmtPx'))(mkMeta, 'XAUUSD');
+  grab('_fmtNum') + '\n' + grab('fmtPx').replace('function fmtPx', 'return function fmtPx'))(mkMeta, 'XAUUSD');
 // the calendar keeps its month/day in module scope in the page; give the harness the same
 global._jnM = new Date(2026, 10, 1);
 global._jnDay = null;
@@ -164,6 +164,12 @@ const section = t => console.log('\n' + t);
 
 // ================================================================ tests
 section('markup');
+{
+  const mine = new Function(grab('_fmtNum') + '\nreturn _fmtNum;')();
+  const cases = [[3876.73, 2], [1234567.891, 2], [0.5, 2], [999.995, 2], [-143.2, 2], [78051.5, 2], [49.021, 3], [1, 0], [1e6, 2], [0.001, 3], [2265.944, 2], [0, 2]];
+  const bad = cases.filter(([v, d]) => mine(v, d) !== Number(v).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }));
+  ok('the fast price formatter matches toLocaleString', bad.length === 0, bad);
+}
 {
   const { execSync } = require('child_process');
   const bal = require('child_process').execSync(
