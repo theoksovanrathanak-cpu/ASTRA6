@@ -79,6 +79,7 @@ button,select{font-family:inherit}
 /* ---------- header ---------- */
 .hd{
   position:sticky;top:0;z-index:60;background:var(--hd-bg);
+  padding-top:env(safe-area-inset-top);padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right);
   backdrop-filter:saturate(180%) blur(12px);border-bottom:1px solid var(--line);
 }
 .hd-in{
@@ -480,6 +481,27 @@ html.ua-nomotion .swap-bar i{animation:none;left:20%}
 .flow-line .of-chip.dn{color:#f4525f}
 .flow-line .of-more{color:var(--muted);font-weight:700;font-size:9.5px;margin-left:auto}
 .flow-row{display:flex;gap:6px;align-items:stretch;margin-top:8px}
+/* In the chart view the read card is a dock: it floats over the bottom of the plot instead
+   of taking a strip of the device away from the candles. One line, one tap to the ladder. */
+@media(max-width:720px){
+body[data-view="chart"] .flow-row{
+  margin:0;z-index:7;flex:0 0 auto;align-items:center;gap:6px;
+  padding:3px 8px calc(3px + env(safe-area-inset-bottom));
+  background:var(--surface);border-top:1px solid color-mix(in srgb,var(--line) 80%,transparent)}
+body[data-view="chart"] .flow-row .flow-line{
+  margin:0;padding:5px 9px;border-radius:10px;font-size:10px;gap:2px;
+  background:color-mix(in srgb,var(--surface) 93%,#000);
+  box-shadow:0 6px 16px -14px #000;max-height:30px;overflow:hidden}
+body[data-view="chart"] .flow-row .flow-line .of-row{flex-wrap:nowrap;overflow:hidden;white-space:nowrap;gap:6px}
+body[data-view="chart"] .flow-row .flow-line .of-row>span:not(.of-lock):not(.of-chip){min-width:0;overflow:hidden;text-overflow:ellipsis}
+body[data-view="chart"] .flow-row .flow-line .of-row>span:nth-child(2){flex:1 1 auto}
+body[data-view="chart"] .flow-row .flow-line .of-row>b,body[data-view="chart"] .flow-row .of-lock,
+body[data-view="chart"] .flow-row .of-chip{flex:0 0 auto}
+body[data-view="chart"] .flow-row .flow-line .of-row:nth-of-type(2){display:none}
+body[data-view="chart"] .flow-row .flow-ai{pointer-events:auto;width:34px;border-radius:10px}
+body[data-view="chart"] .flow-row .flow-ai svg{width:14px;height:14px}
+}
+@media(min-width:721px){body[data-view="chart"] .flow-row{margin-top:6px}}
 .flow-row .flow-line{margin-top:0;flex:1 1 auto;min-width:0}
 .flow-ai{flex:0 0 auto;width:46px;border-radius:11px;border:1px solid color-mix(in srgb,var(--a-violet) 40%,var(--line));
   background:linear-gradient(160deg,color-mix(in srgb,var(--a-violet) 26%,transparent),color-mix(in srgb,var(--a-cyan) 18%,transparent));
@@ -797,7 +819,7 @@ body[data-view="home"] #hero-signal,
 body[data-view="home"] #chart-section,
 body[data-view="home"] .foot{display:none}
 body[data-view="home"] .wrap{
-  max-width:none;min-height:calc(100vh - var(--hd-h));min-height:calc(100dvh - var(--hd-h));
+  max-width:none;min-height:calc(var(--app-h) - var(--hd-h));
   padding:22px;align-items:center;justify-content:center;
 }
 .home{
@@ -969,17 +991,25 @@ body.cc-open{overflow:hidden}
 .lock-reset{background:none;border:0;color:#5b6b87;font-family:inherit;font-size:10.5px;font-weight:600;cursor:pointer;padding:4px 8px;text-decoration:underline}
 .shake{animation:lockShake .3s}
 @keyframes lockShake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+html{height:100%}
+html,body{overscroll-behavior:none}
+body{min-height:100%}
 body.locked{overflow:hidden}
 body.locked .hd,body.locked .wrap,body.locked .foot,body.locked #intro,
 body.locked .menu,body.locked .sheet,body.locked .sheet-scrim,body.locked #sheet-scrim{visibility:hidden}
 
 /* ---------- one screen: the chart fills the device ---------- */
-:root{--hd-h:64px}
+/* --app-h is the height the app may use. dvh follows the iOS/Android toolbar live;
+   browsers without dvh get a measured pixel value from syncChrome(). --hd-h and --bnav-h
+   are measured too, so a notch, a home indicator or a two-line header can never push the
+   chart off the screen. */
+:root{--hd-h:64px;--bnav-h:52px;--app-h:100vh}
+@supports (height:100dvh){:root{--app-h:100dvh}}
 body[data-view="chart"]{overflow:hidden}
 body[data-view="chart"] .foot,body[data-view="signal"] .foot{display:none}
 body[data-view="chart"] .wrap{
-  max-width:none;padding:0;gap:0;
-  height:calc(100vh - var(--hd-h));height:calc(100dvh - var(--hd-h));
+  max-width:none;padding:0;gap:0;position:relative;
+  height:calc(var(--app-h) - var(--hd-h));
 }
 body[data-view="chart"] #chart-section{
   height:100%;display:flex;flex-direction:column;padding:0;border:0;border-radius:0;
@@ -990,13 +1020,13 @@ body[data-view="chart"] #chart-section .meta-row{display:none}
 body[data-view="chart"] .chart-shell{flex:1 1 auto;min-height:0}
 /* the phone nav is part of the layout, so the chart gives it its own strip instead of
    hiding the pane under it */
-body.has-bnav[data-view="chart"] .wrap{height:calc(100vh - var(--hd-h) - var(--bnav-h));height:calc(100dvh - var(--hd-h) - var(--bnav-h))}
+body.has-bnav[data-view="chart"] .wrap{height:calc(var(--app-h) - var(--hd-h) - var(--bnav-h))}
 body[data-view="chart"] #oanda_chart{height:100%;border:0;border-radius:0}
 body[data-view="chart"] #zone-layer,body[data-view="chart"] #smc-layer,body[data-view="chart"] #vwap-layer{inset:0}
 body[data-view="chart"] .hd-in{padding-top:8px;padding-bottom:8px}
 body[data-view="signal"] .wrap{
   max-width:780px;padding:14px;gap:13px;
-  min-height:calc(100vh - var(--hd-h));min-height:calc(100dvh - var(--hd-h));justify-content:flex-start;
+  min-height:calc(var(--app-h) - var(--hd-h));justify-content:flex-start;
 }
 .lg-note{color:var(--muted);font-weight:600;font-size:10px;letter-spacing:.2px}
 @media(max-width:620px){
@@ -1540,8 +1570,8 @@ body[data-lay="2"] .meta-row,body[data-lay="4"] .meta-row{display:none}
 .mkt-wl{width:100%;padding:7px;border-radius:8px;font:inherit;font-size:10.5px;font-weight:700;cursor:pointer;
   color:var(--ink);background:rgba(167,139,250,.14);border:1px solid rgba(167,139,250,.35)}
 /* phone bottom nav */
-#bnav{position:fixed;left:0;right:0;bottom:0;z-index:9300;display:flex;height:52px;
-  padding-bottom:env(safe-area-inset-bottom);
+#bnav{position:fixed;left:0;right:0;bottom:0;z-index:9300;display:flex;height:var(--bnav-h,52px);
+  padding-bottom:env(safe-area-inset-bottom);padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right);
   background:rgba(10,10,16,.97);border-top:1px solid rgba(255,255,255,.08);
   -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
 #bnav[hidden]{display:none}
@@ -1707,7 +1737,31 @@ body[data-view="chart"] #oanda_chart{flex:1 1 auto;min-height:0;height:auto}
   font-family:ui-monospace,monospace;
 }
 .chart-stale{bottom:calc(var(--pane-h,0px) + 26px) !important}
-body.chart-full #chart-section{position:fixed;inset:0;z-index:95;height:100dvh;border-radius:0}
+/* Full screen. Where the browser allows element fullscreen the page really goes full
+   screen; where it does not (iPhone Safari, in-app WebViews) the same layout runs without
+   the browser's chrome: header, phone nav and the read dock give their space to the chart. */
+body.chart-full .hd,body.chart-full #bnav,body.chart-full .flow-row,
+body.chart-full .foot,body.chart-full .meta-row{display:none!important}
+body.chart-full .wrap,body.chart-full[data-view="chart"] .wrap{
+  height:var(--app-h)!important;min-height:0!important;max-width:none;padding:0;margin:0}
+body.chart-full #chart-section{
+  position:fixed;inset:0;z-index:95;height:var(--app-h);border:0;border-radius:0;
+  padding-top:env(safe-area-inset-top);padding-left:env(safe-area-inset-left);
+  padding-right:env(safe-area-inset-right);padding-bottom:env(safe-area-inset-bottom)}
+body.chart-full #chart-section .card-hd{display:none}
+body.chart-full #ctb-full{background:rgba(41,98,255,.30);border-color:rgba(96,165,250,.75);color:#fff}
+#full-exit{position:absolute;right:10px;bottom:calc(10px + env(safe-area-inset-bottom));z-index:34;
+  display:inline-flex;align-items:center;gap:5px;padding:5px 9px;border-radius:9px;cursor:pointer;
+  font:800 9.5px/1 ui-sans-serif,system-ui,sans-serif;letter-spacing:.10em;text-transform:uppercase;
+  color:#e8edf7;background:rgba(12,16,24,.86);border:1px solid rgba(255,255,255,.20)}
+#full-exit[hidden]{display:none}
+/* landscape on a phone: the header gets out of the way so the candles keep the screen */
+@media (max-height:520px) and (orientation:landscape){
+  .hd-in{padding-top:4px!important;padding-bottom:4px!important}
+  .brand-sub,.hd .brand-name{display:none}
+  body[data-view="chart"] .flow-row{bottom:6px}
+  body[data-view="chart"] .flow-row .flow-line{max-height:28px;font-size:9.5px}
+}
 @media(max-width:620px){
   #rail-toggle{left:5px;top:108px;width:32px;height:32px;border-radius:10px}
   #tv-rail{left:5px;top:146px;padding:3px;gap:1px;max-height:calc(100% - 176px)}
@@ -2110,6 +2164,9 @@ body[data-view="chart"] .hd-quote{left:auto;right:9px;bottom:2px;text-align:righ
       </span>
       <div id="mkt-pop" class="mkt-pop" hidden role="dialog" aria-label="Switch market"></div>
       <div id="chart-toolbar" role="toolbar" aria-label="Chart">
+        <button type="button" class="ctb" id="ctb-full" onclick="fullscreenChart()" aria-pressed="false" title="Full screen" aria-label="Full screen">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4H4v5M15 4h5v5M15 20h5v-5M9 20H4v-5"/></svg>
+        </button>
         <button type="button" class="ctb" onclick="resetZoom()" title="Reset the view" aria-label="Reset the view">
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 9V4h5M20 15v5h-5M15 4h5v5M9 20H4v-5"/></svg>
         </button>
@@ -2143,6 +2200,10 @@ body[data-view="chart"] .hd-quote{left:auto;right:9px;bottom:2px;text-align:righ
       <svg id="zone-layer" aria-hidden="true"></svg>
       <svg id="draw-layer" aria-hidden="true"></svg>
       <div id="draw-hint"></div>
+      <button id="full-exit" type="button" hidden onclick="fullscreenChart()" aria-label="Leave full screen" title="Leave full screen">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h5V4M20 15h-5v5M15 4v5h5M9 20v-5H4"/></svg>
+        <span>exit</span>
+      </button>
       <button id="rail-toggle" type="button" onclick="toggleRail()" aria-label="Drawing tools" aria-expanded="true" title="Drawing tools">
         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9a2.6 2.6 0 0 0-3.7-3.7L4 16z"/></svg>
       </button>
@@ -2154,28 +2215,9 @@ body[data-view="chart"] .hd-quote{left:auto;right:9px;bottom:2px;text-align:righ
       <div id="watch-panel" class="tool-panel" hidden role="dialog" aria-label="Watchlist"></div>
       <div id="ws-panel" class="tool-panel" hidden role="dialog" aria-label="Workspaces and layouts"></div>
       <div id="multi-view" hidden aria-label="Multi chart layout"></div>
-      <nav id="bnav" role="navigation" aria-label="Main sections" hidden>
-        <button type="button" data-nav="chart" class="on" onclick="bnavGo('chart')">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 19V5M4 19h16"/><path d="M8 15l4-5 3 3 5-7"/></svg>
-          <span>Chart</span>
-        </button>
-        <button type="button" data-nav="watch" onclick="bnavGo('watch')">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 5h14M5 12h14M5 19h9"/><circle cx="19" cy="19" r="1.4"/></svg>
-          <span>Watchlist</span>
-        </button>
-        <button type="button" data-nav="ai" onclick="bnavGo('ai')">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.2 5.6L20 11l-5.8 2.4L12 19l-2.2-5.6L4 11l5.8-2.4z"/></svg>
-          <span>AI</span>
-        </button>
-        <button type="button" data-nav="alerts" onclick="bnavGo('alerts')">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2.2 2.2 0 0 0 4 0"/></svg>
-          <span>Alerts</span>
-        </button>
-        <button type="button" data-nav="menu" onclick="bnavGo('menu')">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
-          <span>Menu</span>
-        </button>
-      </nav>
+      <!-- the phone nav lives outside the chart shell: contain:layout would otherwise
+           make it position itself against the plot instead of the device -->
+
     </div>
     <div class="flow-row">
       <button id="flow-line" class="flow-line" type="button" hidden onclick="openOrderFlow()" aria-label="Open the full order flow"></button>
@@ -2205,6 +2247,30 @@ body[data-view="chart"] .hd-quote{left:auto;right:9px;bottom:2px;text-align:righ
   </footer>
 
 </main>
+
+<nav id="bnav" role="navigation" aria-label="Main sections" hidden>
+        <button type="button" data-nav="chart" class="on" onclick="bnavGo('chart')">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 19V5M4 19h16"/><path d="M8 15l4-5 3 3 5-7"/></svg>
+          <span>Chart</span>
+        </button>
+        <button type="button" data-nav="watch" onclick="bnavGo('watch')">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 5h14M5 12h14M5 19h9"/><circle cx="19" cy="19" r="1.4"/></svg>
+          <span>Watchlist</span>
+        </button>
+        <button type="button" data-nav="ai" onclick="bnavGo('ai')">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.2 5.6L20 11l-5.8 2.4L12 19l-2.2-5.6L4 11l5.8-2.4z"/></svg>
+          <span>AI</span>
+        </button>
+        <button type="button" data-nav="alerts" onclick="bnavGo('alerts')">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2.2 2.2 0 0 0 4 0"/></svg>
+          <span>Alerts</span>
+        </button>
+        <button type="button" data-nav="menu" onclick="bnavGo('menu')">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+          <span>Menu</span>
+        </button>
+      </nav>
+
 
 <script>
 // timeframes the feed does not serve natively are built here from a real smaller series:
@@ -2639,7 +2705,7 @@ function paintEventLive(src){
   if(!html){ if(!el.hidden){ el.hidden=true; el.innerHTML=''; } return; }
   const was=el.hidden;
   if(el.innerHTML!==html) el.innerHTML=html;
-  if(was){ el.hidden=false; syncHdH(); relayoutChart(); }
+  if(was){ el.hidden=false; syncChrome(); relayoutChart(); }
 }
 
 // (the phone-alert card was removed from the drawer: the server still has the
@@ -3004,15 +3070,41 @@ function setView(v){
   }
   if(typeof closeMenu==='function' && document.getElementById('menu').classList.contains('open')) closeMenu();
   // the chart needs its size re-measured when it comes back into the layout
-  setTimeout(()=>{syncHdH();relayoutChart();},60);
+  setTimeout(()=>{syncChrome();relayoutChart();},60);
 }
 
-// The chart fills whatever the header leaves. Measure the header instead of guessing,
-// so a tall mobile header cannot push the chart's bottom edge off the device.
-function syncHdH(){
+// The chart fills whatever the chrome leaves. Nothing here is guessed: the header, the
+// phone nav and the usable viewport height are measured, so a notch, a home indicator, a
+// two-line header or an iOS toolbar sliding in can never push the chart off the device.
+let _appH=0;
+function syncChrome(){
+  const root=document.documentElement;
+  const dvh=(window.CSS&&CSS.supports&&CSS.supports('height','100dvh'));
+  // visualViewport is the only number that follows an iOS toolbar. While a keyboard is
+  // open it shrinks too - that is not a reason to rebuild the chart, so a drop while a
+  // text field has focus is ignored.
+  const ae=document.activeElement;
+  const typing=ae&&(ae.tagName==='INPUT'||ae.tagName==='TEXTAREA'||ae.isContentEditable);
+  const vv=window.visualViewport;
+  let h;
+  if(typing) h=_appH||Math.round(window.innerHeight||0);
+  else if(vv&&vv.height) h=Math.round(vv.height);
+  else h=Math.round(document.documentElement.clientHeight||window.innerHeight||0);
+  // dvh already follows the toolbar in modern browsers; only browsers without it need a
+  // number, and every browser needs the number while the app is in full screen
+  if(h>0&&(!dvh||document.body.classList.contains('chart-full'))){
+    _appH=h;
+    if(root.style.setProperty) root.style.setProperty('--app-h',h+'px');
+  }else{
+    _appH=h;
+    if(root.style.removeProperty) root.style.removeProperty('--app-h');
+  }
   const hd=document.querySelector('.hd');
-  const h=hd?Math.round(hd.getBoundingClientRect().height):0;
-  if(h>0) document.documentElement.style.setProperty('--hd-h',h+'px');
+  const hh=hd?Math.round(hd.getBoundingClientRect().height):0;
+  if(hh>0&&root.style.setProperty) root.style.setProperty('--hd-h',hh+'px');
+  const bn=document.getElementById('bnav');
+  const bh=bn&&!bn.hidden?Math.round(bn.getBoundingClientRect().height):0;
+  if(root.style.setProperty) root.style.setProperty('--bnav-h',(bh>0?bh:52)+'px');
 }
 function relayoutChart(){
   try{
@@ -3021,11 +3113,28 @@ function relayoutChart(){
     if(typeof scheduleZoneDraw==='function') scheduleZoneDraw();
   }catch(e){}
 }
-function fitScreen(){syncHdH();relayoutChart();try{paintBnav();if(typeof relayoutMulti==='function')relayoutMulti();}catch(e){}}
-window.addEventListener('resize',fitScreen);
+let _fitRaf=0,_fitT=0;
+function fitScreen(){
+  syncChrome();
+  if(_fitRaf) return;
+  _fitRaf=requestAnimationFrame(function(){
+    _fitRaf=0;
+    relayoutChart();
+    try{paintBnav();if(typeof relayoutMulti==='function')relayoutMulti();}catch(e){}
+    try{if(typeof motionAnchorSet==='function')motionAnchorSet();}catch(e){}
+  });
+}
+// a resize storm (iOS toolbar, Android URL bar, a window drag) must not rebuild the chart
+// fifty times: one pass after the size has been still for 90 ms
+function scheduleFit(){clearTimeout(_fitT);_fitT=setTimeout(fitScreen,90);}
+window.addEventListener('resize',scheduleFit);
 window.addEventListener('orientationchange',()=>setTimeout(fitScreen,260));
-if(window.visualViewport) window.visualViewport.addEventListener('resize',fitScreen);
-try{new ResizeObserver(fitScreen).observe(document.querySelector('.hd'));}catch(e){}
+if(window.visualViewport){
+  window.visualViewport.addEventListener('resize',scheduleFit);
+  window.visualViewport.addEventListener('scroll',scheduleFit);
+}
+try{new ResizeObserver(scheduleFit).observe(document.querySelector('.hd'));}catch(e){}
+try{new ResizeObserver(function(){if(!document.body.classList.contains('is-resizing')){syncChrome();relayoutChart();}}).observe(document.getElementById('bnav'));}catch(e){}
 
 // ---- hamburger menu ----
 function toggleMenu(){
@@ -4601,20 +4710,70 @@ function shotChart(){
     }else save();
   }catch(e){console.log('screenshot err',e);}
 }
+// Full screen, honestly, on every device:
+//  - Android / iPad / desktop: the browser's own element fullscreen (real fullscreen, the
+//    URL bar goes away);
+//  - iPhone Safari and in-app WebViews: element fullscreen does not exist, so the same
+//    state is built in CSS - header, phone nav and the read dock give their space to the
+//    chart, safe areas are kept, and the toolbar's full-screen button (or Esc) comes back.
+function fullscreenState(){return document.body.classList.contains('chart-full');}
+function _paintFullBtn(){
+  const b=document.getElementById('ctb-full');
+  if(b){
+    b.setAttribute('aria-pressed',fullscreenState()?'true':'false');
+    b.title=fullscreenState()?'Leave full screen':'Full screen';
+    b.setAttribute('aria-label',b.title);
+  }
+  const t=document.getElementById('full-exit');
+  if(t) t.hidden=!fullscreenState();
+}
+function setFullscreen(on){
+  document.body.classList.toggle('chart-full',!!on);
+  _paintFullBtn();
+  // the header just changed height: measure again in the same frame the class lands
+  requestAnimationFrame(function(){syncChrome();fitScreen();});
+  setTimeout(function(){syncChrome();fitScreen();},220);
+}
 function fullscreenChart(){
-  const el=document.getElementById('chart-section')||document.documentElement;
-  const d=document;
-  const has=(d.fullscreenElement||d.webkitFullscreenElement);
-  if(has){
-    if(d.exitFullscreen)d.exitFullscreen();else if(d.webkitExitFullscreen)d.webkitExitFullscreen();
+  const d=document, el=document.getElementById('chart-section')||d.documentElement;
+  const native=!!(d.fullscreenElement||d.webkitFullscreenElement);
+  if(native){
+    if(d.exitFullscreen) d.exitFullscreen().catch&&d.exitFullscreen().catch(function(){});
+    else if(d.webkitExitFullscreen) d.webkitExitFullscreen();
     return;
   }
-  const req=el.requestFullscreen||el.webkitRequestFullscreen;
-  if(req){
-    const p=req.call(el);
-    if(p&&p.catch)p.catch(function(){document.body.classList.toggle('chart-full');});
-  }else document.body.classList.toggle('chart-full');
+  if(fullscreenState()){
+    setFullscreen(false);
+    if(d.exitFullscreen&&d.fullscreenElement) d.exitFullscreen();
+    return;
+  }
+  const req=el.requestFullscreen||el.webkitRequestFullscreen||el.webkitRequestFullScreen;
+  // iPhone Safari has no element fullscreen; the CSS mode is the honest equivalent
+  if(req&&!d.fullscreenElement){
+    let p;
+    try{ p=req.call(el); }catch(e){ p=null; }
+    if(p&&p.then){
+      p.then(function(){setFullscreen(true);}).catch(function(){setFullscreen(true);});
+    }else if(p===undefined&&(d.fullscreenEnabled||d.webkitFullscreenEnabled)){
+      setFullscreen(true);
+    }else{
+      setFullscreen(true);
+    }
+  }else{
+    setFullscreen(true);
+  }
 }
+document.addEventListener('fullscreenchange',function(){
+  // leaving full screen with Esc or the system gesture must not leave the layout stuck
+  const inFs=!!(document.fullscreenElement||document.webkitFullscreenElement);
+  setFullscreen(inFs);
+});
+document.addEventListener('webkitfullscreenchange',function(){
+  setFullscreen(!!(document.fullscreenElement||document.webkitFullscreenElement));
+});
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'&&fullscreenState()&&!(document.fullscreenElement||document.webkitFullscreenElement)) setFullscreen(false);
+});
 
 // ---------- indicator painting ----------
 function paintIndLegend(bars){
@@ -4758,7 +4917,7 @@ function ensurePane(kind){
   return paneRef[kind];
 }
 function setSpanIfNeeded(c,r){
-  if(!c||!r)return;
+  if(!c||!r||_syncingPanes)return;
   try{
     const cur=c.timeScale().getVisibleRange();
     if(cur&&Math.abs(cur.from-r.from)<2&&Math.abs(cur.to-r.to)<2)return;   // already there: stop the echo
@@ -4770,28 +4929,30 @@ function setSpanIfNeeded(c,r){
 function spanOf(c){
   try{return c.timeScale().getVisibleRange();}catch(e){return null;}
 }
+// One-way sync, and only one-way: the price chart is the master, the panes follow it.
+// The panes have no scroll or scale handlers of their own, so a pane can only change its
+// range because the master pushed one - feeding that back into the master used to make
+// the two re-clamp each other. That loop quietly zoomed the chart in while you dragged
+// (each round trip narrowed the window a little, down to two bars), which is what made a
+// pan feel like it was fighting the finger.
+let _syncingPanes=false;
 function linkPanes(){
   if(!chart)return;
   if(!window._syncMain){
     window._syncMain=true;
     chart.timeScale().subscribeVisibleLogicalRangeChange(function(){
+      if(_syncingPanes)return;
       const r=spanOf(chart);if(!r)return;
-      PANE_KINDS.forEach(function(k){const pr=paneRef[k];if(pr)setSpanIfNeeded(pr.chart,r);});
+      _syncingPanes=true;
+      try{
+        PANE_KINDS.forEach(function(k){const pr=paneRef[k];if(pr)setSpanIfNeeded(pr.chart,r);});
+      }finally{_syncingPanes=false;}
     });
   }
+  // no pane -> master direction: the panes are read-only views of the same window
   PANE_KINDS.forEach(function(k){
     const pr=paneRef[k];
-    if(!pr||pr.linked)return;
-    pr.linked=true;
-    pr.chart.timeScale().subscribeVisibleLogicalRangeChange(function(){
-      const r=spanOf(pr.chart);if(!r)return;
-      setSpanIfNeeded(chart,r);
-      PANE_KINDS.forEach(function(k2){
-        if(k2===k)return;
-        const p2=paneRef[k2];
-        if(p2)setSpanIfNeeded(p2.chart,r);
-      });
-    });
+    if(pr) pr.linked=true;
   });
 }
 function paintPane(kind,bars,closes){
@@ -5091,22 +5252,26 @@ function layerShift(dx,dy){
 // called by every painter once it has really drawn: this is the state the pixels show
 function _mRange(){ try{ return chart?chart.timeScale().getVisibleLogicalRange():null; }catch(e){ return null; } }
 function _mAnchorPoint(){
-  // Anchor on what is in the middle of the pane, not on the last candle: a price at the
-  // edge (or off screen) has no usable coordinate once the window moves, and asking for
-  // one hands back an extrapolated number hundreds of pixels away.
+  // Anchor on the middle of the pane, not on the last candle: a price at the edge (or off
+  // screen) has no usable coordinate once the window moves, and asking for one hands back
+  // an extrapolated number hundreds of pixels away.
   if(!chart||!candleSeries||!lastCandles.length) return null;
   const pr=plotRect(true)||{width:380,height:420};
-  const cy=Math.max(40,(pr.height||420)/2);
+  const h=Math.max(60,pr.height||420);
+  const yA=h*0.5, yB=h*0.12;                    // two heights: one shift, one scale reference
+  let pA=null,pB=null;
+  try{ pA=candleSeries.coordinateToPrice(yA); }catch(e){}
+  try{ pB=candleSeries.coordinateToPrice(yB); }catch(e){}
+  if(pA==null||!isFinite(pA)) pA=lastCandles[lastCandles.length-1].close;
+  if(pB==null||!isFinite(pB)) return null;
   const r=_mRange(); if(!r) return null;
-  let price=null,x=null,y=null;
-  try{ price=candleSeries.coordinateToPrice(cy); }catch(e){}
-  if(price==null||!isFinite(price)){ price=lastCandles[lastCandles.length-1].close; }
   const idx=Math.max(0,Math.min(lastCandles.length-1,Math.round((r.from+r.to)/2)));
   const bar=lastCandles[idx];
+  let x=null,y=null;
   try{ x=chart.timeScale().timeToCoordinate(bar.time); }catch(e){}
-  try{ y=candleSeries.priceToCoordinate(price); }catch(e){}
+  try{ y=candleSeries.priceToCoordinate(pA); }catch(e){}
   if(x==null||y==null) return null;
-  return {time:bar.time,price:price,x:x,y:y,span:r.to-r.from};
+  return {time:bar.time,price:pA,price2:pB,x:x,y:y,scale:Math.abs(yA-yB),span:r.to-r.from};
 }
 function motionAnchorSet(){ _mAnchor=_mAnchorPoint(); }
 function motionTrack(){
@@ -5119,14 +5284,22 @@ function motionTrack(){
     if(now-_gestPaintAt>90) motionRepaint();
     return;
   }
-  let x=null,y=null;
+  let x=null,y=null,y2=null;
   try{ x=chart.timeScale().timeToCoordinate(_mAnchor.time); }catch(e){}
   try{ y=candleSeries.priceToCoordinate(_mAnchor.price); }catch(e){}
-  if(x==null||y==null)return;
+  try{ y2=candleSeries.priceToCoordinate(_mAnchor.price2); }catch(e){}
+  if(x==null||y==null||y2==null)return;
+  // The price scale has two ways to move: it can slide (the same prices at a new height -
+  // a translate handles that) or it can stretch (the visible high/low widened, so the
+  // pixels per point changed - that needs a repaint). The distance between the two
+  // reference prices is the stretch: if it moved, redraw, otherwise ride the shift.
+  const scale=Math.abs(y-y2);
+  if(_mAnchor.scale>8&&Math.abs(scale-_mAnchor.scale)/_mAnchor.scale>0.08){
+    if(now-_gestPaintAt>90) motionRepaint();
+    return;
+  }
   const dx=x-_mAnchor.x, dy=y-_mAnchor.y;
   if(Math.abs(dx)<0.15&&Math.abs(dy)<0.15) return;      // nothing moved this frame
-  // a vertical jump that big is the price scale rescaling, not the chart moving: repaint
-  if(Math.abs(dy)>220){ if(now-_gestPaintAt>90) motionRepaint(); return; }
   layerShift(dx,dy);
 }
 
@@ -5136,7 +5309,7 @@ function motionTrack(){
 // the SMC boxes, the value-area bands and the drawings were rebuilt on every single
 // frame of a pan. They now share one gate: while a gesture is in flight they repaint
 // at ~11 fps, and the moment the finger lifts they snap to the exact final position.
-let _gestActive=false,_gestPaintAt=0,_gestEndTimer=0,_gestMoved=0,_mRaf=0;
+let _gestActive=false,_gestPaintAt=0,_gestEndTimer=0,_gestMoved=0,_mRaf=0,_mScaleFrozen=false,_mGestAt=0;
 function motionMark(k){ if(window._motionDebug) window._motionDebug[k]=(window._motionDebug[k]||0)+1; }
 function motionGate(){
   if(window.__gateOff) return true;          // the A/B harness measures the cost of the gate itself
@@ -5149,6 +5322,12 @@ function motionGate(){
 // a forced repaint: reset the transform, redraw every layer in the current coordinates, and
 // take a new anchor from exactly what was drawn
 function motionRepaint(){
+  // a zoom (or the end of a gesture) needs the price scale live again: let it re-fit, then
+  // draw every layer against the mapping that is really on screen
+  if(_mScaleFrozen){
+    _mScaleFrozen=false;
+    try{ if(chart&&typeof CHART_VIEW!=='undefined'&&CHART_VIEW.auto) chart.priceScale('right').applyOptions({autoScale:true}); }catch(e){}
+  }
   layerShiftReset();
   window.__forcePaint=true;
   try{ drawZones(); }catch(e){}
@@ -5161,9 +5340,22 @@ function motionRepaint(){
 function motionBegin(){
   _gestMoved=0;
   _plotRect=null;                 // re-read once for this gesture, then reuse
-  if(_gestActive){ clearTimeout(_gestEndTimer); return; }
-  _gestActive=true; _gestPaintAt=0;
+  // a settle timer left over from the previous finger-up must never end this gesture:
+  // two quick drags would otherwise snap the layers back in the middle of the second one
+  clearTimeout(_gestEndTimer);
+  if(_gestActive){ return; }
+  _gestActive=true; _gestPaintAt=0; _mGestAt=0;
   document.documentElement.classList.add('is-panning');
+  // Freeze the price scale while the finger is down. With auto-scale on, every frame of a
+  // horizontal pan re-fits the visible high/low, so the candles also slide vertically and
+  // the overlays would need a repaint per frame to keep up. Frozen, a pan is a pure
+  // translation: the layers ride it pixel for pixel, and the scale re-fits once, on lift.
+  try{
+    if(chart&&typeof CHART_VIEW!=='undefined'&&CHART_VIEW.auto){
+      chart.priceScale('right').applyOptions({autoScale:false});
+      _mScaleFrozen=true;
+    }
+  }catch(e){}
   // one translate per frame, for as long as the finger is down: the range-change event
   // alone is not enough (the library publishes its new coordinates a frame later, so the
   // shift read inside that event is always the previous frame's)
@@ -5172,6 +5364,9 @@ function motionBegin(){
 function motionLoop(){
   _mRaf=0;
   if(!_gestActive) return;
+  const now=Date.now();
+  if(!_mGestAt) _mGestAt=now;
+  if(now-_mGestAt>12000){ _mGestAt=0; motionSettle(0); return; }   // a lost touchend
   try{ motionTrack(); }catch(e){}
   if(_gestActive) _mRaf=requestAnimationFrame(motionLoop);
 }
@@ -5181,6 +5376,10 @@ function motionSettle(delay){
     _gestActive=false; _plotRect=null;
     if(_mRaf){ try{cancelAnimationFrame(_mRaf);}catch(e){} _mRaf=0; }
     document.documentElement.classList.remove('is-panning');
+    if(_mScaleFrozen){
+      _mScaleFrozen=false;
+      try{ if(chart&&typeof CHART_VIEW!=='undefined') chart.priceScale('right').applyOptions({autoScale:!!CHART_VIEW.auto}); }catch(e){}
+    }
     try{ if(window._legendPending){ const p=window._legendPending; window._legendPending=null; updateLegend(p[0],p[1]); } }catch(e){}
     try{ motionRepaint(); }catch(e){}
   },delay==null?110:delay);
@@ -5249,6 +5448,11 @@ function initChartTools(){
     ['wheel','pointerup','touchend'].forEach(function(ev){
       shell.addEventListener(ev,function(){setTimeout(drawOverlay,30);},{passive:true});
     });
+    // a trackpad/wheel zoom is a gesture with no finger down: hold the same state for the
+    // burst so the layers translate/repaint with it instead of trailing behind it
+    shell.addEventListener('wheel',function(){
+      try{ motionBegin(); motionSettle(260); }catch(e){}
+    },{passive:true});
   }
   try{bindMotionGovernor(document.getElementById('oanda_chart'));}catch(e){}
   try{bindDoubleTap(document.getElementById('oanda_chart'));}catch(e){}

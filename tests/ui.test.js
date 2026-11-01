@@ -121,7 +121,7 @@ Object.defineProperty(global, 'currentSymbol', { get: () => currentSymbol, set: 
 eval([
   'firedKeys', 'markFired', 'zoneAlerts', 'recordZoneAlert', 'latestTrade', 'renderZoneAlerts',
   'openMenu', 'closeMenu', 'toggleMenu', 'setView', 'endIntro', 'playIntro',
-  'drawVolume', 'syncHdH', 'setTabPrice',
+  'drawVolume', 'syncChrome', 'setTabPrice',
   'esc', 'ago', 'evClock', 'evDay', 'jnLoad', 'jnSave', 'jnR', 'jnStats', 'jnAdd', 'jnDel',
   'journalHtml', 'openJournal', 'openSheet', 'closeSheet', 'calHtml', 'newsHtml',
   'renderCalStrip', 'renderNewsStrip',
@@ -140,7 +140,7 @@ eval([
 ].map(n => grab(n)).join('\n'));
 ['recordZoneAlert', 'renderZoneAlerts', 'zoneAlerts', 'latestTrade',
  'openMenu', 'closeMenu', 'toggleMenu', 'setView', 'endIntro', 'playIntro',
- 'drawVolume', 'syncHdH', 'setTabPrice',
+ 'drawVolume', 'syncChrome', 'setTabPrice',
  'esc', 'ago', 'evClock', 'evDay', 'jnLoad', 'jnSave', 'jnR', 'jnStats', 'jnAdd', 'jnDel',
  'journalHtml', 'openJournal', 'openSheet', 'closeSheet', 'calHtml', 'newsHtml',
  'renderCalStrip', 'renderNewsStrip',
@@ -278,16 +278,26 @@ section('chart fills the device');
 {
   const css = html.slice(html.indexOf('<style>'), html.indexOf('</style>'));
   ok('chart view is a full-height screen',
-     /body\[data-view="chart"\] \.wrap\{[^}]*height:calc\(100dvh - var\(--hd-h\)\)/.test(css));
+     /--app-h:100dvh/.test(css) && /body\[data-view="chart"\] \.wrap\{[^}]*height:calc\(var\(--app-h\) - var\(--hd-h\)\)/.test(css));
+  ok('the phone nav is measured, so a home indicator cannot steal the chart',
+     /--bnav-h/.test(css) && /#bnav\{[^}]*height:var\(--bnav-h/.test(css));
+  ok('the chrome respects the notch and the rounded corners',
+     /\.hd\{[^}]*padding-top:env\(safe-area-inset-top\)/.test(css));
+  ok('the read card is a one-line strip, not a card that eats the plot',
+     /body\[data-view="chart"\] \.flow-row \.flow-line\{[^}]*max-height:30px/.test(css)
+     && /body\[data-view="chart"\] \.flow-row \.flow-line \.of-row:nth-of-type\(2\)\{display:none\}/.test(css));
+  ok('full screen gives the chart the whole device',
+     /body\.chart-full \.hd,body\.chart-full #bnav/.test(css) && /body\.chart-full #chart-section\{[^}]*height:var\(--app-h\)/.test(css));
   ok('the card stops being a card', /body\[data-view="chart"\] #chart-section\{[^}]*height:100%/.test(css));
   ok('chart stretches to that height', /body\[data-view="chart"\] #oanda_chart\{height:100%/.test(css));
   ok('chart shell flexes, no dead strip', /body\[data-view="chart"\] \.chart-shell\{flex:1 1 auto;min-height:0\}/.test(css));
   ok('footer is not a separate part', /body\[data-view="chart"\] \.foot,body\[data-view="signal"\] \.foot\{display:none\}/.test(css));
   ok('no page scroll behind the chart', /body\[data-view="chart"\]\{overflow:hidden\}/.test(css));
-  ok('header height is measured, not guessed', /getBoundingClientRect\(\)\.height/.test(grab('syncHdH')));
-  ok('header resize re-fits the chart', /ResizeObserver\(fitScreen\)\.observe/.test(html));
+  ok('header height is measured, not guessed', /getBoundingClientRect\(\)\.height/.test(grab('syncChrome')));
+  ok('header resize re-fits the chart', /ResizeObserver\(scheduleFit\)\.observe/.test(html)
+     && /function scheduleFit\(\)\{clearTimeout\(_fitT\);/.test(html));
   ok('rotation re-fits the chart', /orientationchange/.test(html) && /visualViewport/.test(html));
-  syncHdH();
+  syncChrome();
   ok('--hd-h lands on the root', document.documentElement.style['--hd-h'] === '64px', document.documentElement.style['--hd-h']);
 }
 
@@ -680,7 +690,7 @@ section('the high-impact countdown');
   strip.hidden = true;
   document.getElementById = (id) => (id === 'event-live' ? strip : els[id] || null);
   // the strip re-measures the header when it appears; the real ones need a browser
-  globalThis.syncHdH = () => {};
+  globalThis.syncChrome = () => {};
   globalThis.relayoutChart = () => {};
 
   paintEventLive({ calendar: [{ time: now + 6 * 3600, title: 'NFP', currency: 'USD', impact: 'High' }] });
