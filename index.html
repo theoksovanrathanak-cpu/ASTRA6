@@ -1429,6 +1429,42 @@ body.has-bnav{--bnav-h:52px}
 body.has-bnav .sheet-body{padding-bottom:calc(64px + env(safe-area-inset-bottom))}
 body.has-bnav .meta-row{padding-bottom:calc(var(--bnav-h) + env(safe-area-inset-bottom))}
 body.has-bnav #alert-toast,body.has-bnav #app-toast{bottom:calc(var(--bnav-h) + 14px)}
+/* install guide: an arrow that points at the real Share button, not a picture of it */
+.ios-guide{position:fixed;inset:0;z-index:9600;display:none;align-items:flex-end;justify-content:center;
+  background:rgba(4,4,10,.72);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);padding:0}
+.ios-guide.on{display:flex}
+.ios-guide.point-down .ig-card{margin-bottom:calc(62px + env(safe-area-inset-bottom))}
+.ig-card{position:relative;width:min(420px,100%);margin:0 0 0;padding:18px 18px 20px;
+  border-radius:18px;background:linear-gradient(180deg,#15121f,#0b0b12);
+  border:1px solid rgba(167,139,250,.35);box-shadow:0 -18px 50px rgba(0,0,0,.6);
+  text-align:center;animation:igUp .26s ease-out}
+@keyframes igUp{from{transform:translateY(24px);opacity:.4}to{transform:none;opacity:1}}
+.ig-x{position:absolute;right:10px;top:10px;width:28px;height:28px;border-radius:9px;cursor:pointer;
+  color:var(--ink);background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);font-size:15px;line-height:1}
+.ig-icon{width:44px;height:44px;margin:2px auto 8px;border-radius:12px;display:grid;place-items:center;
+  font-weight:900;font-size:16px;letter-spacing:.5px;color:#0b0b12;background:linear-gradient(140deg,#a78bfa,#22c55e)}
+.ig-t{font-size:15px;font-weight:800;letter-spacing:.2px}
+.ig-s{font-size:11px;line-height:1.5;color:var(--muted);margin:5px 4px 12px}
+.ig-steps{display:flex;flex-direction:column;gap:9px;text-align:left}
+.ig-step{display:flex;gap:9px;align-items:flex-start;padding:9px 10px;border-radius:11px;
+  background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08)}
+.ig-step b.n{flex:0 0 auto;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:10.5px;
+  color:#0b0b12;background:#a78bfa;font-weight:900}
+.ig-step span b,.ig-step span strong{color:#fff;font-weight:800}
+.ig-step span{font-size:11.5px;line-height:1.45;color:var(--ink)}
+.ig-step svg{vertical-align:-3px;color:#a78bfa}
+.ig-arrow{height:26px;position:relative;margin-top:2px}
+.ig-arrow[hidden]{display:none}
+.ios-guide.point-down .ig-arrow{margin-bottom:2px}
+.ig-arrow span{position:absolute;left:50%;bottom:2px;width:16px;height:16px;margin-left:-8px;
+  border-right:3px solid #a78bfa;border-bottom:3px solid #a78bfa;transform:rotate(45deg);
+  animation:igBob 1.1s ease-in-out infinite}
+@keyframes igBob{0%,100%{transform:translateY(-6px) rotate(45deg);opacity:.45}50%{transform:translateY(3px) rotate(45deg);opacity:1}}
+.ig-btns{display:flex;gap:8px;margin-top:4px}
+.ig-btn{flex:1;padding:11px;border-radius:11px;font:inherit;font-size:12px;font-weight:800;cursor:pointer;
+  color:#0b0b12;background:linear-gradient(92deg,#a78bfa,#22c55e);border:0}
+.ig-btn.ghost{color:var(--ink);background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14)}
+.ig-note{font-size:10px;line-height:1.45;color:var(--muted);margin-top:9px}
 .push-watch{font-size:9.5px;line-height:1.4;padding:5px 7px;border-radius:7px;margin:1px 0 3px;
   color:var(--muted);background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08)}
 .push-watch.on{color:#86efac;background:rgba(34,197,94,.10);border-color:rgba(34,197,94,.32)}
@@ -1789,6 +1825,12 @@ body[data-view="chart"] .hd-quote{left:auto;right:9px;bottom:2px;text-align:righ
     <div class="menu-hint" style="margin-top:6px">A signal alert rings on this phone even when the app is closed — turn on notifications in Price alerts once.</div>
   </div>
 
+  <div class="menu-sec" id="menu-install-sec">
+    <div class="menu-label">Install</div>
+    <button class="chip" id="install-btn" style="width:100%;justify-content:center" onclick="closeMenu();installFlow()">Add to Home Screen</button>
+    <div class="menu-hint" id="install-note">iPhone: opens a step-by-step guide — Apple gives no button, so the guide points at the exact icon to tap.</div>
+  </div>
+
   <div class="menu-sec">
     <div class="menu-label">Trade journal</div>
     <div class="menu-stats">
@@ -1818,6 +1860,21 @@ body[data-view="chart"] .hd-quote{left:auto;right:9px;bottom:2px;text-align:righ
 
   </aside>
 
+<div class="ios-guide" id="ios-guide" aria-hidden="true" role="dialog" aria-label="Add ASTRA6 to the Home Screen">
+  <div class="ig-card">
+    <button class="ig-x" onclick="closeInstallGuide()" aria-label="Close">×</button>
+    <div class="ig-icon">A6</div>
+    <div class="ig-t">Add ASTRA6 to your Home Screen</div>
+    <div class="ig-s" id="ig-sub">Three taps, once. After this it opens full screen and its alerts ring with the app closed.</div>
+    <div class="ig-steps" id="ig-steps"></div>
+    <div class="ig-arrow" aria-hidden="true"><span></span></div>
+    <div class="ig-btns">
+      <button class="ig-btn" id="ig-safari" hidden onclick="openInSafari()">Open in Safari</button>
+      <button class="ig-btn ghost" onclick="closeInstallGuide()">Got it</button>
+    </div>
+    <div class="ig-note" id="ig-note"></div>
+  </div>
+</div>
 <div class="sheet-scrim" id="sheet-scrim" onclick="closeSheet()"></div>
 <section class="sheet" id="sheet" aria-hidden="true" aria-label="Panel">
   <div class="sheet-hd">
@@ -2854,8 +2911,27 @@ function openMarket(sym){
   setView('chart');
   if(typeof closeMenu==='function') closeMenu();
 }
+function paintInstall(){
+  const btn=document.getElementById('install-btn'), note=document.getElementById('install-note');
+  if(!btn||!note) return;
+  if(installInstalled()){
+    btn.textContent='Already on your Home Screen';
+    note.textContent='You are running the installed app right now — nothing left to do.';
+    return;
+  }
+  const ios=pushIsIOS(), b=iosBrowser(), native=!!_installPrompt&&!ios;
+  btn.textContent=native?'Install ASTRA6':'Add to Home Screen';
+  note.textContent=native
+    ? 'This browser can install it in one tap — no browser menu needed.'
+    : ios
+      ? (b==='safari'
+        ? 'iPhone: opens a step-by-step guide — Apple gives no button, so the guide points at the exact icon to tap.'
+        : 'iPhone: this browser ('+(b==='chrome'?'Chrome':b==='firefox'?'Firefox':b==='edge'?'Edge':'this one')+') cannot add apps, so the guide opens Safari first.')
+      : 'Opens the short guide: browser menu > Install app / Add to Home screen.';
+}
 function openMenu(){
   try{paintMenuAlerts();}catch(e){}
+  try{paintInstall();}catch(e){}
   if(typeof loadCalendar==='function'){ loadCalendar(); loadNews(); }
   const m=document.getElementById('menu'), s=document.getElementById('scrim'), b=document.getElementById('burger');
   if(m)m.classList.add('open');
@@ -6698,7 +6774,8 @@ function pushBlockHtml(){
     h+='<div class="tp-note">The read card is the same market read the app shows — a read, not a guarantee, and only when it changes.</div>';
   }
   if(pushIsIOS()&&!pushStandalone()){
-    h+='<div class="tp-note">iPhone: tap Share → Add to Home Screen, then open ASTRA6 from the icon — iOS only delivers push to an installed app.</div>';
+    h+='<div class="tp-chips"><button class="tp-chip" onclick="installFlow()">Add to Home Screen</button></div>';
+    h+='<div class="tp-note">iPhone alerts only reach a locked phone once ASTRA6 is on the Home Screen — the guide shows the exact icon to tap.</div>';
   }
   if(!pushStandalone()&&!pushIsIOS()){
     h+='<div class="tp-chips"><button class="tp-chip" onclick="pushInstall()">Install on this device</button></div>';
@@ -6706,15 +6783,98 @@ function pushBlockHtml(){
   return h;
 }
 let _installPrompt=null;
-window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();_installPrompt=e;});
-function pushInstall(){
-  if(_installPrompt){_installPrompt.prompt();_installPrompt=null;return;}
-  openSheet('Install ASTRA6','<div class="tp-note" style="line-height:1.7">'
-    +'<b>Android / Chrome</b> · menu ⋮ → “Install app” or “Add to Home screen”.<br>'
-    +'<b>iPhone / Safari</b> · Share → Add to Home Screen.<br>'
-    +'<b>Desktop</b> · the install icon in the address bar.<br><br>'
-    +'Installed, ASTRA6 opens full screen and its notifications arrive with the app closed.</div>');
+window.addEventListener('beforeinstallprompt',function(e){
+  // iPhone never installs this way - Safari has no such dialog, so the guide is the route
+  if(pushIsIOS())return;
+  e.preventDefault();_installPrompt=e;
+});
+
+// which browser is this, on iOS - only Safari can install there
+function iosBrowser(){
+  const u=navigator.userAgent||'';
+  if(/CriOS/.test(u))return 'chrome';
+  if(/FxiOS/.test(u))return 'firefox';
+  if(/EdgiOS/.test(u))return 'edge';
+  if(/Safari/.test(u))return 'safari';
+  return 'other';
 }
+function installInstalled(){return pushStandalone();}
+// one entry point for every install button in the app
+function installFlow(){
+  if(installInstalled()){toast('Already installed — you are using the app');return;}
+  if(_installPrompt&&!pushIsIOS()){         // Android / Chrome / Edge: a real one-tap install
+    try{_installPrompt.prompt();}catch(e){}
+    _installPrompt=null;
+    toast('Install dialog opened');
+    return;
+  }
+  showInstallGuide();
+}
+function showInstallGuide(){
+  const g=document.getElementById('ios-guide');
+  if(!g)return;
+  const ios=pushIsIOS();
+  const b=iosBrowser();
+  const stepsEl=document.getElementById('ig-steps');
+  const sub=document.getElementById('ig-sub');
+  const note=document.getElementById('ig-note');
+  const safariBtn=document.getElementById('ig-safari');
+  safariBtn.hidden=true;
+  note.textContent='';
+  const shareIcon='<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3.6"/><path d="M8.2 7.2 12 3.4l3.8 3.8"/><path d="M5.5 12.5v6.4a1.6 1.6 0 0 0 1.6 1.6h9.8a1.6 1.6 0 0 0 1.6-1.6v-6.4"/></svg>';
+  const step=function(n,html){return '<div class="ig-step"><b class="n">'+n+'</b><span>'+html+'</span></div>';};
+  if(ios&&b==='safari'){
+    sub.textContent='Three taps, once. Then ASTRA6 opens like an app and its alerts reach a locked phone.';
+    stepsEl.innerHTML=step(1,'Tap <strong>Share</strong> in the Safari toolbar at the bottom of the screen — the square with an arrow coming out. '+shareIcon)
+      +step(2,'Scroll that list and tap <strong>Add to Home Screen</strong>.')
+      +step(3,'Tap <strong>Add</strong> top right. ASTRA6 lands on your Home Screen.');
+    note.textContent='Apple has no “install” button a website can press — this is the only route, and it is the same one every iPhone app store guide uses.';
+  }else if(ios){
+    // Chrome / Firefox / Edge on iPhone cannot install: hand over to Safari
+    sub.textContent='iPhone apps can only be added from Safari. Tap below and this page opens there, ready to install.';
+    stepsEl.innerHTML=step(1,'Tap <strong>Open in Safari</strong> below.')
+      +step(2,'Then tap <strong>Share</strong> '+shareIcon+' → <strong>Add to Home Screen</strong> → <strong>Add</strong>.');
+    safariBtn.hidden=false;
+    note.textContent='Your current browser ('+(b==='chrome'?'Chrome':b==='firefox'?'Firefox':b==='edge'?'Edge':'this one')+') cannot add apps on iPhone; Safari can.';
+  }else{
+    sub.textContent='Install ASTRA6 so it opens full screen, keeps your workspace and rings with the app closed.';
+    stepsEl.innerHTML=step(1,'In Chrome or Edge, open the browser menu <strong>⋮</strong> (top right).')
+      +step(2,'Choose <strong>Install app</strong> or <strong>Add to Home screen</strong>.')
+      +step(3,'Confirm <strong>Install</strong>. It then opens in its own window.');
+    note.textContent='On desktop Safari or Firefox the same entry sits under File → Add to Dock / Add to Home Screen.';
+  }
+  const arrow=g.querySelector('.ig-arrow');
+  if(arrow)arrow.hidden=!(ios&&b==='safari');          // the pointer only makes sense under Safari's toolbar
+  g.classList.toggle('point-down',!!(ios&&b==='safari'));
+  g.classList.add('on');
+  g.setAttribute('aria-hidden','false');
+  try{beep(720,.05);}catch(e){}
+}
+function closeInstallGuide(){
+  const g=document.getElementById('ios-guide');
+  if(!g)return;
+  g.classList.remove('on');
+  g.setAttribute('aria-hidden','true');
+}
+// iOS Chrome/Firefox cannot install; hand the same page to Safari, which can
+function openInSafari(){
+  const url=location.href.replace(/^https?:\/\//,'');
+  let moved=false;
+  try{
+    const before=Date.now();
+    location.href='x-safari-https://'+url;
+    setTimeout(function(){ if(Date.now()-before<1200){ /* still here */ } },900);
+    moved=true;
+  }catch(e){}
+  if(moved){
+    setTimeout(function(){
+      const n=document.getElementById('ig-note');
+      if(n&&document.visibilityState==='visible')
+        n.textContent='If nothing happened, copy the address into Safari by hand — Safari is the browser that can add apps.';
+    },1400);
+  }
+}
+function pushInstall(){installFlow();}
 // a tap on the notification brings the trader to that market
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('message',function(e){
