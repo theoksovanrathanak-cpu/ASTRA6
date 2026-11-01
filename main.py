@@ -2967,6 +2967,18 @@ def simple_login_page():
     except:
         return HTMLResponse("<h1>Simple login not found</h1>", status_code=404)
 
+import re as _re
+
+@app.get("/astra6-{name}.mp4")
+def catalog_clip(name: str):
+    """Catalog playlist clips: served from the app folder, byte-range capable"""
+    if not _re.fullmatch(r"[a-z0-9\-]{1,40}", name or ""):
+        raise HTTPException(status_code=404, detail="not found")
+    p = Path(f"astra6-{name}.mp4")
+    if p.exists():
+        return FileResponse(p, media_type="video/mp4", headers={"Accept-Ranges": "bytes"})
+    raise HTTPException(status_code=404, detail="video not found")
+
 @app.get("/astra6-orderflow.mp4")
 def orderflow_video():
     """the Catalog walkthrough: real screenshots, rendered offline, served as a plain file"""

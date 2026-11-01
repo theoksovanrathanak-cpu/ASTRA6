@@ -642,7 +642,25 @@ body[data-view="home"] .wrap{
 .catalog-card .cc-txt{display:flex;flex-direction:column;gap:2px;min-width:0}
 .catalog-card .cc-t{font-size:12.5px;font-weight:800;color:var(--ink)}
 .catalog-card .cc-k{font-size:10px;font-weight:600;color:var(--muted)}
-.cat-player{width:100%;border-radius:14px;background:#05070d;display:block}
+.cat-player{width:100%;border-radius:14px;background:#05070d;display:block;aspect-ratio:3/4;max-height:52vh;object-fit:contain}
+.cc-stage{margin-top:12px}
+.cc-now{margin-top:7px;font-size:10.5px;font-weight:800;color:var(--muted);letter-spacing:.02em}
+.cc-foot{margin-top:10px;font-size:10.5px;line-height:1.55;color:var(--muted)}
+.cc-list{display:flex;flex-direction:column;gap:7px}
+.cc-item{
+  display:flex;align-items:center;gap:10px;width:100%;text-align:left;cursor:pointer;font-family:inherit;
+  padding:9px 10px;border-radius:11px;border:1px solid var(--line);
+  background:color-mix(in srgb,var(--surface) 72%,transparent);transition:border-color .15s,background .15s;
+}
+.cc-item:hover{border-color:color-mix(in srgb,var(--a-cyan) 45%,var(--line))}
+.cc-item.on{border-color:color-mix(in srgb,var(--a-violet) 60%,var(--line));
+  background:linear-gradient(102deg,rgba(124,92,255,.16),rgba(34,211,238,.10))}
+.cc-n{flex:0 0 auto;width:22px;height:22px;border-radius:99px;display:grid;place-items:center;font-size:10.5px;font-weight:900;
+  color:#fff;background:linear-gradient(140deg,var(--a-violet,#7c5cff),var(--a-cyan,#22d3ee))}
+.cc-i-txt{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1 1 auto}
+.cc-i-t{font-size:12px;font-weight:800;color:var(--ink)}
+.cc-i-d{font-size:10px;line-height:1.4;color:var(--muted)}
+.cc-i-len{flex:0 0 auto;font-family:ui-monospace,monospace;font-size:10px;font-weight:800;color:var(--ink-2)}
 .cat-steps{margin:12px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:9px}
 .cat-steps li{display:flex;gap:9px;font-size:12px;line-height:1.5;color:var(--ink-2)}
 .cat-steps b{color:var(--ink)}
@@ -1433,7 +1451,7 @@ body[data-view="home"] .home>*:nth-child(4){animation-delay:.18s}
       </span>
       <span class="cc-txt">
         <span class="cc-t">How to trade this strategy</span>
-        <span class="cc-k">video · 2:00 with voice · order flow, value area, entry &amp; exits</span>
+        <span class="cc-k">5 lessons · 4:10 with voice · beginner → pro</span>
       </span>
     </button>
   </div>
@@ -3504,6 +3522,20 @@ function paintKnownPrice(sym){
   if(fb)fb.textContent=fmtPx(hit.p);
   if(lastPrice===0)lastPrice=hit.p;
 }
+// A fast feed can deliver several quotes between two paints. Painting every one of them
+// is what makes a chart look nervous, so the newest tick is held and applied once per
+// animation frame - same price on screen, a third of the work, visibly calmer movement.
+let _tickPending=null, _tickRaf=0;
+function queueTick(d){
+  _tickPending=d;
+  if(_tickRaf) return true;
+  _tickRaf=requestAnimationFrame(function(){
+    _tickRaf=0;
+    const t=_tickPending; _tickPending=null;
+    if(t) applyTick(t);
+  });
+  return true;
+}
 function applyTick(d){
   if(!d||d.status==='error') return false;
   const newPrice = (d.price!=null?d.price:d.mid);
@@ -3680,7 +3712,7 @@ function startPriceStream(){
       let d=null; try{d=JSON.parse(ev.data);}catch(e){return;}
       if(!d) return;
       if((d.symbol||'XAUUSD')!==currentSymbol) return;   // belongs to another market
-      applyTick(d);
+      queueTick(d);
     };
     es.onerror=()=>{
       streamOk=false;
@@ -3698,7 +3730,7 @@ async function fetchFastPrice(){
     if(!r){ _netFails++; return; }        // a dead network counts too, not just a bad reply
     const d=await r.json();
     if(_sym!==currentSymbol||_ven!==currentVenue)return;   // stale reply from the previous symbol/venue
-    if(applyTick(d) && priceUpdateCount%15===0){
+    if(queueTick(d) && priceUpdateCount%15===0){
       fetchTVCompare();
     }
   }catch(e){ _netFails++; console.log('fast price err',e); }
@@ -3731,6 +3763,13 @@ function setSymbol(sym){
   // dim the plot and label the swap so a market change reads as a transition, not a glitch
   try{const _cv=document.getElementById('oanda_chart');if(_cv)_cv.classList.add('swapping');}catch(e){}
   try{const _sn=document.getElementById('swap-note');if(_sn){_sn.textContent='loading '+sym+' · '+mkMeta(sym).name; _sn.hidden=false;}}catch(e){}
+  // the order flow, the CVD pane and the trade strip belong to the old market: clear them
+  // with the candles so nothing from XAUUSD can be read while XAGUSD is loading
+  try{const _fl=document.getElementById('flow-line');if(_fl){_fl.hidden=true;_fl.innerHTML='';}}catch(e){}
+  try{const _pr=(typeof paneRef!=='undefined')?paneRef.cvd:null;
+      if(_pr){if(_pr.hist)_pr.hist.setData([]); if(_pr.line)_pr.line.setData([]);
+              const _lb=_pr.div&&_pr.div.querySelector('.sp-lbl'); if(_lb)_lb.textContent=PANE_TITLE.cvd;}}catch(e){}
+  try{const _mn=document.getElementById('of-menu-mini');if(_mn)_mn.textContent='reading the volume…';}catch(e){}
   // never leave the plot dimmed if a feed stalls
   clearTimeout(window._swapTimer);
   window._swapTimer=setTimeout(function(){try{
@@ -3902,7 +3941,7 @@ function _pool(parent,pool,n,tag){
   while(pool.length>n){const e=pool.pop();if(e.parentNode) e.parentNode.removeChild(e);}
   return pool;
 }
-function clearVolumeLayer(){
+function clearVolumeLayer(){window._volDrawKey='';
   clearVolumeLevels(); window._volLineKey='';
   ['vw-bands','vw-marks','vw-labels'].forEach(id=>{const g=document.getElementById(id);if(g)g.innerHTML='';});
   _VL.bands.length=0;_VL.meters.length=0;_VL.labels.length=0;
@@ -3951,6 +3990,23 @@ function drawVolume(){
   const svg=document.getElementById('vwap-layer'), box=document.getElementById('oanda_chart');
   if(!svg) return;
   const d=window._volume, on=(window._strategy==='volume');
+  // repainting identical bands and labels 3x a minute is what made the overlay shimmer
+  try{
+    if(on&&d&&d.bars_used){
+      // the signature also carries the live viewport: a pan or a zoom moves every band,
+      // so those must still repaint - only a genuinely identical frame is skipped
+      let _vr='',_p1='',_p2='';
+      try{const r=chart.timeScale().getVisibleLogicalRange();if(r)_vr=r.from.toFixed(3)+','+r.to.toFixed(3);}catch(e){}
+      try{const lc=lastCandles[lastCandles.length-1];
+          if(lc&&candleSeries){_p1=candleSeries.priceToCoordinate(lc.low);_p2=candleSeries.priceToCoordinate(lc.high);}}catch(e){}
+      const sig=[d.symbol,d.tf,d.bars_used,d.from,d.to,d.poc&&d.poc.bot,d.poc&&d.poc.top,
+                 d.value_area&&d.value_area.low,d.value_area&&d.value_area.high,
+                 box&&box.clientWidth,box&&box.clientHeight,_vr,_p1,_p2,
+                 document.body.getAttribute('data-theme')].join('|');
+      if(window._volDrawKey===sig&&!window._volForceDraw) return;
+      window._volDrawKey=sig; window._volForceDraw=false;
+    }
+  }catch(e){}
   if(!on||!d||!d.vwap_series||d.vwap_series.length<2||!chart||!candleSeries||!box){clearVolumeLayer();return;}
   const gB=document.getElementById('vw-bands'), gM=document.getElementById('vw-marks'), gL=document.getElementById('vw-labels');
   if(!gB||!gM||!gL) return;
@@ -4447,8 +4503,48 @@ function alertsOf(sym){
       .filter(a=>!a.sym || a.sym===sym);      // a stray record from before never leaks in
   }catch(e){ return []; }
 }
+// the Catalog playlist: the lessons are plain MP4s next to index.html, so a slow
+// connection still plays them and nothing is pulled from a third party
+const PLAYLIST=[
+  {id:'pl1',t:'1 · Meet the screen',k:'beginner',len:'1:15',file:'/astra6-pl1.mp4',
+   d:'The header, the timeframe row, the market picker, the drawing rail, the indicators and the trade strip.'},
+  {id:'pl2',t:'2 · Read the volume profile',k:'beginner',len:'0:54',file:'/astra6-pl2.mp4',
+   d:'Volume by price: what a block means, the POC, the 70% value area and the daily VWAP.'},
+  {id:'pl3',t:'3 · Delta and cumulative delta',k:'intermediate',len:'1:02',file:'/astra6-pl3.mp4',
+   d:'Aggressive buying minus selling, the CVD line and pane, and how to tell trend from absorption.'},
+  {id:'pl4',t:'4 · The two rejection trades',k:'intermediate',len:'0:31',file:'/astra6-pl4.mp4',
+   d:'Bounce off VAL = BUY, rejection at VAH = SELL, with the stop and both targets.'},
+  {id:'pl5',t:'5 · The strip, the ladder and HOLD',k:'core',len:'0:28',file:'/astra6-pl5.mp4',
+   d:'Where the trade is printed, how to read the full ladder, and why HOLD is part of the plan.'},
+  {id:'full',t:'Full walkthrough · all of it',k:'combined',len:'2:01',file:'/astra6-orderflow.mp4',
+   d:'The single narrated cut, if you would rather watch the whole thing once.'}
+];
 function openCatalog(){
-  const body='<video class="cat-player" src="/astra6-orderflow.mp4" controls playsinline preload="metadata"></video>'
+  const body='<div class="cc-list">'+PLAYLIST.map(function(p,i){
+    return '<button type="button" class="cc-item" data-vid="'+p.file+'" data-i="'+i+'" onclick="playLesson('+i+')">'
+      +'<span class="cc-n">'+(i+1)+'</span>'
+      +'<span class="cc-i-txt"><span class="cc-i-t">'+p.t+'</span>'
+      +'<span class="cc-i-d">'+p.d+'</span></span>'
+      +'<span class="cc-i-len">'+p.len+'</span>'
+      +'</button>';
+  }).join('')+'</div>'
+   +'<div class="cc-stage"><video id="cc-video" class="cat-player" src="'+PLAYLIST[0].file+'" controls playsinline preload="metadata"></video>'
+   +'<div class="cc-now" id="cc-now">Now playing · '+PLAYLIST[0].t+'</div></div>'
+   +'<div class="cc-foot">Every lesson is voiced. Longer lessons end with the same three reads: value area, delta, rejection.</div>';
+  openSheet('Catalog · playlist', body);
+}
+function playLesson(i){
+  const p=PLAYLIST[i]; if(!p) return;
+  const v=document.getElementById('cc-video');
+  if(v){ v.src=p.file; try{v.play().catch(function(){});}catch(e){} }
+  const now=document.getElementById('cc-now'); if(now) now.textContent='Now playing · '+p.t;
+  document.querySelectorAll('.cc-item').forEach(function(el){
+    el.classList.toggle('on', Number(el.dataset.i)===i);
+  });
+  const q=document.querySelector('.cc-item.on'); if(q&&q.scrollIntoView) try{q.scrollIntoView({block:'nearest'});}catch(e){}
+}
+function openCatalogLegacy(){
+  const body='<video class="cat-player" src="/astra6-pl1.mp4" controls playsinline preload="metadata"></video>'
    +'<ol class="cat-steps">'
    +'<li><span class="n">1</span><span><b>Read the value area.</b> Clusters build the profile; POC is the most traded price and VAH/VAL are the 70% band. Yellow line = daily VWAP.</span></li>'
    +'<li><span class="n">2</span><span><b>A bounce off VAL is a BUY.</b> The wick goes below, the close comes back inside and the delta is positive. Stop goes under the wick.</span></li>'

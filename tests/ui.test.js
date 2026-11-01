@@ -888,13 +888,18 @@ print('|'.join([rej['type'], rej.get('style') or '-', rejh['type'], base['type']
   // ---- catalog video, flow readout, forex gone ----
   ok('the menu offers a Catalog video', /class="catalog-card"[^>]*onclick="openCatalog\(\)"/.test(html)
      && /openSheet\('Catalog/.test(grab('openCatalog')));
-  ok('the video is served from the site, not a third party', /src="\/astra6-orderflow\.mp4"/.test(html)
-     && /@app\.get\("\/astra6-orderflow\.mp4"\)/.test(require('fs').readFileSync(path.join(root,'main.py'),'utf8')));
+  ok('the video is served from the site, not a third party', /file:'\/astra6-pl1\.mp4'/.test(html)
+     && /@app\.get\("\/astra6-\{name\}\.mp4"\)/.test(require('fs').readFileSync(path.join(root,'main.py'),'utf8')));
   ok('the video file is real and roughly the promised length', (() => {
     const st = require('fs').statSync(path.join(root, 'astra6-orderflow.mp4'));
     return st.size > 500000 && st.size < 20e6;
   })());
-  ok('the video has a narration track', /video · 2:00 with voice/.test(html));
+  ok('the catalog is a voiced playlist', /5 lessons · 4:10 with voice/.test(html) && /const PLAYLIST=\[/.test(html));
+  ok('every lesson file is on disk and is a real video', (() => {
+    const files = ['astra6-pl1.mp4','astra6-pl2.mp4','astra6-pl3.mp4','astra6-pl4.mp4','astra6-pl5.mp4','astra6-orderflow.mp4'];
+    return files.every(f => { const st = require('fs').statSync(path.join(root, f)); return st.size > 300000 && st.size < 12e6; });
+  })());
+  ok('a lesson can be picked from the list', /function playLesson\(i\)/.test(html) && /onclick="playLesson\(/.test(html));
   ok('the full order flow is a sheet, reachable from the chart strip', /onclick="openOrderFlow\(\)"/.test(html)
      && /function openOrderFlow\(/.test(html));
   ok('the order flow sheet shows the ladder and the cumulative delta', /of-ladder/.test(html) && /Cumulative delta/.test(html));
