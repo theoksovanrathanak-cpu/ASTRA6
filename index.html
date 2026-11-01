@@ -688,7 +688,7 @@ body.cc-open{overflow:hidden}
 #cc-fs-video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;
   background:#05070d;display:block;transition:object-fit .2s ease}
 /* fill = the clip covers the whole device screen (phone default); fit = whole frame visible */
-#cc-fs.fill #cc-fs-video{object-fit:cover}
+#cc-fs.fill #cc-fs-video{object-fit:cover;object-position:center center}
 /* controls float on top of the picture and fade out while it plays */
 .cc-fs-hd,.cc-fs-foot,.cc-fs-arrow{position:absolute;z-index:2;
   transition:opacity .3s ease,transform .3s ease}
@@ -4623,13 +4623,14 @@ function openLesson(i){
   if(next) next.setAttribute('aria-label',(i===PLAYLIST.length-1)?'Back to lesson 1':'Next lesson');
   const fill=document.getElementById('cc-fs-fill'); if(fill) fill.style.width='0%';
   box.classList.remove('paused'); box.classList.remove('bare');
+  box.classList.remove('fill'); box.classList.remove('fit');
   _fsFitApply();
   _fsShow();
   document.querySelectorAll('.cc-item').forEach(function(el){el.classList.toggle('on', Number(el.dataset.i)===i);});
 }
 function _fsFitMode(){
-  let m=''; try{ m=localStorage.getItem('astra6_fs_fit')||''; }catch(e){}
-  if(m!=='fill'&&m!=='fit') m='fit';
+  let m=''; try{ m=localStorage.getItem('astra6_fs_fill')||''; }catch(e){}
+  if(m!=='fill'&&m!=='fit') m=(innerHeight>=innerWidth)?'fill':'fit';   // a phone fills the screen
   return m;
 }
 function _fsFitApply(){
@@ -4641,7 +4642,7 @@ function _fsFitApply(){
 }
 function toggleLessonFit(){
   const m=(_fsFitMode()==='fill')?'fit':'fill';
-  try{ localStorage.setItem('astra6_fs_fit',m); }catch(e){}
+  try{ localStorage.setItem('astra6_fs_fill',m); }catch(e){}
   _fsFitApply(); _fsShow();
 }
 addEventListener('resize',function(){ if(!_lessonHidden()) _fsFitApply(); });
