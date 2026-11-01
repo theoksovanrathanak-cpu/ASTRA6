@@ -32,8 +32,8 @@ MARKETS = {
     "NQ":     {"name": "Nasdaq 100",  "group": "Futures", "src": "yahoo", "yahoo": "NQ=F",     "dec": 2, "unit": "",   "vol": True},
     "CL":     {"name": "WTI Crude", "group": "Futures", "src": "yahoo", "yahoo": "CL=F",   "dec": 2, "unit": "$",  "vol": True},
     # crypto: the exchange's own book, no key needed, volume on every bar
-    "BTCUSD": {"name": "Bitcoin",  "group": "Crypto", "src": "binance", "bin": "BTCUSDT", "dec": 2, "unit": "$", "vol": True},
-    "ETHUSD": {"name": "Ethereum", "group": "Crypto", "src": "binance", "bin": "ETHUSDT", "dec": 2, "unit": "$", "vol": True},
+    "BTCUSD": {"name": "Bitcoin",  "group": "Crypto", "src": "kraken", "kraken": "XBTUSD", "bin": "BTCUSDT", "dec": 2, "unit": "$", "vol": True},
+    "ETHUSD": {"name": "Ethereum", "group": "Crypto", "src": "kraken", "kraken": "ETHUSD", "bin": "ETHUSDT", "dec": 2, "unit": "$", "vol": True},
 }
 GROUPS = ["Metals", "Forex", "Futures"]
 
@@ -149,6 +149,30 @@ _BIN_TF = {"M1": "1m", "M5": "5m", "M15": "15m", "M30": "30m", "H1": "1h", "H4":
 _BIN_HOSTS = ("https://data-api.binance.vision", "https://api.binance.com")
 
 
+_KRAKEN_MIN = {"M1": 1, "M5": 5, "M15": 15, "M30": 30, "H1": 60, "H4": 240, "D": 1440, "W": 10080}
+
+
+def _kraken_rows(pair, tf):
+    """Kraken spot OHLC. It answers from the US region too, where Binance is blocked."""
+    import requests
+    iv = _KRAKEN_MIN.get(norm_tf(tf), 15)
+    r = requests.get("https://api.kraken.com/0/public/OHLC",
+                     params={"pair": pair, "interval": iv}, timeout=8,
+                     headers={"User-Agent": "ASTRA6/1.0"})
+    r.raise_for_status()
+    j = r.json()
+    if j.get("error"):
+        raise RuntimeError(",".join(j["error"]))
+    rows = []
+    for k in list((j.get("result") or {}).values())[0]:
+        try:
+            rows.append({"time": int(k[0]), "open": float(k[1]), "high": float(k[2]),
+                         "low": float(k[3]), "close": float(k[4]), "volume": float(k[6])})
+        except Exception:
+            continue
+    return rows, "Kraken spot · %dm" % iv
+
+
 def _binance_rows(bin_pair, tf):
     """Spot klines off the exchange. The .vision host serves the same book and is not
     geo-blocked where the main api is, so it is asked first."""
@@ -185,8 +209,11 @@ def candles(mid, tf="M15", count=150):
     def load():
         if m["src"] == "xaus":
             rows, src = _xaus_rows(m["xaus"], tf)
-        elif m["src"] == "binance":
-            rows, src = _binance_rows(m["bin"], tf)
+        elif m["src"] == "kraken":
+            try:
+                rows, src = _kraken_rows(m["kraken"], tf)
+            except Exception:
+                rows, src = _binance_rows(m["bin"], tf)
         else:
             rows, src = _yahoo_rows(m["yahoo"], tf)
         if not rows:
@@ -220,8 +247,11 @@ def _prev_daily_close(m):
     def load():
         if m["src"] == "xaus":
             rows, _ = _xaus_rows(m["xaus"], "D")
-        elif m["src"] == "binance":
-            rows, _ = _binance_rows(m["bin"], "D")
+        elif m["src"] == "kraken":
+            try:
+                rows, _ = _kraken_rows(m["kraken"], "D")
+            except Exception:
+                rows, _ = _binance_rows(m["bin"], "D")
         else:
             rows, _ = _yahoo_rows(m["yahoo"], "D")
         return rows[-2]["close"] if len(rows) > 1 else None
@@ -251,7 +281,11 @@ def board():
     """Every market with its price, for the menu and the home screen."""
     out = []
     for mid, m in MARKETS.items():
-        q = quote(mid)
+        try:
+            q = quote(mid)
+        except Exception as e:
+            print("board skip", mid, str(e)[:90])
+            q = None
         item = {"id": mid, "name": m["name"], "group": m["group"], "dec": m["dec"],
                 "unit": m["unit"], "volume": m["vol"], "price": None,
                 "change_pct": None, "age_min": None, "source": None}

@@ -4575,9 +4575,25 @@ def _btc_tick():
         return None
 
 
-# ---------- crypto: Binance public spot. Real book, no key, no mock ----------
-_CRYPTO = {"BTCUSD": "BTCUSDT", "ETHUSD": "ETHUSDT"}
+# ---------- crypto: public spot books. Real prices, no key, no mock ----------
+# Kraken answers from every region we deploy to (Binance returns 451 from the US),
+# so Kraken leads and Binance is only a fallback.
+_CRYPTO = {"BTCUSD": "XBTUSD", "ETHUSD": "ETHUSD"}
+_BIN_PAIR = {"BTCUSD": "BTCUSDT", "ETHUSD": "ETHUSDT"}
+_KRAKEN_MIN = {"M1": 1, "M5": 5, "M15": 15, "M30": 30, "H1": 60, "H4": 240, "D": 1440, "W": 10080}
 _BIN_TF = {"M1": "1m", "M5": "5m", "M15": "15m", "M30": "30m", "H1": "1h", "H4": "4h", "D": "1d", "W": "1w"}
+
+
+def _kraken_get(path, **params):
+    import requests as _req
+    r = _req.get("https://api.kraken.com" + path, params=params, timeout=8,
+                 headers={"User-Agent": "ASTRA6/1.0"})
+    r.raise_for_status()
+    j = r.json()
+    errs = j.get("error") or []
+    if errs:
+        raise RuntimeError(",".join(errs))
+    return j.get("result") or {}
 
 
 _BIN_HOSTS = ("https://data-api.binance.vision", "https://api.binance.com")
@@ -4599,40 +4615,92 @@ def _bin_get(path, **params):
     raise last
 
 
+def _kraken_tick(pair):
+    res = _kraken_get("/0/public/Ticker", pair=pair)
+    row = res[next(iter(res))]
+    last = float(row["c"][0])
+    bid, ask = float(row["b"][0]), float(row["a"][0])
+    openp = float(row["o"]) or last
+    pct = (last - openp) / openp * 100.0 if openp else 0.0
+    return {"mid": last, "price": last, "bid": bid, "ask": ask, "change_pct": round(pct, 2),
+            "venue": "KRAKEN:" + pair, "source": "Kraken spot (real book)",
+            "timestamp": time.time()}
+
+
+def _binance_tick(symbol):
+    pair = _BIN_PAIR.get(str(symbol).upper())
+    if not pair:
+        return None
+    bk = _bin_get("/api/v3/ticker/bookTicker", symbol=pair)
+    t24 = _bin_get("/api/v3/ticker/24hr", symbol=pair)
+    bid, ask = float(bk["bidPrice"]), float(bk["askPrice"])
+    last, pct = float(t24["lastPrice"]), float(t24["priceChangePercent"])
+    return {"mid": last, "price": last, "bid": bid, "ask": ask, "change_pct": pct,
+            "venue": "BINANCE:" + pair, "source": "Binance spot (real book)",
+            "timestamp": time.time()}
+
+
 def fetch_crypto_tick(symbol="BTCUSD"):
-    """Last price, real bid/ask and the 24h change straight off the exchange book."""
+    """Last price, real bid/ask and the change straight off the exchange book."""
     pair = _CRYPTO.get(str(symbol).upper())
     if not pair:
         return None
-    try:
-        bk = _bin_get("/api/v3/ticker/bookTicker", symbol=pair)
-        t24 = _bin_get("/api/v3/ticker/24hr", symbol=pair)
-        bid, ask = float(bk["bidPrice"]), float(bk["askPrice"])
-        last, pct = float(t24["lastPrice"]), float(t24["priceChangePercent"])
-        return {"mid": last, "price": last, "bid": bid, "ask": ask, "change_pct": pct,
-                "venue": "BINANCE:" + pair, "source": "Binance spot (real book)",
-                "timestamp": time.time()}
-    except Exception as e:
-        print("crypto tick err", e)
-        return None
+    hit = _CRYPTO_TICK.get(symbol)
+    if hit and time.time() - hit[0] < 3:
+        return hit[1]
+    for fn in (lambda: _kraken_tick(pair), lambda: _binance_tick(symbol)):
+        try:
+            d = fn()
+            if d:
+                _CRYPTO_TICK[symbol] = (time.time(), d)
+                return d
+        except Exception as e:
+            print("crypto tick err", symbol, str(e)[:120])
+    return None
+
+
+def _kraken_candles(pair, g, count):
+    iv = _KRAKEN_MIN.get(g, 15)
+    res = _kraken_get("/0/public/OHLC", pair=pair, interval=iv)
+    rows = list(res.values())[0]
+    out = []
+    for k in rows:
+        try:
+            out.append({"time": int(k[0]), "open": float(k[1]), "high": float(k[2]),
+                        "low": float(k[3]), "close": float(k[4]), "volume": float(k[6]),
+                        "complete": True})
+        except Exception:
+            continue
+    return out, "Kraken spot · %dm" % iv
+
+
+def _binance_candles(symbol, g, count):
+    pair = _BIN_PAIR.get(str(symbol).upper())
+    iv = _BIN_TF.get(g, "15m")
+    j = _bin_get("/api/v3/klines", symbol=pair, interval=iv,
+                 limit=max(20, min(int(count or 150), 1000)))
+    rows = [{"time": int(k[0] // 1000), "open": float(k[1]), "high": float(k[2]),
+             "low": float(k[3]), "close": float(k[4]), "volume": float(k[5]),
+             "complete": True} for k in j]
+    return rows, "Binance spot · " + iv
 
 
 def crypto_candles(symbol="BTCUSD", granularity="M15", count=150):
+    """Real bars for a crypto pair: Kraken first, Binance where Kraken is blocked."""
     pair = _CRYPTO.get(str(symbol).upper())
     if not pair:
         return [], "unknown_symbol"
     g = str(granularity).upper().replace("D1", "D").replace("W1", "W")
-    iv = _BIN_TF.get(g, "15m")
-    try:
-        j = _bin_get("/api/v3/klines", symbol=pair, interval=iv,
-                     limit=max(20, min(int(count or 150), 1000)))
-        rows = [{"time": int(k[0] // 1000), "open": float(k[1]), "high": float(k[2]),
-                 "low": float(k[3]), "close": float(k[4]), "volume": float(k[5]),
-                 "complete": True} for k in j]
-        return rows, "Binance spot klines · " + iv
-    except Exception as e:
-        print("crypto candles err", e)
-        return [], str(e)
+    last = None
+    for fn in (lambda: _kraken_candles(pair, g, count), lambda: _binance_candles(symbol, g, count)):
+        try:
+            rows, src = fn()
+            if rows:
+                return rows[-max(20, min(int(count or 150), 1000)):], src
+        except Exception as e:
+            last = e
+            print("crypto candles err", symbol, str(e)[:120])
+    return [], str(last or "feed_unavailable")
 
 
 @app.get("/api/crypto/price")
@@ -4654,6 +4722,9 @@ def api_crypto_chart(symbol: str = "BTCUSD", granularity: str = "M15", count: in
     return {"status": "ok", "symbol": str(symbol).upper(), "granularity": granularity,
             "count": len(rows), "candles": rows, "source": src, "dec": 2, "unit": "$",
             "real": True, "stale": False, "last_bar_age_min": 0}
+
+
+_CRYPTO_TICK = {}
 
 
 def fetch_live_tick(symbol):
