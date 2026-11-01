@@ -901,9 +901,11 @@ print('|'.join([rej['type'], rej.get('style') or '-', rejh['type'], base['type']
     const st = require('fs').statSync(path.join(root, 'astra6-orderflow.mp4'));
     return st.size > 500000 && st.size < 20e6;
   })());
-  ok('the catalog is a voiced playlist', /5 lessons · 5:03 with voice/.test(html) && /const PLAYLIST=\[/.test(html));
+  ok('the catalog is a voiced playlist', /6 lessons · 6:20 with voice/.test(html) && /const PLAYLIST=\[/.test(html));
+  ok('lesson 6 teaches PDH, PDL and PDC', /6 · Prior day high, low and close/.test(html)
+     && /file:'\/astra6-pl6\.mp4'/.test(html) && /PDH, PDL and PDC/.test(html));
   ok('every lesson file is on disk and is a real video', (() => {
-    const files = ['astra6-pl1.mp4','astra6-pl2.mp4','astra6-pl3.mp4','astra6-pl4.mp4','astra6-pl5.mp4','astra6-full.mp4'];
+    const files = ['astra6-pl1.mp4','astra6-pl2.mp4','astra6-pl3.mp4','astra6-pl4.mp4','astra6-pl5.mp4','astra6-pl6.mp4','astra6-full.mp4'];
     return files.every(f => { const st = require('fs').statSync(path.join(root, f)); return st.size > 300000 && st.size < 12e6; });
   })());
   // ---- session levels: real, labelled, and never invented ----
