@@ -483,6 +483,7 @@ body[data-view="chart"] .hd{position:sticky;top:0}
 #tv-legend .lg-t{font-weight:800;color:var(--ink)}
 #tv-legend .lg-c.up{color:var(--up)} #tv-legend .lg-c.dn{color:var(--down)}
 #zone-layer{position:absolute;inset:1px;width:100%;height:100%;pointer-events:none;overflow:hidden;z-index:3}
+#smc-layer{position:absolute;inset:1px;width:100%;height:100%;pointer-events:none;overflow:hidden;z-index:3}
 #offline-card{position:fixed;left:10px;right:10px;bottom:calc(76px + env(safe-area-inset-bottom));z-index:520;
   padding:9px 11px;border-radius:12px;
   background:rgba(24,16,8,.92);border:1px solid rgba(245,158,11,.5);color:#fde68a;
@@ -866,7 +867,7 @@ body[data-view="chart"] .chart-shell{flex:1 1 auto;min-height:0}
    hiding the pane under it */
 body.has-bnav[data-view="chart"] .wrap{height:calc(100vh - var(--hd-h) - var(--bnav-h));height:calc(100dvh - var(--hd-h) - var(--bnav-h))}
 body[data-view="chart"] #oanda_chart{height:100%;border:0;border-radius:0}
-body[data-view="chart"] #zone-layer,body[data-view="chart"] #vwap-layer{inset:0}
+body[data-view="chart"] #zone-layer,body[data-view="chart"] #smc-layer,body[data-view="chart"] #vwap-layer{inset:0}
 body[data-view="chart"] .hd-in{padding-top:8px;padding-bottom:8px}
 body[data-view="signal"] .wrap{
   max-width:780px;padding:14px;gap:13px;
@@ -1893,6 +1894,7 @@ body[data-view="chart"] .hd-quote{left:auto;right:9px;bottom:2px;text-align:righ
       <div id="swap-note" class="swap-note" hidden></div>
       <div id="tv-legend"><span class="lg-t" id="lg-sym">XAUUSD</span><span id="lg-tf">M15</span><span id="lg-ohlc">—</span><span class="lg-note" id="lg-note"></span><span id="lg-chg"></span><span id="ind-legend" hidden></span></div>
       <svg id="vwap-layer" aria-hidden="true"><g id="sl-lines"></g><g id="vw-bands"></g><g id="vw-guides"></g><g id="vw-marks"></g><g id="vw-labels"></g></svg>
+      <svg id="smc-layer" aria-hidden="true"></svg>
       <svg id="zone-layer" aria-hidden="true"></svg>
       <svg id="draw-layer" aria-hidden="true"></svg>
       <div id="draw-hint"></div>
@@ -2925,11 +2927,23 @@ const TV_RAIL=[
 ];
 const TV_TOOL_NAME={cursor:'Cursor',trend:'Trend line',ray:'Ray',hline:'Horizontal line',vline:'Vertical line',rect:'Rectangle',
   ellipse:'Ellipse',fib:'Fib retracement',ruler:'Measure',arrow:'Arrow',text:'Text',channel:'Channel',position:'Long / short position',
-  brush:'Brush',eraser:'Eraser',magnet:'Magnet'};
-const TV_EXTRA=[['arrow','Arrow'],['channel','Channel'],['text','Text'],['position','Position']];
+  brush:'Brush',eraser:'Eraser',magnet:'Magnet',
+  ext:'Extended line',tri:'Triangle · tap three corners',poly:'Polyline · tap three points',
+  path:'Path · tap three points',note:'Note',callout:'Callout',plabel:'Price label',
+  prange:'Price range',trange:'Date range',rr:'Risk / reward',fibx:'Fib extension',fibfan:'Fib fan'};
+const TV_EXTRA=[['arrow','Arrow'],['channel','Channel'],['text','Text'],['position','Position'],
+  ['ext','Extended line'],['tri','Triangle'],['poly','Polyline'],['path','Path'],['note','Note'],
+  ['callout','Callout'],['plabel','Price label'],['prange','Price range'],['trange','Date range'],
+  ['rr','Risk / reward'],['fibx','Fib extension'],['fibfan','Fib fan']];
+// one click, one object: these need no second point
+const ONE_TAP=['text','note','callout','plabel'];
+// these take three taps, the way a real charting tool does
+const THREE_TAP=['tri','poly','path'];
 const TV_COLOR={trend:'#7c5cff',ray:'#a78bfa',hline:'#f59e0b',vline:'#38bdf8',rect:'#10b981',ellipse:'#22d3ee',
   fib:'#a78bfa',ruler:'#f472b6',arrow:'#f97316',text:'#e2e8f0',channel:'#818cf8',position:'#10b981',
-  brush:'#f8fafc',eraser:'#94a3b8'};
+  brush:'#f8fafc',eraser:'#94a3b8',ext:'#818cf8',tri:'#22d3ee',poly:'#38bdf8',path:'#a78bfa',
+  note:'#fbbf24',callout:'#f472b6',plabel:'#e2e8f0',prange:'#10b981',trange:'#6366f1',
+  rr:'#22c55e',fibx:'#c084fc',fibfan:'#c084fc'};
 const IND_LIST=[
   ['ma20','MA 20 · SMA'],['ma50','MA 50 · SMA'],['ma200','MA 200 · SMA'],['ema20','EMA 20'],
   ['bb','Bollinger 20 · 2σ'],['vwap','Daily VWAP'],['vwapb','VWAP bands ±1σ'],['vol','Volume'],
@@ -2937,14 +2951,17 @@ const IND_LIST=[
   ['donch','Donchian 20'],['kelt','Keltner 20 · 2 ATR'],['ichi','Ichimoku 9 26 52'],['psar','Parabolic SAR'],
   ['cvd','Order flow · CVD pane'],
   ['rsi','RSI 14 pane'],['macd','MACD 12 26 9 pane'],['stoch','Stochastic 14 3 3 pane'],['atr','ATR 14 pane'],
-  ['adx','ADX 14 · +DI / −DI pane'],['cci','CCI 20 pane'],['willr','Williams %R 14 pane'],['obv','OBV pane']
+  ['adx','ADX 14 · +DI / −DI pane'],['cci','CCI 20 pane'],['willr','Williams %R 14 pane'],['obv','OBV pane'],
+  ['wma20','WMA 20'],['vwma20','VWMA 20 · volume weighted'],
+  ['mom','Momentum 10 pane'],['roc','Rate of change 12 pane'],['mfi','MFI 14 pane'],
+  ['ad','Accumulation / distribution pane'],['bbw','Bollinger width 20 pane']
 ];
-const PANE_KINDS=['cvd','rsi','macd','stoch','atr','adx','cci','willr','obv'];
-const PANE_H={cvd:112,rsi:92,macd:104,stoch:92,atr:88,adx:92,cci:88,willr:88,obv:88};
+const PANE_KINDS=['cvd','rsi','macd','stoch','atr','adx','cci','willr','obv','mom','roc','mfi','ad','bbw'];
+const PANE_H={cvd:112,rsi:92,macd:104,stoch:92,atr:88,adx:92,cci:88,willr:88,obv:88,mom:84,roc:84,mfi:84,ad:84,bbw:84};
 const PANE_TITLE={cvd:'Order flow · cumulative delta',rsi:'RSI 14',macd:'MACD 12 26 9',stoch:'Stoch 14 3 3',atr:'ATR 14'};
 const CTYPE_LIST=[['candles','Candles'],['hollow','Hollow'],['bars','Bars'],['line','Line'],['area','Area'],['baseline','Baseline'],['heikin','Heikin']];
 
-let drawTool='cursor',drawings=[],drawHidden=false,drawLocked=false,_dStart=null,_dPreview=null,_drawSym='',_drawRaf=0;
+let drawTool='cursor',drawings=[],drawHidden=false,drawLocked=false,_dStart=null,_dPreview=null,_drawSym='',_drawRaf=0,_clicks=[];
 // a drawing is a colour and a width of its own, not just a tool name
 let _redo=[],_selIdx=-1,_brush=null,magnet=(function(){try{return localStorage.getItem('astra6_magnet')==='1';}catch(e){return false;}})();
 const DRAW_STYLE={c:'#7c5cff',w:0};
@@ -2953,7 +2970,8 @@ let chartType=localStorage.getItem('astra6_ctype')||'candles';
 window._logScale=localStorage.getItem('astra6_log')==='1';
 const IND=Object.assign({ma20:false,ma50:false,ma200:false,ema20:false,bb:false,vwap:false,vwapb:false,vol:false,st:false,
                         donch:false,kelt:false,ichi:false,psar:false,
-                        cvd:false,rsi:false,macd:false,stoch:false,atr:false,adx:false,cci:false,willr:false,obv:false},
+                        cvd:false,rsi:false,macd:false,stoch:false,atr:false,adx:false,cci:false,willr:false,obv:false,
+                        wma20:false,vwma20:false,mom:false,roc:false,mfi:false,ad:false,bbw:false},
   {vwap:true,vol:true,cvd:true},
   (function(){try{return JSON.parse(localStorage.getItem('astra6_ind')||'{}');}catch(e){return {};}})());
 let indSeries=[],paneRef={},_syncGuard=false;
@@ -2970,6 +2988,87 @@ function taEMA(vals,n){
     const v=vals[i];
     if(v==null){out.push(null);continue;}
     prev=prev==null?v:v*k+prev*(1-k);out.push(prev);
+  }
+  return out;
+}
+function taWMA(vals,n){
+  n=n||20;const out=[];
+  const denom=n*(n+1)/2;
+  for(let i=0;i<vals.length;i++){
+    if(i<n-1){out.push(null);continue;}
+    let acc=0;
+    for(let k=0;k<n;k++)acc+=vals[i-k]*(n-k);
+    out.push(acc/denom);
+  }
+  return out;
+}
+function taVWMA(bars,n){
+  n=n||20;const out=[];
+  for(let i=0;i<bars.length;i++){
+    if(i<n-1){out.push(null);continue;}
+    let pv=0,vv=0;
+    for(let k=0;k<n;k++){
+      const b=bars[i-k],v=(b.v==null?0:Number(b.v)||0);
+      pv+=b.close*v;vv+=v;
+    }
+    out.push(vv>0?pv/vv:null);
+  }
+  return out;
+}
+function taMOM(vals,n){
+  n=n||10;const out=[];
+  for(let i=0;i<vals.length;i++)out.push(i<n?null:vals[i]-vals[i-n]);
+  return out;
+}
+function taROC(vals,n){
+  n=n||12;const out=[];
+  for(let i=0;i<vals.length;i++){
+    const prev=i<n?null:vals[i-n];
+    out.push((prev==null||prev===0)?null:(vals[i]-prev)/prev*100);
+  }
+  return out;
+}
+function taMFI(bars,n){
+  n=n||14;const out=bars.map(function(){return null;});
+  let pos=0,neg=0;
+  for(let i=1;i<bars.length;i++){
+    const tp=(bars[i].high+bars[i].low+bars[i].close)/3;
+    const ptp=(bars[i-1].high+bars[i-1].low+bars[i-1].close)/3;
+    const flow=tp*(bars[i].v==null?0:Number(bars[i].v)||0);
+    if(tp>ptp)pos+=flow; else if(tp<ptp)neg+=flow;
+    if(i>=n){
+      // slide the window: recompute is cheaper to reason about than to unwind
+      let p=0,q=0;
+      for(let k=i-n+1;k<=i;k++){
+        const t1=(bars[k].high+bars[k].low+bars[k].close)/3;
+        const t0=(bars[k-1].high+bars[k-1].low+bars[k-1].close)/3;
+        const f=t1*(bars[k].v==null?0:Number(bars[k].v)||0);
+        if(t1>t0)p+=f; else if(t1<t0)q+=f;
+      }
+      out[i]=q===0?100:100-100/(1+p/q);
+      pos=p;neg=q;
+    }
+  }
+  return out;
+}
+function taAD(bars){
+  const out=[];let acc=0;
+  for(let i=0;i<bars.length;i++){
+    const b=bars[i],r=b.high-b.low,v=(b.v==null?0:Number(b.v)||0);
+    const mf=r>0?((b.close-b.low)-(b.high-b.close))/r:0;
+    acc+=mf*v;out.push(acc);
+  }
+  return out;
+}
+function taBBW(vals,n,mult){
+  n=n||20;mult=mult||2;
+  const mid=taSMA(vals,n),out=[];
+  for(let i=0;i<vals.length;i++){
+    if(i<n-1||mid[i]==null){out.push(null);continue;}
+    let s2=0;
+    for(let k=0;k<n;k++){const d=vals[i-k]-mid[i];s2+=d*d;}
+    const sd=Math.sqrt(s2/n);
+    out.push(mid[i]?(4*sd/mid[i]*100):null);   // width as a percentage of price
   }
   return out;
 }
@@ -3354,7 +3453,8 @@ function drawShape(sh,X,Y,w,h){
   }
   const x1=X(sh.t1),y1=Y(sh.p1);
   if(x1==null||y1==null)return '';
-  const two=(sh.k==='trend'||sh.k==='rect'||sh.k==='fib'||sh.k==='ruler'||sh.k==='ray'||sh.k==='arrow'||sh.k==='ellipse'||sh.k==='channel'||sh.k==='position');
+  const two=(sh.k==='trend'||sh.k==='rect'||sh.k==='fib'||sh.k==='ruler'||sh.k==='ray'||sh.k==='arrow'||sh.k==='ellipse'||sh.k==='channel'||sh.k==='position'||
+    sh.k==='ext'||sh.k==='prange'||sh.k==='trange'||sh.k==='rr'||sh.k==='fibx'||sh.k==='fibfan'||sh.k==='tri'||sh.k==='poly'||sh.k==='path');
   const x2=two?X(sh.t2):null,y2=two?Y(sh.p2):null;
   if(two&&(x2==null||y2==null))return '';
   if(sh.k==='hline'){
@@ -3386,7 +3486,7 @@ function drawShape(sh,X,Y,w,h){
       if(y==null)return;
       const strong=(lv===0||lv===0.5||lv===1);
       out+='<line x1="'+xa.toFixed(1)+'" y1="'+y.toFixed(1)+'" x2="'+xb.toFixed(1)+'" y2="'+y.toFixed(1)+'" stroke="'+c+'" stroke-width="'+(strong?1.4:1)+'" opacity="'+(strong?.95:.6)+'" stroke-dasharray="'+(strong?'':'4 4')+'"/>';
-      out+='<text x="'+(xa+3).toFixed(1)+'" y="'+(y-3).toFixed(1)+'" fill="'+c+'" font-size="8.6" font-weight="800" font-family="ui-monospace,monospace">'+(lv*100).toFixed(1)+'% '+fmtPx(p).replace('$','')+'</text>';
+      out+='<text x="'+Math.max(3,xa+3).toFixed(1)+'" y="'+(y-3).toFixed(1)+'" fill="'+c+'" font-size="8.6" font-weight="800" font-family="ui-monospace,monospace">'+(lv*100).toFixed(1)+'% '+fmtPx(p).replace('$','')+'</text>';
     });
     return out;
   }
@@ -3415,6 +3515,117 @@ function drawShape(sh,X,Y,w,h){
     const wpx=Math.max(30,txt.length*6.4+14);
     return '<rect x="'+(x1-4).toFixed(1)+'" y="'+(y1-13).toFixed(1)+'" width="'+wpx.toFixed(1)+'" height="18" rx="5" fill="rgba(15,23,42,.72)" stroke="'+c+'" stroke-width="'+W(1)+'"/>'
       + '<text x="'+(x1+3).toFixed(1)+'" y="'+y1.toFixed(1)+'" fill="#fff" font-size="10.5" font-weight="700" font-family="ui-sans-serif,system-ui">'+esc(txt)+'</text>';
+  }
+  if(sh.k==='ext'){
+    const dx=x2-x1,dy=y2-y1;
+    let ax=x1,ay=y1,bx=x2,by=y2;
+    if(Math.abs(dx)>0.001){
+      const t0=(0-x1)/dx,t1=(w-x1)/dx;
+      ax=x1+dx*t0;ay=y1+dy*t0;bx=x1+dx*t1;by=y1+dy*t1;
+    }else{ay=0;by=h;}
+    return '<line x1="'+ax.toFixed(1)+'" y1="'+ay.toFixed(1)+'" x2="'+bx.toFixed(1)+'" y2="'+by.toFixed(1)+
+      '" stroke="'+c+'" stroke-width="'+W(1.6)+'"/>'+
+      '<circle cx="'+x1.toFixed(1)+'" cy="'+y1.toFixed(1)+'" r="3" fill="'+c+'"/>';
+  }
+  if(sh.k==='tri'||sh.k==='poly'||sh.k==='path'){
+    const x3=sh.t3!=null?X(sh.t3):null,y3=sh.p3!=null?Y(sh.p3):null;
+    if(x3==null||y3==null)return '';
+    if(sh.k==='tri'){
+      return '<polygon points="'+x1.toFixed(1)+','+y1.toFixed(1)+' '+x2.toFixed(1)+','+y2.toFixed(1)+' '+
+        x3.toFixed(1)+','+y3.toFixed(1)+'" fill="'+c+'" fill-opacity=".12" stroke="'+c+'" stroke-width="'+W(1.5)+'"/>';
+    }
+    if(sh.k==='poly'){
+      return '<polyline points="'+x1.toFixed(1)+','+y1.toFixed(1)+' '+x2.toFixed(1)+','+y2.toFixed(1)+' '+
+        x3.toFixed(1)+','+y3.toFixed(1)+'" fill="none" stroke="'+c+'" stroke-width="'+W(1.7)+'" stroke-linejoin="round"/>'+
+        '<circle cx="'+x1.toFixed(1)+'" cy="'+y1.toFixed(1)+'" r="2.6" fill="'+c+'"/>'+
+        '<circle cx="'+x2.toFixed(1)+'" cy="'+y2.toFixed(1)+'" r="2.6" fill="'+c+'"/>'+
+        '<circle cx="'+x3.toFixed(1)+'" cy="'+y3.toFixed(1)+'" r="2.6" fill="'+c+'"/>';
+    }
+    const cx=(x1+x3)/2,cy=(y1+y3)/2;
+    return '<path d="M'+x1.toFixed(1)+' '+y1.toFixed(1)+' Q'+x2.toFixed(1)+' '+y2.toFixed(1)+' '+x3.toFixed(1)+' '+y3.toFixed(1)+
+      '" fill="none" stroke="'+c+'" stroke-width="'+W(1.9)+'" stroke-linecap="round"/>';
+  }
+  if(sh.k==='note'){
+    const txt=(sh.t2||'note').toString().slice(0,60);
+    const wpx=Math.max(70,Math.min(190,txt.length*6.2+18));
+    return '<rect x="'+(x1-6).toFixed(1)+'" y="'+(y1-20).toFixed(1)+'" width="'+wpx.toFixed(1)+'" height="30" rx="6" '+
+      'fill="rgba(250,204,21,.92)" stroke="#f59e0b" stroke-width="1"/>'+
+      '<text x="'+(x1+2).toFixed(1)+'" y="'+(y1-2).toFixed(1)+'" fill="#241a02" font-size="10.5" font-weight="800" '+
+      'font-family="ui-sans-serif,system-ui">'+esc(txt)+'</text>';
+  }
+  if(sh.k==='callout'){
+    const txt=(sh.t2||'callout').toString().slice(0,60);
+    const wpx=Math.max(72,Math.min(200,txt.length*6.2+18));
+    return '<rect x="'+(x1+10).toFixed(1)+'" y="'+(y1-30).toFixed(1)+'" width="'+wpx.toFixed(1)+'" height="22" rx="7" '+
+      'fill="rgba(244,114,182,.16)" stroke="'+c+'" stroke-width="1.2"/>'+
+      '<path d="M'+(x1+10).toFixed(1)+' '+(y1-8).toFixed(1)+' L'+x1.toFixed(1)+' '+y1.toFixed(1)+' L'+(x1+22).toFixed(1)+' '+(y1-8).toFixed(1)+
+      '" fill="'+c+'" fill-opacity=".55"/>'+
+      '<text x="'+(x1+16).toFixed(1)+'" y="'+(y1-15).toFixed(1)+'" fill="#fff" font-size="10.5" font-weight="800" '+
+      'font-family="ui-sans-serif,system-ui">'+esc(txt)+'</text>';
+  }
+  if(sh.k==='plabel'){
+    const t=fmtPx(sh.p1).replace('$','');
+    const wpx=t.length*6.4+14;
+    return '<rect x="'+(w-wpx-6).toFixed(1)+'" y="'+(y1-8).toFixed(1)+'" width="'+wpx.toFixed(1)+'" height="16" rx="4" '+
+      'fill="'+c+'" fill-opacity=".92"/>'+
+      '<text x="'+(w-wpx).toFixed(1)+'" y="'+(y1+4).toFixed(1)+'" fill="#0b0b12" font-size="9.6" font-weight="800" '+
+      'font-family="ui-monospace,monospace">'+esc(t)+'</text>';
+  }
+  if(sh.k==='prange'){
+    const lo=Math.min(y1,y2),hi=Math.max(y1,y2);
+    const d=sh.p2-sh.p1,pct=sh.p1?(d/sh.p1*100):0,sign=d>=0?'+':'';
+    return '<rect x="0" y="'+lo.toFixed(1)+'" width="'+w+'" height="'+Math.max(1,hi-lo).toFixed(1)+'" fill="'+c+'" fill-opacity=".10"/>'+
+      '<line x1="0" y1="'+y1.toFixed(1)+'" x2="'+w+'" y2="'+y1.toFixed(1)+'" stroke="'+c+'" stroke-width="1" stroke-dasharray="4 4"/>'+
+      '<line x1="0" y1="'+y2.toFixed(1)+'" x2="'+w+'" y2="'+y2.toFixed(1)+'" stroke="'+c+'" stroke-width="1" stroke-dasharray="4 4"/>'+
+      tag(6,(y1+y2)/2,sign+fmtPx(d).replace('$','')+'  ('+sign+pct.toFixed(2)+'%)',c,false);
+  }
+  if(sh.k==='trange'){
+    const lo=Math.min(x1,x2),hi=Math.max(x1,x2);
+    const secs=Math.abs((sh.t2||0)-(sh.t1||0));
+    const hh=Math.floor(secs/3600),mm=Math.round((secs%3600)/60);
+    return '<rect x="'+lo.toFixed(1)+'" y="0" width="'+Math.max(1,hi-lo).toFixed(1)+'" height="'+h+'" fill="'+c+'" fill-opacity=".09"/>'+
+      '<line x1="'+x1.toFixed(1)+'" y1="0" x2="'+x1.toFixed(1)+'" y2="'+h+'" stroke="'+c+'" stroke-width="1" stroke-dasharray="4 4"/>'+
+      '<line x1="'+x2.toFixed(1)+'" y1="0" x2="'+x2.toFixed(1)+'" y2="'+h+'" stroke="'+c+'" stroke-width="1" stroke-dasharray="4 4"/>'+
+      tag(lo+6,26,(hh?hh+'h ':'')+mm+'m',c,false);
+  }
+  if(sh.k==='rr'){
+    // entry at the first point, stop at the second, target a mirror image away
+    const entry=sh.p1,stop=sh.p2,risk=Math.abs(entry-stop),target=entry+(entry>stop?risk:-risk)*2;
+    const yE=Y(entry),yS=Y(stop),yT=Y(target);
+    if(yE==null||yS==null||yT==null)return '';
+    const xa=Math.min(x1,x2),xb=Math.max(x1,x2);
+    const rpct=entry?(risk/entry*100):0;
+    return '<rect x="'+xa.toFixed(1)+'" y="'+Math.min(yE,yT).toFixed(1)+'" width="'+(xb-xa).toFixed(1)+'" height="'+Math.abs(yT-yE).toFixed(1)+
+      '" fill="#10b981" fill-opacity=".14"/>'+
+      '<rect x="'+xa.toFixed(1)+'" y="'+Math.min(yE,yS).toFixed(1)+'" width="'+(xb-xa).toFixed(1)+'" height="'+Math.abs(yS-yE).toFixed(1)+
+      '" fill="#ef4444" fill-opacity=".14"/>'+
+      tag(xb+4,yT,'1 : 2 · target '+fmtPx(target).replace('$',''),'#10b981',false)+
+      tag(xb+4,yE,'entry '+fmtPx(entry).replace('$',''),'#94a3b8',false)+
+      tag(xb+4,yS,'stop · risk '+rpct.toFixed(2)+'%','#ef4444',false);
+  }
+  if(sh.k==='fibx'||sh.k==='fibfan'){
+    const levels=sh.k==='fibx'?[0,0.618,1,1.618,2.618]:[0.236,0.382,0.5,0.618,0.786];
+    let out='';
+    if(sh.k==='fibx'){
+      const xa=Math.min(x1,x2);
+      levels.forEach(function(lv){
+        const p=sh.p1+(sh.p2-sh.p1)*lv,y=Y(p);
+        if(y==null)return;
+        out+='<line x1="'+xa.toFixed(1)+'" y1="'+y.toFixed(1)+'" x2="'+w+'" y2="'+y.toFixed(1)+'" stroke="'+c+'" stroke-width="1" opacity=".72" stroke-dasharray="'+(lv===0||lv===1?'':'4 4')+'"/>';
+        out+='<text x="'+(xa+3).toFixed(1)+'" y="'+(y-3).toFixed(1)+'" fill="'+c+'" font-size="8.4" font-weight="800" font-family="ui-monospace,monospace">'+lv.toFixed(3)+' · '+fmtPx(p).replace('$','')+'</text>';
+      });
+    }else{
+      levels.forEach(function(lv){
+        const p=sh.p1+(sh.p2-sh.p1)*lv,yy=Y(p);
+        if(yy==null)return;
+        const dx=x2-x1,dy=yy-y1;
+        let ex=x2,ey=yy;
+        if(Math.abs(dx)>0.001){const tt=(w-x1)/dx;ex=x1+dx*tt;ey=y1+dy*tt;}
+        out+='<line x1="'+x1.toFixed(1)+'" y1="'+y1.toFixed(1)+'" x2="'+ex.toFixed(1)+'" y2="'+ey.toFixed(1)+'" stroke="'+c+'" stroke-width="1" opacity=".6"/>';
+        out+='<text x="'+(ex-30).toFixed(1)+'" y="'+(ey-3).toFixed(1)+'" fill="'+c+'" font-size="8.2" font-weight="800" font-family="ui-monospace,monospace">'+(lv*100).toFixed(1)+'%</text>';
+      });
+    }
+    return out;
   }
   if(sh.k==='channel'){
     const dy=y2-y1;
@@ -3481,12 +3692,29 @@ function drawPointerDown(e){
   const t=timeAtX(pt.x),p=priceAtY(pt.y);
   if(t==null||p==null)return;
   e.preventDefault();e.stopPropagation();
-  if(drawTool==='text'){
-    let txt='';
-    try{txt=window.prompt('Note','')||'';}catch(err){}
-    if(txt.trim()){drawings.push({k:'text',t1:t,p1:p,t2:txt.trim(),c:DRAW_STYLE.c||null});_selIdx=-1;_redo=[];saveDrawings();renderChartMenu();}
-    drawOverlay();
+  if(ONE_TAP.indexOf(drawTool)>=0){
+    const sp0=snapPoint(t,p);
+    const rec={k:drawTool,t1:sp0.t,p1:sp0.p,c:DRAW_STYLE.c||null,w:DRAW_STYLE.w||0};
+    if(drawTool==='note'||drawTool==='callout'){
+      let txt='';
+      try{txt=window.prompt(drawTool==='note'?'Note':'Callout','')||'';}catch(err){}
+      if(!txt.trim()){return;}
+      rec.t2=txt.trim();
+    }
+    drawings.push(rec);_selIdx=-1;_redo=[];saveDrawings();drawOverlay();renderChartMenu();
     return;
+  }
+  if(THREE_TAP.indexOf(drawTool)>=0){
+    const sp1=snapPoint(t,p);
+    _clicks.push({t:sp1.t,p:sp1.p});
+    if(_clicks.length>=3){
+      drawings.push({k:drawTool,t1:_clicks[0].t,p1:_clicks[0].p,t2:_clicks[1].t,p2:_clicks[1].p,
+        t3:_clicks[2].t,p3:_clicks[2].p,c:DRAW_STYLE.c||null,w:DRAW_STYLE.w||0});
+      _clicks=[];_dPreview=null;_selIdx=-1;_redo=[];saveDrawings();renderChartMenu();
+    }else{
+      _dPreview=threePreview(_clicks[_clicks.length-1]);
+    }
+    drawOverlay();return;
   }
   if(drawTool==='eraser'){eraseAt(pt.x,pt.y);return;}
   if(drawTool==='hline'||drawTool==='vline'){
@@ -3506,8 +3734,18 @@ function drawPointerDown(e){
   _dPreview={k:drawTool,t1:sp.t,p1:sp.p,t2:sp.t,p2:sp.p,c:DRAW_STYLE.c||null,w:DRAW_STYLE.w||0};
   drawOverlay();
 }
+function threePreview(cursor){
+  const a=_clicks[0]||cursor,b=_clicks[1]||cursor;
+  return {k:drawTool,t1:a.t,p1:a.p,t2:b.t,p2:b.p,t3:cursor.t,p3:cursor.p,c:DRAW_STYLE.c||null,w:DRAW_STYLE.w||0};
+}
 function drawPointerMove(e){
   const pt0=chartXY(e);
+  if(_clicks.length&&pt0){
+    e.preventDefault();
+    const ct=timeAtX(pt0.x),cp=priceAtY(pt0.y);
+    if(ct!=null&&cp!=null){const sp=snapPoint(ct,cp);_dPreview=threePreview(sp);drawOverlay();}
+    return;
+  }
   if(_brush&&pt0){
     e.preventDefault();
     const bt=timeAtX(pt0.x),bp=priceAtY(pt0.y);
@@ -3531,6 +3769,7 @@ function drawPointerMove(e){
   drawOverlay();
 }
 function drawPointerUp(e){
+  if(THREE_TAP.indexOf(drawTool)>=0){_dStart=null;return;}
   if(_brush){
     const pts=_brush;_brush=null;_dPreview=null;
     if(pts&&pts.length>1){drawings.push({k:'brush',pts:pts.slice(),c:DRAW_STYLE.c||null,w:DRAW_STYLE.w||0});_selIdx=-1;_redo=[];saveDrawings();}
@@ -3607,6 +3846,7 @@ function pickTool(t){
 }
 function setTool(t){
   drawTool=t;
+  if(typeof _clicks!=='undefined'&&_clicks.length){_clicks=[];_dPreview=null;}
   const svg=document.getElementById('draw-layer');
   const live=(t!=='cursor'&&!drawLocked);
   if(svg){svg.style.pointerEvents=live?'auto':'none';svg.style.cursor='crosshair';}
@@ -3664,6 +3904,11 @@ function renderIndPanel(){
   IND_LIST.filter(function(it){return !isPane(it);}).forEach(function(it){h+=row(it);});
   h+='<div class="tp-h">Separate panes</div>';
   IND_LIST.filter(isPane).forEach(function(it){h+=row(it);});
+  h+='<div class="tp-h">Smart money</div>';
+  SMC_ROWS.forEach(function(r){
+    h+='<div class="tp-row'+(SMC[r[0]]?' on':'')+'" data-smc="'+r[0]+'" onclick="toggleSMC(\''+r[0]+'\')">'+r[1]+'<span class="tp-sw"></span></div>';
+  });
+  h+='<div class="tp-note">Structure, gaps and blocks are read from the bars on screen — swing breaks need two bars either side, and a gap only counts while price has not filled it.</div>';
   if(window._paneNote){h+='<div class="tp-note">'+window._paneNote+'</div>';}
   if(MKT[currentSymbol]&&MKT[currentSymbol].vol===false){
     h+='<div class="tp-note">'+currentSymbol+' has no real volume feed, so volume and VWAP stay off.</div>';
@@ -3785,7 +4030,32 @@ function drawingStyleHtml(){
   h+='<button type="button" class="tp-chip" onclick="dupSel()">Duplicate</button>';
   h+='<button type="button" class="tp-chip" onclick="delSel()">Delete</button>';
   h+='</div>';
+  if(D.k==='hline'||D.k==='trend'||D.k==='ray'||D.k==='ext'||D.k==='plabel'||D.k==='prange'){
+    h+='<div class="tp-chips"><button type="button" class="tp-chip" onclick="alertFromShape()">Alert at this level</button></div>';
+    h+='<div class="tp-note">Fires off the real tick when price reaches the line.</div>';
+  }
   return h;
+}
+// the price a drawn line sits at exactly under the current candle
+function shapeLevel(sh){
+  if(!sh||!lastCandles.length)return null;
+  if(sh.k==='hline'||sh.k==='plabel')return sh.p1;
+  if((sh.k==='trend'||sh.k==='ray'||sh.k==='ext')&&sh.t2!=null&&sh.t1!=null&&sh.t2!==sh.t1){
+    const now=lastCandles[lastCandles.length-1].time;
+    const f=(now-sh.t1)/(sh.t2-sh.t1);
+    return sh.p1+(sh.p2-sh.p1)*f;
+  }
+  if(sh.k==='prange')return null;
+  return null;
+}
+function alertFromShape(){
+  const sh=selShape();
+  const lv=shapeLevel(sh);
+  if(lv==null||!isFinite(lv)){toast('Pick a level line first');return;}
+  const px=lastPrice||lv;
+  alertAdd(lv>=px?'above':'below',lv,TV_TOOL_NAME[sh.k]||sh.k);
+  toast('Alert set at '+fmtPx(lv));
+  renderChartMenu();
 }
 function toggleDrawHidden(){drawHidden=!drawHidden;renderChartMenu();drawOverlay();}
 function toggleDrawLocked(){drawLocked=!drawLocked;setTool(drawTool);renderChartMenu();}
@@ -4009,6 +4279,8 @@ function paintIndicators(bars){
   }
   if(IND.donch){const d=taDonchian(bars,20);mk(d.up,'#22d3ee',1.2,2);mk(d.dn,'#22d3ee',1.2,2);mk(d.mid,'#0891b2',1,2);}
   if(IND.kelt){const k=taKeltner(bars,20,2);mk(k.up,'rgba(139,92,246,.9)',1.2,2);mk(k.dn,'rgba(139,92,246,.9)',1.2,2);mk(k.mid,'#7c3aed',1.3);}
+  if(IND.wma20){const v=taWMA(closes,20);mk(v,'#22d3ee',1.6);}
+  if(IND.vwma20){const v=taVWMA(bars,20);mk(v,'#f472b6',1.6);}
   if(IND.ichi){const ic=taIchimoku(bars);mk(ic.tenkan,'#f43f5e',1.3);mk(ic.kijun,'#38bdf8',1.3);mk(ic.senkouA,'rgba(16,185,129,.85)',1.1,1);mk(ic.senkouB,'rgba(239,68,68,.85)',1.1,1);}
   if(IND.psar){
     const p=taPSAR(bars,0.02,0.2),pd=[];
@@ -4173,6 +4445,58 @@ function paintPane(kind,bars,closes){
     pr.line.setData(d);
     const lbl=pr.div.querySelector('.sp-lbl');
     if(lbl&&d.length)lbl.textContent='%R 14 · '+d[d.length-1].value.toFixed(1);
+    return;
+  }
+  if(kind==='mom'){
+    if(!pr.line)pr.line=pr.chart.addLineSeries({color:'#38bdf8',lineWidth:1.6,priceLineVisible:false,lastValueVisible:true,crosshairMarkerRadius:2});
+    const v=taMOM(closes,10),d=[];
+    for(let i=0;i<times.length;i++)if(v[i]!=null)d.push({time:times[i],value:v[i]});
+    pr.line.setData(d);
+    const lbl=pr.div.querySelector('.sp-lbl');
+    if(lbl&&d.length)lbl.textContent='Momentum 10 · '+d[d.length-1].value.toFixed(2);
+    return;
+  }
+  if(kind==='roc'){
+    if(!pr.line)pr.line=pr.chart.addLineSeries({color:'#a78bfa',lineWidth:1.6,priceLineVisible:false,lastValueVisible:true,crosshairMarkerRadius:2});
+    const v=taROC(closes,12),d=[];
+    for(let i=0;i<times.length;i++)if(v[i]!=null)d.push({time:times[i],value:v[i]});
+    pr.line.setData(d);
+    const lbl=pr.div.querySelector('.sp-lbl');
+    if(lbl&&d.length)lbl.textContent='ROC 12 · '+d[d.length-1].value.toFixed(2)+'%';
+    return;
+  }
+  if(kind==='mfi'){
+    if(!pr.line){
+      pr.line=pr.chart.addLineSeries({color:'#f59e0b',lineWidth:1.6,priceLineVisible:false,lastValueVisible:true,crosshairMarkerRadius:2,
+        autoscaleInfoProvider:function(){return {priceRange:{minValue:0,maxValue:100}};}});
+      try{
+        pr.line.createPriceLine({price:80,color:'rgba(244,82,95,.45)',lineWidth:1,lineStyle:2,axisLabelVisible:false,title:''});
+        pr.line.createPriceLine({price:20,color:'rgba(16,185,129,.45)',lineWidth:1,lineStyle:2,axisLabelVisible:false,title:''});
+      }catch(e){}
+    }
+    const v=taMFI(bars,14),d=[];
+    for(let i=0;i<times.length;i++)if(v[i]!=null)d.push({time:times[i],value:v[i]});
+    pr.line.setData(d);
+    const lbl=pr.div.querySelector('.sp-lbl');
+    if(lbl&&d.length)lbl.textContent='MFI 14 · '+d[d.length-1].value.toFixed(1);
+    return;
+  }
+  if(kind==='ad'){
+    if(!pr.line)pr.line=pr.chart.addLineSeries({color:'#34d399',lineWidth:1.6,priceLineVisible:false,lastValueVisible:true,crosshairMarkerRadius:2});
+    const v=taAD(bars),d=[];
+    for(let i=0;i<times.length;i++)if(v[i]!=null)d.push({time:times[i],value:v[i]});
+    pr.line.setData(d);
+    const lbl=pr.div.querySelector('.sp-lbl');
+    if(lbl&&d.length)lbl.textContent='A/D · '+(d[d.length-1].value/1000).toFixed(1)+'K';
+    return;
+  }
+  if(kind==='bbw'){
+    if(!pr.line)pr.line=pr.chart.addLineSeries({color:'#e2e8f0',lineWidth:1.6,priceLineVisible:false,lastValueVisible:true,crosshairMarkerRadius:2});
+    const v=taBBW(closes,20,2),d=[];
+    for(let i=0;i<times.length;i++)if(v[i]!=null)d.push({time:times[i],value:v[i]});
+    pr.line.setData(d);
+    const lbl=pr.div.querySelector('.sp-lbl');
+    if(lbl&&d.length)lbl.textContent='BB width 20 · '+d[d.length-1].value.toFixed(2)+'%';
     return;
   }
   if(kind==='obv'){
@@ -5356,9 +5680,232 @@ function drawVolume(){
 
 // ---------- zone boxes: 15m = TARGET (solid) · 5m = ENTRY (thin dashed) ----------
 let _drawPending=false,_zLastAt=0,_zTimer=0;
+// ---------- smart money: structure, gaps and blocks read off the bars on screen ----------
+const SMC=Object.assign({bos:true,fvg:true,ob:true,sweep:false,eqh:false,sr:false,sess:false},
+  (function(){try{return JSON.parse(localStorage.getItem('astra6_smc')||'{}');}catch(e){return {};}})());
+const SMC_ROWS=[['bos','BOS / CHOCH structure'],['fvg','Fair value gaps'],['ob','Order blocks'],
+  ['sweep','Liquidity sweeps'],['eqh','Equal highs / lows'],['sr','Auto support / resistance'],
+  ['sess','Asian · London · NY ranges']];
+let _smcCache=null,_smcKey='';
+function smcSave(){try{localStorage.setItem('astra6_smc',JSON.stringify(SMC));}catch(e){}}
+function smcAny(){return SMC.bos||SMC.fvg||SMC.ob||SMC.sweep||SMC.eqh||SMC.sr||SMC.sess;}
+function toggleSMC(k){
+  SMC[k]=!SMC[k];smcSave();_smcCache=null;
+  try{paintSMC();}catch(e){}
+  renderIndPanel();renderChartMenu();
+}
+function smcATR(bars){
+  const n=bars.length,tr=[];
+  for(let i=0;i<n;i++){
+    const h=bars[i].high,l=bars[i].low,pc=i?bars[i-1].close:h;
+    tr.push(Math.max(h-l,Math.abs(h-pc),Math.abs(l-pc)));
+  }
+  let acc=0;const out=[];
+  for(let i=0;i<n;i++){acc+=tr[i];if(i>=14)acc-=tr[i-14];out.push(i>=14?acc/14:null);}
+  return out;
+}
+function smcDetect(bars){
+  const out={zones:[],lines:[],marks:[],sess:[]};
+  const n=bars.length;if(n<40)return out;
+  const atr=smcATR(bars);
+  const A=function(i){return atr[i]||atr[n-1]||0;};
+  const T=function(i){return bars[i].time;};
+  // pivots: a swing is a bar whose high (low) is not exceeded two bars either side
+  const ph=[],pl=[];
+  for(let i=2;i<n-2;i++){
+    if(bars[i].high>=bars[i-1].high&&bars[i].high>=bars[i-2].high&&bars[i].high>=bars[i+1].high&&bars[i].high>=bars[i+2].high)ph.push(i);
+    if(bars[i].low<=bars[i-1].low&&bars[i].low<=bars[i-2].low&&bars[i].low<=bars[i+1].low&&bars[i].low<=bars[i+2].low)pl.push(i);
+  }
+  // ---- break of structure: the close takes out the last confirmed swing ----
+  let trend=0,lastPH=null,lastPL=null,pi=0,pl_i=0;
+  const bosEvents=[];
+  for(let i=1;i<n;i++){
+    while(pi<ph.length&&ph[pi]<i-1){lastPH=ph[pi];pi++;}
+    while(pl_i<pl.length&&pl[pl_i]<i-1){lastPL=pl[pl_i];pl_i++;}
+    if(lastPH!=null&&bars[i].close>bars[lastPH].high){
+      const kind=(trend===-1)?'CHOCH':'BOS';
+      bosEvents.push({i,up:true,kind,from:lastPH,level:bars[lastPH].high});trend=1;lastPH=null;
+    }else if(lastPL!=null&&bars[i].close<bars[lastPL].low){
+      const kind=(trend===1)?'CHOCH':'BOS';
+      bosEvents.push({i,up:false,kind,from:lastPL,level:bars[lastPL].low});trend=-1;lastPL=null;
+    }
+  }
+  if(SMC.bos){
+    bosEvents.slice(-3).forEach(function(ev){
+      out.lines.push({p1:ev.level,p2:ev.level,t1:T(ev.from),t2:T(ev.i),
+        c:ev.up?'#22c55e':'#ef4444',dash:true,label:ev.kind+(ev.up?' ↑':' ↓')});
+      out.marks.push({t:T(ev.i),p:ev.up?bars[ev.i].high:bars[ev.i].low,
+        c:ev.up?'#22c55e':'#ef4444',text:ev.kind});
+    });
+  }
+  // ---- fair value gaps: a three-bar imbalance that price has not filled ----
+  if(SMC.fvg){
+    let kept=0;
+    for(let i=n-1;i>=2&&kept<3;i--){
+      const bull=bars[i].low>bars[i-2].high,bear=bars[i].high<bars[i-2].low;
+      if(!bull&&!bear)continue;
+      const lo=bull?bars[i-2].high:bars[i].high;
+      const hi=bull?bars[i].low:bars[i-2].low;
+      let filled=false;
+      for(let j=i+1;j<n;j++){if(bull?bars[j].low<=lo:bars[j].high>=hi){filled=true;break;}}
+      if(filled)continue;
+      out.zones.push({k:'fvg',t1:T(i-2),t2:T(n-1),p1:lo,p2:hi,up:bull,
+        c:bull?'#22c55e':'#ef4444',label:(kept===0?'FVG':'')});
+      kept++;
+    }
+  }
+  // ---- order blocks: the last candle against the move before a break ----
+  if(SMC.ob){
+    let obKept=0;
+    bosEvents.slice(-2).forEach(function(ev){
+      for(let j=ev.i-1;j>=Math.max(0,ev.i-8);j--){
+        const down=bars[j].close<bars[j].open,up=bars[j].close>bars[j].open;
+        if((ev.up&&down)||(!ev.up&&up)){
+          const lo=bars[j].low,hi=bars[j].high;
+          let used=false;
+          for(let k=ev.i;k<n;k++){if(ev.up?bars[k].low<lo:bars[k].high>hi){used=true;break;}}
+          if(!used)out.zones.push({k:'ob',t1:T(j),t2:T(n-1),p1:lo,p2:hi,up:ev.up,
+            c:'#a78bfa',label:(obKept++===0?'OB':'')});
+          break;
+        }
+      }
+    });
+  }
+  // ---- liquidity sweeps: a wick through a swing that closes back inside ----
+  if(SMC.sweep&&ph.length&&pl.length){
+    for(let i=n-6;i<n;i++){
+      if(i<3)continue;
+      const above=ph.filter(function(j){return j<i-1;}).slice(-1)[0];
+      const below=pl.filter(function(j){return j<i-1;}).slice(-1)[0];
+      if(above!=null&&bars[i].high>bars[above].high&&bars[i].close<bars[above].high)
+        out.marks.push({t:T(i),p:bars[i].high,c:'#f59e0b',text:'sweep'});
+      if(below!=null&&bars[i].low<bars[below].low&&bars[i].close>bars[below].low)
+        out.marks.push({t:T(i),p:bars[i].low,c:'#f59e0b',text:'sweep'});
+    }
+  }
+  // ---- equal highs and lows: two swings inside a fifth of an ATR ----
+  if(SMC.eqh){
+    const pairs=function(list,key,c){
+      for(let a=list.length-1;a>=1;a--){
+        for(let b=a-1;b>=Math.max(0,a-4);b--){
+          const gap=Math.abs(bars[list[a]][key]-bars[list[b]][key]);
+          if(gap<=A(list[a])*0.2){
+            out.lines.push({p1:bars[list[b]][key],p2:bars[list[a]][key],t1:T(list[b]),t2:T(list[a]),
+              c:c,dash:false,label:key==='high'?'EQH':'EQL'});
+            return;
+          }
+        }
+      }
+    };
+    pairs(ph,'high','#14b8a6');pairs(pl,'low','#14b8a6');
+  }
+  // ---- auto support and resistance: swing clusters with at least three touches ----
+  if(SMC.sr){
+    const tol=(A(n-1)||1)*0.5,buckets=[];
+    ph.concat(pl).forEach(function(i){
+      const p=bars[i].high;               // levels cluster on the upper edge of the swing
+      const hit=buckets.find(function(b){return Math.abs(b.p-p)<=tol;});
+      if(hit){hit.n++;hit.p=(hit.p+p)/2;hit.last=Math.max(hit.last,T(i));}
+      else buckets.push({p:p,n:1,first:T(i),last:T(i)});
+    });
+    buckets.filter(function(b){return b.n>=3;})
+      .sort(function(a,b){return b.n-a.n;}).slice(0,5).forEach(function(b){
+        out.lines.push({p1:b.p,p2:b.p,t1:b.first,t2:T(n-1),c:'#94a3b8',dash:true,
+          label:'S/R ×'+b.n,plain:true});
+      });
+  }
+  // ---- the three sessions, measured on the bars that exist ----
+  if(SMC.sess){
+    const spans=[[0,8,'Asia','#38bdf8'],[7,16,'London','#a78bfa'],[12,21,'NY','#f59e0b']];
+    const cutoff=T(n-1)-3*86400;
+    spans.forEach(function(sp){
+      const inWin=bars.filter(function(b){
+        if(b.time<cutoff)return false;
+        const h=new Date(b.time*1000).getUTCHours();
+        return h>=sp[0]&&h<sp[1];
+      });
+      if(inWin.length<3)return;
+      const lo=Math.min.apply(null,inWin.map(function(b){return b.low;}));
+      const hi=Math.max.apply(null,inWin.map(function(b){return b.high;}));
+      out.sess.push({t1:inWin[0].time,t2:inWin[inWin.length-1].time,p1:lo,p2:hi,c:sp[3],
+        label:sp[2]+' '+fmtPx(lo,currentSymbol).replace('$','')+'–'+fmtPx(hi,currentSymbol).replace('$','')});
+    });
+  }
+  return out;
+}
+function paintSMC(){
+  const svg=document.getElementById('smc-layer');
+  if(!svg)return;
+  if(!chart||!candleSeries||!lastCandles||lastCandles.length<40||!smcAny()){if(svg.innerHTML)svg.innerHTML='';return;}
+  const key=currentSymbol+'|'+currentTF+'|'+lastCandles.length+'_'+lastCandles[lastCandles.length-1].time+'|'+
+    Object.keys(SMC).filter(function(k){return SMC[k];}).join(',');
+  if(!_smcCache||_smcKey!==key){_smcCache=smcDetect(lastCandles);_smcKey=key;}
+  const box=document.getElementById('oanda_chart');
+  if(!box)return;
+  const w=box.clientWidth,h=box.clientHeight;
+  if(svg.getAttribute('width')!==String(w)||svg.getAttribute('height')!==String(h)){
+    svg.setAttribute('width',w);svg.setAttribute('height',h);svg.setAttribute('viewBox','0 0 '+w+' '+h);
+  }
+  if(svg.style.height!==h+'px')svg.style.height=h+'px';
+  const ts=chart.timeScale();
+  const X=function(t){return timeToX(t,ts);};
+  const Y=function(p){let y=null;try{y=candleSeries.priceToCoordinate(p);}catch(e){}return y;};
+  let out='';
+  const d=_smcCache;
+  const lab=function(x,y,text,c,anchor){
+    if(x==null||y==null)return '';
+    return '<text x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" fill="'+c+'" font-size="8.6" font-weight="800" '+
+      'font-family="ui-monospace,SFMono-Regular,Menlo,monospace" text-anchor="'+(anchor||'start')+'" '+
+      'paint-order="stroke" stroke="rgba(6,8,14,.85)" stroke-width="2.4">'+esc(text)+'</text>';
+  };
+  const lastT=lastCandles[lastCandles.length-1].time;
+  const lastX=X(lastT);
+  let _bp=8;
+  try{
+    const _n=lastCandles.length;
+    if(_n>2){const a=X(lastCandles[_n-1].time),b=X(lastCandles[_n-2].time);if(a!=null&&b!=null)_bp=Math.max(2,Math.abs(a-b));}
+  }catch(e){}
+  const edge=(lastX==null?w:Math.min(w,lastX+_bp));
+  const usedLab=[];
+  const freeLab=function(y){return usedLab.every(function(u){return Math.abs(u-y)>11;});};
+  (d.zones||[]).forEach(function(z){
+    const xa=Math.max(0,Math.min(X(z.t1)||0,w));
+    const xb=(z.t2>=lastT)?edge:Math.max(xa,Math.min(X(z.t2)||0,edge));
+    const yA=Y(z.p1),yB=Y(z.p2);
+    if(yA==null||yB==null)return;
+    const y=Math.min(yA,yB),hh=Math.max(1.5,Math.abs(yB-yA));
+    out+='<rect x="'+xa.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+Math.max(1,xb-xa).toFixed(1)+
+      '" height="'+hh.toFixed(1)+'" fill="'+z.c+'" fill-opacity=".07" stroke="'+z.c+
+      '" stroke-opacity=".3" stroke-width="1"'+(z.k==='ob'?' stroke-dasharray="4 3"':'')+'/>';
+    if(z.label&&freeLab(y-3)){usedLab.push(y-3);out+=lab(xb+4,y+3,z.label,z.c);}
+  });
+  (d.sess||[]).forEach(function(z){
+    const x1=X(z.t1),x2=X(z.t2),yA=Y(z.p1),yB=Y(z.p2);
+    if(x1==null||x2==null||yA==null||yB==null)return;
+    out+='<rect x="'+x1.toFixed(1)+'" y="'+Math.min(yA,yB).toFixed(1)+'" width="'+Math.max(2,x2-x1).toFixed(1)+
+      '" height="'+Math.max(2,Math.abs(yB-yA)).toFixed(1)+'" fill="'+z.c+'" fill-opacity=".035" stroke="'+z.c+
+      '" stroke-opacity=".18" stroke-width="1"/>';
+    if(freeLab(Math.min(yA,yB)-3)){usedLab.push(Math.min(yA,yB)-3);out+=lab(x1+3,Math.min(yA,yB)-3,z.label,z.c);}
+  });
+  (d.lines||[]).forEach(function(l){
+    const x1=X(l.t1),x2=X(l.t2),y1=Y(l.p1),y2=Y(l.p2);
+    if(x1==null||x2==null||y1==null||y2==null)return;
+    out+='<line x1="'+x1.toFixed(1)+'" y1="'+y1.toFixed(1)+'" x2="'+(l.plain?w:x2).toFixed(1)+'" y2="'+y2.toFixed(1)+
+      '" stroke="'+l.c+'" stroke-width="'+(l.dash?1.2:1.5)+'" stroke-opacity=".75"'+(l.dash?' stroke-dasharray="5 4"':'')+'/>';
+    if(l.label&&freeLab(y2-4)){usedLab.push(y2-4);out+=lab(l.plain?6:x2+4,y2-4,l.label,l.c);}
+  });
+  (d.marks||[]).forEach(function(m){
+    const x=X(m.t),y=Y(m.p);
+    if(x==null||y==null)return;
+    out+='<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="2.4" fill="'+m.c+'"/>';
+    if(freeLab(y-5)){usedLab.push(y-5);out+=lab(x+5,y-5,m.text,m.c);}
+  });
+  if(svg.innerHTML!==out)svg.innerHTML=out;
+}
 function scheduleZoneDraw(){
   // drawings ride on the same repaint: data, ticks, resize and zoom all land here
   if(typeof scheduleDraw==='function')scheduleDraw();
+  if(typeof paintSMC==='function')paintSMC();
   if(_drawPending)return;
   _drawPending=true;
   requestAnimationFrame(()=>{_drawPending=false;_zLastAt=performance.now();drawZones();});

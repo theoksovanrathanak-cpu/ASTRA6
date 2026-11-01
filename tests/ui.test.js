@@ -881,9 +881,9 @@ section('one strategy, one price, more tools');
      && html.indexOf("['text','Text']") > 0 && html.indexOf("['position','Position']") > 0);
 
   const inds = html.slice(html.indexOf('const IND_LIST=['), html.indexOf('const PANE_KINDS='));
-  ok('twenty-two indicators are on offer', (inds.match(/\['/g) || []).length === 22, String((inds.match(/\['/g)||[]).length));
+  ok('twenty-nine indicators are on offer', (inds.match(/\['/g) || []).length === 29, String((inds.match(/\['/g)||[]).length));
   ok('supertrend and vwap bands are there', inds.includes("'st'") && inds.includes("'vwapb'"));
-  ok('nine panes are wired', /const PANE_KINDS=\['cvd','rsi','macd','stoch','atr','adx','cci','willr','obv'\]/.test(html));
+  ok('fourteen panes are wired', /const PANE_KINDS=\['cvd','rsi','macd','stoch','atr','adx','cci','willr','obv','mom','roc','mfi','ad','bbw'\]/.test(html));
 
   // the new maths
   const bars = Array.from({length: 40}, (_, i) => ({
