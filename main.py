@@ -83,6 +83,9 @@ except Exception as _e:
 import threading
 import time as time_module
 
+KEEPALIVE_STATE = {"pings": 0, "last": 0.0, "url": "", "started": 0.0, "secs": 0, "scan": 0}
+
+
 def keep_alive_ping():
     base = os.getenv("RENDER_EXTERNAL_URL", "").rstrip("/")
     extra = [u.strip().rstrip("/") for u in os.getenv("KEEPALIVE_URLS", "").split(",") if u.strip()]
@@ -91,6 +94,7 @@ def keep_alive_ping():
         print("Keepalive skipped - no public URL to ping (not on Render?)")
         return
     every = int(os.getenv("KEEPALIVE_SECONDS", "240"))   # 4 min < Render's 15 min idle window
+    KEEPALIVE_STATE.update({"started": time_module.time(), "secs": every, "url": urls[0] if urls else ""})
     time_module.sleep(20)
     print(f"Keepalive pinging {urls} every {every}s")
     import requests
@@ -98,6 +102,8 @@ def keep_alive_ping():
         for url in urls:
             try:
                 r = requests.get(url, timeout=15)
+                KEEPALIVE_STATE["pings"] += 1
+                KEEPALIVE_STATE["last"] = time_module.time()
                 print(f"keepalive {url} {r.status_code}")
             except Exception as e:
                 print(f"keepalive {url} fail {e}")
@@ -106,6 +112,7 @@ def keep_alive_ping():
             _pw = globals().get("PUSHWEB")
             if _pw:
                 _pw.scan_once()
+                KEEPALIVE_STATE["scan"] += 1
         except Exception as e:
             print(f"keepalive scan {e}")
         time_module.sleep(every)
@@ -2942,6 +2949,16 @@ def telegram_bot_info():
         return r.json()
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
+
+@app.get("/api/keepalive/status")
+def keepalive_status():
+    """Is the app keeping itself warm? Read it back instead of assuming it."""
+    st = dict(KEEPALIVE_STATE)
+    st["enabled"] = os.getenv("KEEPALIVE", "0") == "1"
+    st["ageSec"] = round(time.time() - st["last"], 1) if st["last"] else None
+    st["uptime"] = round(time.time() - st["started"], 1) if st["started"] else None
+    return st
 
 
 @app.get("/api/keepalive")
