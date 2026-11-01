@@ -908,6 +908,26 @@ print('|'.join([rej['type'], rej.get('style') or '-', rejh['type'], base['type']
     const files = ['astra6-pl1.mp4','astra6-pl2.mp4','astra6-pl3.mp4','astra6-pl4.mp4','astra6-pl5.mp4','astra6-pl6.mp4','astra6-full.mp4'];
     return files.every(f => { const st = require('fs').statSync(path.join(root, f)); return st.size > 300000 && st.size < 12e6; });
   })());
+  // ---- the market read: an assistant bound to the page's own numbers ----
+  ok('the trade strip offers a market read', /id="flow-ai"[^>]*onclick="openAIRead\(\)"/.test(html) && /function openAIRead\(\)/.test(html));
+  ok('the read is built from measured facts, not guesses', /function aiFacts\(\)/.test(html)
+     && /value_area/.test(html) && /delta_series/.test(html) && /function aiRead\(f\)/.test(html));
+  ok('the read says what would change it, not what will happen', /What would change the read/.test(html)
+     && /function aiAnswer\(q,f\)/.test(html));
+  ok('a HOLD explains itself instead of inventing a trade', /no trade printed, so there is no stop or reward to check/.test(html)
+     && /No stop is printed while the strip says HOLD/.test(html));
+  ok('no NaN or made-up price can reach the panel', /function aiNum\(v\)/.test(html) && /aiNum\(sig\.entry\)/.test(html));
+  ok('the model is optional and never a source of numbers', (() => {
+    const m = require('fs').readFileSync(path.join(root,'main.py'),'utf8');
+    return /def _ai_facts_whitelist/.test(m) && /engine.*rules/.test(m)
+      && /Use ONLY numbers present in FACTS/.test(m) && /ASTRA6_AI_KEY/.test(m);
+  })());
+  ok('the endpoint forwards no identifiers or user data', (() => {
+    const m = require('fs').readFileSync(path.join(root,'main.py'),'utf8');
+    const i = m.indexOf('def _ai_facts_whitelist');
+    const body = m.slice(i, i + 1400);
+    return !/email|cookie|user/i.test(body.split('keep =')[1].split('out =')[0]);
+  })());
   // ---- session levels: real, labelled, and never invented ----
   ok('the chart draws prior-day levels from the feed\'s own bars', /function buildSessionLevels\(bars\)/.test(html)
      && /priorK/.test(html) && /pdh:prior\.hi,pdl:prior\.lo,pdc:prior\.close/.test(html));

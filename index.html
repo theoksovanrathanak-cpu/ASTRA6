@@ -348,6 +348,43 @@ body.intro-open{overflow:hidden}
 .flow-line .of-chip.up{color:#12b981}
 .flow-line .of-chip.dn{color:#f4525f}
 .flow-line .of-more{color:var(--muted);font-weight:700;font-size:9.5px;margin-left:auto}
+.flow-row{display:flex;gap:6px;align-items:stretch;margin-top:8px}
+.flow-row .flow-line{margin-top:0;flex:1 1 auto;min-width:0}
+.flow-ai{flex:0 0 auto;width:46px;border-radius:11px;border:1px solid color-mix(in srgb,var(--a-violet) 40%,var(--line));
+  background:linear-gradient(160deg,color-mix(in srgb,var(--a-violet) 26%,transparent),color-mix(in srgb,var(--a-cyan) 18%,transparent));
+  color:var(--ink);font-size:15px;line-height:1;cursor:pointer;font-family:inherit;-webkit-tap-highlight-color:transparent}
+.flow-ai:active{transform:scale(.97)}
+
+.ai-head{padding:2px 0 10px;border-bottom:1px solid var(--line-soft);margin-bottom:10px}
+.ai-k{font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:800}
+.ai-h{margin:7px 0 0;font-size:15px;line-height:1.45;font-weight:800;color:var(--ink)}
+.ai-note{font-size:10px;color:var(--muted);margin:-4px 0 10px;font-family:ui-monospace,monospace}
+.ai-note.model{color:var(--a-cyan)}
+.ai-sec{margin:0 0 14px}
+.ai-sec h5{margin:0 0 7px;font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:800}
+.ai-list{margin:0;padding-left:16px;display:flex;flex-direction:column;gap:6px}
+.ai-list li{font-size:12px;line-height:1.5;color:var(--ink-2)}
+.ai-change li{color:var(--ink)}
+.ai-checks{display:flex;flex-direction:column;gap:5px}
+.ai-c{font-size:11.5px;line-height:1.4;padding:6px 9px;border-radius:9px;background:color-mix(in srgb,var(--surface) 80%,transparent);
+  border:1px solid var(--line-soft)}
+.ai-c.ok{color:#12b981;border-color:rgba(18,185,129,.35);background:rgba(18,185,129,.08)}
+.ai-c.no{color:var(--muted)}
+.ai-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.ai-chip{font-family:inherit;font-size:11px;font-weight:700;padding:6px 9px;border-radius:9px;cursor:pointer;
+  border:1px solid color-mix(in srgb,var(--a-violet) 30%,var(--line));background:color-mix(in srgb,var(--surface) 85%,transparent);color:var(--ink-2)}
+.ai-chip:active{background:color-mix(in srgb,var(--a-violet) 20%,transparent)}
+.ai-askbar{display:flex;gap:6px}
+.ai-askbar input{flex:1 1 auto;min-width:0;font-family:inherit;font-size:12px;padding:9px 10px;border-radius:9px;
+  border:1px solid var(--line);background:color-mix(in srgb,var(--surface) 85%,transparent);color:var(--ink)}
+.ai-askbar button{flex:0 0 auto;padding:9px 14px;border-radius:9px;font-family:inherit;font-weight:800;font-size:12px;cursor:pointer;
+  border:1px solid transparent;background:linear-gradient(102deg,var(--a-violet,#7c5cff),var(--a-cyan,#22d3ee));color:#fff}
+.ai-a[hidden]{display:none}
+.ai-a{margin-top:9px;padding:10px 11px;border-radius:10px;background:color-mix(in srgb,var(--surface) 85%,transparent);
+  border:1px solid color-mix(in srgb,var(--a-cyan) 28%,var(--line));display:flex;flex-direction:column;gap:4px}
+.ai-a b{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--a-cyan)}
+.ai-a span{font-size:12px;line-height:1.5;color:var(--ink-2)}
+.ai-foot{margin-top:6px;padding-top:10px;border-top:1px solid var(--line-soft);font-size:10.5px;line-height:1.5;color:var(--muted)}
 .of-ladder{display:flex;flex-direction:column;gap:2px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px}
 .of-ladder .of-l{display:grid;grid-template-columns:62px 1fr 46px 46px 52px;gap:6px;align-items:center;padding:3px 4px;border-radius:6px}
 .of-ladder .of-l.head{color:var(--muted);font-weight:800;font-size:9px;letter-spacing:.06em;text-transform:uppercase}
@@ -1541,6 +1578,7 @@ body[data-view="home"] .home>*:nth-child(4){animation-delay:.18s}
     <div class="menu-label">Order flow</div>
     <div class="menu-hint" id="of-menu-mini" style="font-family:ui-monospace,monospace">reading the volume…</div>
     <button class="chip" style="width:100%;justify-content:center;margin-top:8px" onclick="closeMenu();openOrderFlow()">Open the full ladder</button>
+    <button class="chip" style="width:100%;justify-content:center;margin-top:6px" onclick="closeMenu();openAIRead()">Ask for a market read</button>
   </div>
 
   <div class="menu-sec">
@@ -1682,7 +1720,10 @@ body[data-view="home"] .home>*:nth-child(4){animation-delay:.18s}
       <div id="ind-panel" class="tool-panel" hidden role="dialog" aria-label="Indicators"></div>
       <div id="chart-menu" class="tool-panel" hidden role="dialog" aria-label="Chart type and tools"></div>
     </div>
-    <button id="flow-line" class="flow-line" type="button" hidden onclick="openOrderFlow()" aria-label="Open the full order flow"></button>
+    <div class="flow-row">
+      <button id="flow-line" class="flow-line" type="button" hidden onclick="openOrderFlow()" aria-label="Open the full order flow"></button>
+      <button id="flow-ai" class="flow-ai" type="button" hidden onclick="openAIRead()" aria-label="Market read: what the numbers say" title="Market read">✦</button>
+    </div>
     <div class="meta-row">
       <span>ASTRA6 chart · <span id="chart-info-tf">M15</span> · <span id="chart-candle-count">--</span> · <span class="ok" id="chart-source">connecting</span></span>
       <span class="zone-key"><i style="background:rgba(16,185,129,.35);border:1px solid #10b981"></i>buy zone
@@ -3978,7 +4019,8 @@ function setSymbol(sym){
   try{const _sn=document.getElementById('swap-note');if(_sn){_sn.textContent='loading '+sym+' · '+mkMeta(sym).name; _sn.hidden=false;}}catch(e){}
   // the order flow, the CVD pane and the trade strip belong to the old market: clear them
   // with the candles so nothing from XAUUSD can be read while XAGUSD is loading
-  try{const _fl=document.getElementById('flow-line');if(_fl){_fl.hidden=true;_fl.innerHTML='';}}catch(e){}
+  try{const _fl=document.getElementById('flow-line');if(_fl){_fl.hidden=true;_fl.innerHTML='';}
+      const _fa=document.getElementById('flow-ai');if(_fa)_fa.hidden=true;}catch(e){}
   try{const _pr=(typeof paneRef!=='undefined')?paneRef.cvd:null;
       if(_pr){if(_pr.hist)_pr.hist.setData([]); if(_pr.line)_pr.line.setData([]);
               const _lb=_pr.div&&_pr.div.querySelector('.sp-lbl'); if(_lb)_lb.textContent=PANE_TITLE.cvd;}}catch(e){}
@@ -4704,6 +4746,7 @@ function renderZoneAlerts(){
 // No pop-up, no history, no sound - it is the strategy's output, not an alert.
 function paintFlowLine(d){
   const el=document.getElementById('flow-line');
+  const aiBtn=document.getElementById('flow-ai');
   if(!el) return;
   const s=(d&&d.signal)||{}, f=(d&&d.flow)||s.flow||{};
   const px=v=>fmtPx(v,mkMeta(currentSymbol).dec);
@@ -4713,7 +4756,8 @@ function paintFlowLine(d){
     mini.textContent='CVD '+(cvd<0?'-':'+')+fmtVol(Math.abs(cvd))+' · Δ '+(dt<0?'-':'+')+fmtVol(Math.abs(dt))
       +' · '+((d.imbalance||[]).length)+' unbalanced levels';
   }
-  if(!s.type){ el.hidden=true; el.innerHTML=''; return; }
+  if(!s.type){ el.hidden=true; el.innerHTML=''; if(aiBtn)aiBtn.hidden=true; return; }
+  if(aiBtn) aiBtn.hidden=false;
   if(s.type==='HOLD'){
     el.innerHTML='<span class="of-row"><b class="hold">HOLD</b><span>'
       +((s.reason||'no edge right now').replace(/&/g,'&amp;').replace(/</g,'&lt;'))
@@ -4732,6 +4776,254 @@ function paintFlowLine(d){
   el.hidden=false;
 }
 // the flow numbers, in one compact row: CVD, the bar's aggression, the split, the levels
+// ---------- the market read: an assistant that only knows what this page knows ----------
+// Every sentence below is assembled from numbers already on the page: the value area,
+// the delta series, the ATR, the printed trade and yesterday's levels. It never predicts,
+// never invents a price, and says so. When a model key is configured on the server the
+// same facts are handed to the model for the wording (see aiExplainRemote); the numbers
+// still come from here, never from the model.
+function aiNum(v){ v=Number(v); return isFinite(v)?v:null; }
+function aiFacts(){
+  const d=window._volume||{}, ok=d.status==='ok';
+  const sig=(ok&&d.signal)||window._lastSignal||null;
+  const last=lastCandles&&lastCandles.length?lastCandles[lastCandles.length-1]:null;
+  const px=Number(lastPrice||(last?last.close:0))||null;
+  const va=(ok&&d.value_area)||null, poc=(ok&&d.poc)||null;
+  const atr=Number((ok&&d.atr)||(sig&&sig.atr)||0)||null;
+  const zone=(!va||px==null)?'unknown':(px>va.high?'above':(px<va.low?'below':'inside'));
+  const ds=(ok&&d.delta_series)||[];
+  const bt=Number((ok&&d.buy_total)||0), st=Number((ok&&d.sell_total)||0), tot=bt+st;
+  const sl=(typeof _slData!=='undefined'&&_slData)?_slData:null;
+  const edge=zone==='below'?va.low:(zone==='above'?va.high:null);
+  return {sym:currentSymbol,tf:currentTF,dec:mkMeta(currentSymbol).dec,px,zone,va,poc,
+    vwap:Number((ok&&d.vwap)||0)||null,atr,
+    cvd:Number((ok&&d.cvd)||0),
+    d6:(sig&&sig.flow&&isFinite(sig.flow.delta_6))?Number(sig.flow.delta_6):null,
+    dr:(sig&&sig.flow&&isFinite(sig.flow.delta_ratio))?Number(sig.flow.delta_ratio):null,
+    bt,st,buyPct:tot?Math.round(100*bt/tot):null,sellPct:tot?Math.round(100*st/tot):null,
+    rows:((ok&&d.rows)||[]).length, imb:((ok&&d.imbalance)||[]),
+    lastBar:ds.length?Number(ds[ds.length-1].delta):null,
+    sig, type:sig?sig.type:null, entry:sig?aiNum(sig.entry):null, stop:sig?aiNum(sig.sl):null,
+    tp1:sig?aiNum(sig.tp1):null, tp2:sig?aiNum(sig.tp2):null, risk:sig?aiNum(sig.risk):null,
+    r:sig?aiNum(sig.r):null, conf:sig?sig.confidence:null, style:sig?sig.style:null,
+    slv:sl, edge, edgeDist:(edge!=null&&px!=null)?Math.abs(px-edge):null,
+    edgeAtr:(edge!=null&&atr)?Math.abs(px-edge)/atr:null,
+    live:ok};
+}
+function aiWords(f){
+  const P=v=>fmtPx(v,f.dec), out={};
+  const zoneTxt={below:'under the value area',inside:'inside the value area',above:'above the value area',unknown:'on no value area yet'}[f.zone];
+  out.zone=zoneTxt;
+  out.vsVwap=(f.vwap&&f.px!=null)?(f.px>f.vwap?'above':'below'):'';
+  out.deltaWord=f.d6==null?'no delta yet':(f.d6>0?'buyers net':(f.d6<0?'sellers net':'flat'));
+  out.px=f.px!=null?P(f.px):'—';
+  return out;
+}
+function aiRead(f){
+  const P=v=>fmtPx(v,f.dec), w=aiWords(f);
+  const see=[], change=[], checks=[];
+  const ATR=f.atr?Number(f.atr):null;
+  const atrTxt=v=>(ATR&&isFinite(v))?(v/ATR).toFixed(1)+' ATR':'—';
+
+  // ---- headline: what the strategy is doing, in one sentence ----
+  let head='';
+  if(!f.live||f.px==null){
+    head='The feed is not up yet, so there is nothing honest to read. The panel fills in as soon as a quote lands.';
+  }else if(f.type==='BUY'){
+    head=`${f.sym} is ${w.zone} and ${w.vsVwap} VWAP, and the flow is buying: the strip has a long at ${P(f.entry)}.`;
+  }else if(f.type==='SELL'){
+    head=`${f.sym} is ${w.zone} and ${w.vsVwap} VWAP, and the flow is selling: the strip has a short at ${P(f.entry)}.`;
+  }else if(f.zone==='inside'){
+    head=`${f.sym} is ${w.zone}: no edge, so the strip says HOLD. Inside value there is no level to lean on.`;
+  }else{
+    head=`${f.sym} is ${w.zone} but nothing is confirmed — ${w.deltaWord} over six bars, so the strip says HOLD.`;
+  }
+
+  // ---- what the numbers say ----
+  if(f.va&&f.px!=null){
+    if(f.zone==='inside'){
+      see.push(`Price ${P(f.px)} sits between VAL ${P(f.va.low)} (${atrTxt(f.px-f.va.low)} above) and VAH ${P(f.va.high)} (${atrTxt(f.va.high-f.px)} below).`);
+    }else{
+      see.push(`Price ${P(f.px)} is ${atrTxt(f.edgeDist)} ${f.zone==='below'?'under VAL':'over VAH'} ${P(f.edge)}; the value area is ${P(f.va.low)}–${P(f.va.high)}.`);
+    }
+      if(f.poc&&f.poc.bot!=null) see.push(`The point of control — the most traded price of the window — is ${P((Number(f.poc.bot)+Number(f.poc.top))/2)}.`);
+  }
+  if(f.vwap) see.push(`Daily VWAP is ${P(f.vwap)}${f.px!=null?`, so the average buyer of the day is ${f.px>f.vwap?'in profit':'under water'}`:''}.`);
+  if(f.d6!=null){
+    const share=(f.dr!=null)?` (${Math.abs(f.dr*100).toFixed(0)}% of volume)`:'';
+    see.push(`Over the last six bars ${w.deltaWord}${share}: delta ${f.d6>0?'+':'−'}${fmtVol(Math.abs(f.d6))}.`);
+  }
+  if(f.cvd||f.buyPct!=null){
+    const bar=(f.lastBar!=null)?`, newest bar ${f.lastBar>0?'+':'−'}${fmtVol(Math.abs(f.lastBar))}`:'';
+    see.push(`Session totals: bought ${f.buyPct==null?'—':f.buyPct+'%'} / sold ${f.sellPct==null?'—':f.sellPct+'%'}, cumulative delta ${f.cvd>=0?'+':'−'}${fmtVol(Math.abs(f.cvd))}${bar}.`);
+  }
+  if(f.imb.length){
+    const big=f.imb.slice().sort((a,b)=>Math.abs(b.share)-Math.abs(a.share))[0];
+    see.push(`${f.imb.length} price row${f.imb.length>1?'s are':' is'} unbalanced; the strongest is ${P((Number(big.bot)+Number(big.top))/2)} at ${Math.abs(Math.round(big.share*100))}% one side.`);
+  }
+  if(f.slv&&f.slv.pdh!=null){
+    const rel=(p,n)=>p==null?'':`${n} ${P(p)}`;
+    see.push(`Yesterday: ${rel(f.slv.pdh,'PDH')}, ${rel(f.slv.pdc,'PDC')}, ${rel(f.slv.pdl,'PDL')}${f.px!=null&&f.slv.pdc!=null?` — price is ${f.px>f.slv.pdc?'above':'below'} the prior close, so the session is ${f.px>f.slv.pdc?'holding up':'on the back foot'}`:''}.`);
+  }
+  if(f.type!=='HOLD'&&f.risk!=null&&ATR&&f.entry!=null&&f.stop!=null){
+    see.push(`The printed stop is ${P(Math.abs(f.entry-f.stop))} away (${atrTxt(f.risk)}) and TP2 pays ${f.r!=null?f.r+'R':'—'}.`);
+  }
+
+  // ---- what would change it ----
+  if(f.va&&f.type==='HOLD'){
+    change.push(`A wick out of VAL ${P(f.va.low)} or VAH ${P(f.va.high)} that closes back inside prints the only trade this read is waiting for.`);
+  }
+  if(f.zone==='below'){
+    change.push(`A close back above VAL ${P(f.va.low)} with positive delta turns this from a bounce into a value re-entry.`);
+    change.push(`A close below the prior low ${f.slv&&f.slv.pdl?P(f.slv.pdl):'under the wick'} fails the bounce and the long idea goes with it.`);
+  }else if(f.zone==='above'){
+    change.push(`A close back under VAH ${P(f.va.high)} puts price inside value again and cancels the breakout idea.`);
+    change.push(`A close above the prior high ${f.slv&&f.slv.pdh?P(f.slv.pdh):'the wick'} with delta still positive keeps the break alive.`);
+  }else if(f.zone==='inside'){
+    change.push(`Acceptance above VAH ${P(f.va.high)} or below VAL ${P(f.va.low)} — two closes, not one wick — is what moves the read out of balance.`);
+  }
+  if(f.d6!=null) change.push(`If delta keeps printing against the signal side for two more bars, the strip drops to HOLD on its own.`);
+
+  // ---- checklist: the conditions the strategy needs, marked true, false or not-a-thing ----
+  if(f.zone==='inside'){
+    checks.push({ok:false,t:'price is away from both value edges, so there is no level to reject'});
+  }else if(f.edgeAtr!=null){
+    checks.push({ok:f.edgeAtr<=0.5,t:f.edgeAtr<=0.5?'price is within 0.5 ATR of the value edge':'price is '+(f.edgeAtr).toFixed(1)+' ATR from the edge — too far to call a rejection'});
+  }
+  if(f.d6!=null) checks.push({ok:(f.type==='BUY'&&f.d6>0)||(f.type==='SELL'&&f.d6<0),t:'six-bar delta is on the signal\'s side'});
+  if(f.type==='HOLD'){
+    checks.push({ok:false,t:'no trade printed, so there is no stop or reward to check'});
+  }else{
+    checks.push({ok:!!(f.risk!=null&&ATR&&f.risk<=1.5*ATR),t:'stop is inside 1.5 ATR'});
+    checks.push({ok:!!(f.r!=null&&f.r>=2),t:'reward is at least 2R'});
+  }
+  if(f.slv&&f.slv.pdc!=null&&f.px!=null&&f.type!=='HOLD'){
+    checks.push({ok:(f.type==='BUY'&&f.px>f.slv.pdc)||(f.type==='SELL'&&f.px<f.slv.pdc),t:'session is on the same side as the prior close'});
+  }
+
+  return {head,see,change,checks};
+}
+function aiAnswer(q,f){
+  const P=v=>fmtPx(v,f.dec), t=(q||'').toLowerCase(), A=[];
+  const has=(re)=>re.test(t);
+  if(!q||!q.trim()) return 'Ask about the value area, the delta, the trade, the levels, the risk or the trend.';
+  const dist=v=>P(Math.abs(v));
+  if(has(/stop|\bsl\b|risk of/)){
+    if(f.stop==null) return 'No stop is printed while the strip says HOLD — there is no trade to protect.';
+    A.push(`The stop is ${P(f.stop)}, ${dist(f.entry-f.stop)} from the entry at ${P(f.entry)}`+
+      (f.atr?` (${(Math.abs(f.entry-f.stop)/f.atr).toFixed(1)} ATR).`:'.'));
+    if(f.slv&&f.slv.pdl!=null&&f.type==='BUY') A.push(`That sits ${f.stop<f.slv.pdl?'below':'above'} the prior low ${P(f.slv.pdl)}, which is the level that would prove the bounce wrong.`);
+    return A.join(' ');
+  }
+  if(has(/target|tp1|tp2|reward|\br\b/)){
+    if(f.tp1==null) return 'Nothing to target while there is no trade. When the strip prints one, TP1 is the point of control and TP2 the far edge of value.';
+    return `TP1 is ${P(f.tp1)} and TP2 is ${P(f.tp2)}${f.r?`, which pays ${f.r}R against the printed stop`:''}. Take half at TP1 and let the rest run to TP2 — that ratio is what keeps the maths positive.`;
+  }
+  if(has(/bounce|reject|val\b|vah\b/)){
+    if(!f.va) return 'No value area yet for this market.';
+    A.push(`Value is ${P(f.va.low)} to ${P(f.va.high)} on this timeframe; POC is ${f.poc&&f.poc.bot!=null?P((Number(f.poc.bot)+Number(f.poc.top))/2):'—'}.`);
+    A.push(f.zone==='below'
+      ? `Price is ${P(f.edge-f.px)} under VAL. A bounce needs a wick below VAL and a close back inside${f.lastBar>0?', and the newest bar is buying':'; the newest bar is not buying yet'}.`
+      : f.zone==='above'
+        ? `Price is ${P(f.px-f.edge)} over VAH. The mirror trade is a wick above VAH that closes back inside — a sell.`
+        : `Price is inside value, so there is no edge to reject. The trade only appears when a wick reaches VAL or VAH and closes back.`);
+    return A.join(' ');
+  }
+  if(has(/trend|direction|bias|up|down/)){
+    A.push(`Cumulative delta is ${f.cvd>=0?'positive':'negative'} (${f.cvd>=0?'+':'-'}${fmtVol(Math.abs(f.cvd))}), which says aggressive ${f.cvd>=0?'buying':'selling'} leads the session.`);
+    if(f.d6!=null) A.push(`The last six bars lean ${f.d6>=0?'buy':'sell'} by ${fmtVol(Math.abs(f.d6))}.`);
+    if(f.vwap&&f.px!=null) A.push(`Price is ${f.px>f.vwap?'above':'below'} VWAP and ${f.zone==='inside'?'inside':f.zone} the value area.`);
+    A.push('Trend is not a prediction here — it is simply which side has been paying.');
+    return A.join(' ');
+  }
+  if(has(/level|pdh|pdl|pdc|prior|yesterday/)){
+    if(!f.slv) return 'Yesterday\'s levels are still loading. They come straight from the feed\'s own daily bars.';
+    return `Prior day: high ${P(f.slv.pdh)}, close ${P(f.slv.pdc)}, low ${P(f.slv.pdl)}, a ${fmtVol(f.slv.range)} range. `+
+      `Price is ${f.px>f.slv.pdc?'above':'below'} the prior close, ${f.px>f.slv.pdh?'and above the prior high — the break is holding':(f.px<f.slv.pdl?'and below the prior low — the break is holding the other way':'still inside yesterday\'s range')}.`;
+  }
+  if(has(/delta|cvd|volume|flow/)){
+    A.push(`Session delta is ${f.cvd>=0?'+':'-'}${fmtVol(Math.abs(f.cvd))} with ${f.buyPct}% bought and ${f.sellPct}% sold.`);
+    if(f.lastBar!=null) A.push(`The newest bar: ${f.lastBar>0?'+':'-'}${fmtVol(Math.abs(f.lastBar))}.`);
+    if(f.imb.length) A.push(`${f.imb.length} rows are one-sided — that is where one side got filled at that price.`);
+    return A.join(' ');
+  }
+  if(has(/why|hold|no trade|signal/)){
+    if(f.type==='HOLD') return `HOLD because ${f.zone==='inside'?'price is inside value — there is no edge to trade':(f.d6!=null?`six-bar delta is ${f.d6>0?'positive':'negative'} and nothing confirms a level rejection`:'no side is confirmed yet')}. The strategy waits for a rejection at VAL or VAH, not for a feeling.`;
+    return `${f.type} because price is ${f.zone} with ${f.d6!=null?(f.d6>0?'positive':'negative')+' six-bar delta':'unclear delta'}; the strip printed entry ${P(f.entry)}, stop ${P(f.stop)}, targets ${P(f.tp1)} and ${P(f.tp2)}.`;
+  }
+  if(has(/risky|volatil|atr|size/)){
+    if(!f.atr) return 'No ATR yet for this market.';
+    return `ATR is ${fmtVol(f.atr)} on this timeframe, so a normal bar moves about that much. `+
+      (f.risk?`The printed stop is ${(f.risk/f.atr).toFixed(1)} ATR away — if that is more than you want to lose, the trade is too big for your size.`:'With no trade printed there is no stop to size.');
+  }
+  return `I can only answer from the numbers on this page. Try: the value area, delta, the trade, the stop, the levels, the trend, or why it says ${f.type||'HOLD'}.`;
+}
+function aiExplainRemote(f){
+  // If the server has a model key, it narrates the same facts. Never required: the page
+  // already has its own answer, and this only replaces the headline when it arrives.
+  try{
+    const facts={symbol:f.sym,timeframe:f.tf,price:f.px,zone:f.zone,
+      value_area:f.va,point_of_control:f.poc,vwap:f.vwap,atr:f.atr,
+      cumulative_delta:f.cvd,six_bar_delta:f.d6,bought_pct:f.buyPct,sold_pct:f.sellPct,
+      last_bar_delta:f.lastBar,unbalanced_rows:f.imb.length,
+      signal:{type:f.type,entry:f.entry,stop:f.stop,tp1:f.tp1,tp2:f.tp2,risk:f.risk,r:f.r},
+      prior_day:f.slv?{high:f.slv.pdh,close:f.slv.pdc,low:f.slv.pdl,range:f.slv.range}:null};
+    return fetch('/api/ai/explain',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({facts:facts})})
+      .then(r=>r.ok?r.json():null)
+      .then(j=>(j&&j.engine==='model'&&j.text)?j:null).catch(()=>null);
+  }catch(e){return Promise.resolve(null);}
+}
+function openAIRead(){
+  const f=aiFacts();
+  if(!f.live){
+    openSheet('Market read','<div class="jn-empty">The feed is not up yet, so there is nothing honest to read. The panel fills in as soon as a quote lands.</div>');
+    return;
+  }
+  const r=aiRead(f);
+  const P=v=>fmtPx(v,f.dec);
+  const see=r.see.map(s=>'<li>'+esc(s)+'</li>').join('');
+  const change=r.change.map(s=>'<li>'+esc(s)+'</li>').join('');
+  const checks=r.checks.map(c=>'<span class="ai-c '+(c.ok?'ok':'no')+'">'+(c.ok?'✓':'·')+' '+esc(c.t)+'</span>').join('');
+  const body=
+    '<div class="ai-head"><div class="ai-k">'+esc(f.sym)+' · '+esc(f.tf)+' · reads the live numbers, never predicts</div>'
+    +'<p class="ai-h" id="ai-headline">'+esc(r.head)+'</p></div>'
+    +'<div class="ai-note" id="ai-engine">computed from this page · no model key configured</div>'
+    +'<div class="ai-sec"><h5>What the numbers say</h5><ul class="ai-list">'+see+'</ul></div>'
+    +'<div class="ai-sec"><h5>What would change the read</h5><ul class="ai-list ai-change">'+change+'</ul></div>'
+    +'<div class="ai-sec"><h5>The strategy\'s checklist</h5><div class="ai-checks">'+checks+'</div></div>'
+    +'<div class="ai-sec"><h5>Ask about this market</h5>'
+      +'<div class="ai-chips">'
+      +['Why this signal?','Is this a bounce?','Where is the stop?','What is the trend?','Which level matters?','Is it risky?'].map(q=>
+        '<button type="button" class="ai-chip" onclick="aiAsk('+JSON.stringify(q).replace(/"/g,'&quot;')+')">'+esc(q)+'</button>').join('')
+      +'</div>'
+      +'<div class="ai-askbar"><input id="ai-q" type="text" autocomplete="off" placeholder="ask about the levels, delta, the trade…" onkeydown="if(event.key===\'Enter\'){event.preventDefault();aiAsk(this.value);}">'
+      +'<button type="button" onclick="aiAsk(document.getElementById(\'ai-q\').value)">Ask</button></div>'
+      +'<div class="ai-a" id="ai-a" hidden></div>'
+    +'</div>'
+    +'<div class="ai-foot">Answers are assembled from the numbers on this page — value area, delta, ATR and the printed levels. No prediction, no advice, nothing invented. '+
+      (f.slv?'Yesterday\'s levels are the feed\'s own daily bars.':'')+'</div>';
+  openSheet('Market read', body);
+  // if a model is configured, its wording replaces the headline - the facts never move
+  aiExplainRemote(f).then(function(j){
+    if(!j) return;
+    const h=document.getElementById('ai-headline'), e=document.getElementById('ai-engine');
+    if(h) h.textContent=j.text;
+    if(e){ e.textContent='explained by '+j.model+' · same numbers, model wording'; e.classList.add('model'); }
+  });
+}
+function aiAsk(q){
+  const f=aiFacts();
+  const box=document.getElementById('ai-a');
+  if(!box||!f.live) return;
+  const a=aiAnswer(q,f);
+  box.hidden=false;
+  box.innerHTML='<b>'+esc((q||'').trim()||'Read')+'</b><span>'+esc(a)+'</span>';
+  const inp=document.getElementById('ai-q');
+  if(inp&&q&&!/^(Why this signal|Is this a bounce|Where is the stop|What is the trend|Which level matters|Is it risky)\?$/.test(q)) inp.value='';
+  box.scrollIntoView&&box.scrollIntoView({block:'nearest'});
+}
+
 function orderFlowRow(d){
   if(!d) return '';
   const cvd=Number(d.cvd||0), dt=Number(d.delta_total||0);
