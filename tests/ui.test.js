@@ -755,7 +755,14 @@ section('the chart carries real trading tools');
 
   // every fetch paints through the type-aware painter, live ticks too
   ok('candles go through paintSeries', /try\{paintSeries\(clean\);/.test(html));
-  ok('ticks go through updateSeries', /try\{updateSeries\(upd\);/.test(html));
+  ok('ticks go through the glide, not a raw jump', /glidePrice\(newPrice,lc\.time\)/.test(html)
+     && /function _glideStep\(now\)/.test(html) && /function glideReset\(\)/.test(html));
+  ok('a big jump or a new bar is painted at once, never eased', /Math\.abs\(price-_gShown\)>Math\.abs\(price\)\*0\.0025/.test(html)
+     && /if\(newBar\|\|newSym\|\|jump\|\|_glideReduced\(\)\)/.test(html));
+  ok('ticks repaint the overlays on a budget, pan and zoom do not wait', /function scheduleTickDraw\(\)/.test(html)
+     && /scheduleTickDraw\(\);/.test(html) && /60-\(performance\.now\(\)-_zLastAt\)/.test(html));
+  ok('the volume rows are bucketed, so jitter under 3 px rebuilds nothing', /Math\.round\(_a\/3\)/.test(html) && /Math\.round\(_b\/3\)/.test(html));
+  ok('the volume pass measures the alert card once, not per row', /_afBand/.test(html) && !/const _cr=_c\.getBoundingClientRect\(\), _plot/.test(html));
   ok('the tools are built once the chart exists', /initChartTools\(\);/.test(grab('createChart') || html.slice(html.indexOf('function createChart()'), html.indexOf('function createChart()+200'))) );
 
   // the maths is real

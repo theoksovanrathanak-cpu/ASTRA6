@@ -2860,7 +2860,7 @@ function drawOverlay(){
   if(svg.getAttribute('width')!==String(w)||svg.getAttribute('height')!==String(h)){
     svg.setAttribute('width',w);svg.setAttribute('height',h);svg.setAttribute('viewBox','0 0 '+w+' '+h);
   }
-  svg.style.height=h+'px';
+  if(svg.style.height!==h+'px') svg.style.height=h+'px';
   const ts=chart.timeScale();
   const X=function(t){return timeToX(t,ts);};
   const Y=function(p){let y=null;try{y=candleSeries.priceToCoordinate(p);}catch(e){}return y;};
@@ -3370,6 +3370,7 @@ function paintSeries(bars){
     }
   }catch(e){console.log('series err',e);}
   paintIndicators(bars);
+  try{glideReset();}catch(e){}        // fresh data paints in full; the glide restarts from it
 }
 function updateSeries(bar){
   if(!candleSeries||!bar)return;
@@ -3598,6 +3599,57 @@ function queueTick(d){
   });
   return true;
 }
+// ---- the chart glides, the numbers stay honest -------------------------------
+// Quotes land in steps (one or two a second) and repainting them raw is what makes a
+// chart look like it stutters. The last bar and its price line are eased towards the
+// newest real quote over ~180 ms, while every label (header, bid/ask, fallback) prints
+// that real quote the instant it arrives. A move bigger than 0.25%, a new bar, another
+// market or a reduced-motion user is painted straight away: easing a big jump would mean
+// showing prices that never happened.
+let _gTarget=null,_gShown=null,_gRaf=0,_gLast=0,_gBar=null,_gSym='';
+const GLIDE_TAU=70;                      // ~95% of the distance in 210 ms
+function _glideReduced(){
+  try{return !!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches);}catch(e){return false;}
+}
+function _glidePaint(close){
+  const lc=(lastCandles&&lastCandles.length)?lastCandles[lastCandles.length-1]:null;
+  if(!candleSeries||!lc) return;
+  try{
+    if(chartType==='line'||chartType==='area') candleSeries.update({time:lc.time,value:close});
+    else if(chartType==='heikin'){}
+    else candleSeries.update({time:lc.time,open:lc.open,
+      high:Math.max(lc.high,close),low:Math.min(lc.low,close),close:close});
+  }catch(e){}
+}
+function _glideStep(now){
+  _gRaf=0;
+  const lc=(lastCandles&&lastCandles.length)?lastCandles[lastCandles.length-1]:null;
+  if(!lc||_gTarget==null) return;
+  const dt=Math.min(64,Math.max(6,now-(_gLast||now)));
+  _gLast=now;
+  _gShown+=(_gTarget-_gShown)*(1-Math.exp(-dt/GLIDE_TAU));
+  const eps=Math.max(0.0005,Math.abs(_gTarget)*2e-6);
+  if(Math.abs(_gTarget-_gShown)<=eps){ _gShown=_gTarget; _glidePaint(_gShown); return; }  // land exactly on the real quote
+  _glidePaint(_gShown);
+  _gRaf=requestAnimationFrame(_glideStep);
+}
+function glidePrice(price, barTime){
+  if(price==null||!isFinite(price)||!candleSeries||!lastCandles.length) return;
+  const newBar=(_gBar!=null&&barTime!==_gBar);
+  const newSym=(_gSym!==currentSymbol);
+  _gBar=barTime; _gSym=currentSymbol;
+  const jump=(_gShown==null)||(Math.abs(price-_gShown)>Math.abs(price)*0.0025+1e-9);
+  if(newBar||newSym||jump||_glideReduced()){
+    if(_gRaf){cancelAnimationFrame(_gRaf);_gRaf=0;}
+    _gShown=_gTarget=price; _glidePaint(price); return;
+  }
+  _gTarget=price;
+  if(!_gRaf){ _gLast=performance.now(); _gRaf=requestAnimationFrame(_glideStep); }
+}
+function glideReset(){
+  if(_gRaf){try{cancelAnimationFrame(_gRaf);}catch(e){}_gRaf=0;}
+  _gTarget=null;_gShown=null;_gBar=null;_gSym=currentSymbol;
+}
 function applyTick(d){
   if(!d||d.status==='error') return false;
   const newPrice = (d.price!=null?d.price:d.mid);
@@ -3608,7 +3660,8 @@ function applyTick(d){
     if(priceEl.textContent!==txt){
       if(lastPrice!==0&&Math.abs(newPrice-lastPrice)>0.01){
         priceEl.style.color=newPrice>lastPrice?'var(--up)':'var(--down)';
-        setTimeout(()=>{priceEl.style.color='var(--ink)';},380);
+        clearTimeout(window._pxFlashT);
+        window._pxFlashT=setTimeout(()=>{priceEl.style.color='var(--ink)';},380);
       }
       priceEl.textContent=txt;
     }
@@ -3636,10 +3689,10 @@ function applyTick(d){
   if(fb)fb.textContent=fmtPx(newPrice);
   if(candleSeries&&lastCandles.length){
     const lc=lastCandles[lastCandles.length-1];
-    const upd={time:lc.time,open:lc.open,high:Math.max(lc.high,newPrice),low:Math.min(lc.low,newPrice),close:newPrice};
-    lastCandles[lastCandles.length-1]=upd;
-    try{updateSeries(upd);}catch(e){}
-    scheduleZoneDraw();
+    lastCandles[lastCandles.length-1]={time:lc.time,open:lc.open,
+      high:Math.max(lc.high,newPrice),low:Math.min(lc.low,newPrice),close:newPrice};
+    glidePrice(newPrice,lc.time);       // the bar eases to the tick, it does not hop to it
+    scheduleTickDraw();                 // the heavy overlays get their own, slower budget
   }
   return true;
 }
@@ -3813,7 +3866,7 @@ async function loadVenues(){
     if(opts){sel.innerHTML=opts;const def=(d.primary||'OANDA:XAUUSD');const has=[...sel.options].some(o=>o.value===currentVenue);sel.value=has?currentVenue:def;currentVenue=sel.value;}
   }catch(e){console.log('venues err',e);}
 }
-function setVenue(v){currentVenue=v;window._volume=null;startPriceStream();if(window._strategy==='volume')setTimeout(fetchVolume,300);localStorage.setItem('astra6_venue',v);localStorage.setItem('astra6_venue_gold',v);lastPrice=0;lastCandles=[];fetchFastPrice();fetchChart(currentTF);fetchTVCompare();}
+function setVenue(v){currentVenue=v;window._volume=null;startPriceStream();if(window._strategy==='volume')setTimeout(fetchVolume,300);localStorage.setItem('astra6_venue',v);localStorage.setItem('astra6_venue_gold',v);lastPrice=0;lastCandles=[];try{glideReset();}catch(e){}fetchFastPrice();fetchChart(currentTF);fetchTVCompare();}
 function setSymbol(sym){
   if(!MKT[sym]) sym='XAUUSD';
   if(sym===currentSymbol) return;
@@ -3821,6 +3874,7 @@ function setSymbol(sym){
   // blank the old market's candles at once: a switched chart must never show the previous
   // pair's price under the new pair's name while the feed is in flight
   lastCandles=[];lastPrice=0;window._zones=null;
+  try{glideReset();}catch(e){}
   try{if(candleSeries)candleSeries.setData([]);}catch(e){}
   // dim the plot and label the swap so a market change reads as a transition, not a glitch
   try{const _cv=document.getElementById('oanda_chart');if(_cv)_cv.classList.add('swapping');}catch(e){}
@@ -4059,8 +4113,11 @@ function drawVolume(){
       // so those must still repaint - only a genuinely identical frame is skipped
       let _vr='',_p1='',_p2='';
       try{const r=chart.timeScale().getVisibleLogicalRange();if(r)_vr=r.from.toFixed(3)+','+r.to.toFixed(3);}catch(e){}
+      // bucketed to 3 px: a shift smaller than that cannot be seen, so it must not
+      // trigger a rebuild of every row, meter and label
       try{const lc=lastCandles[lastCandles.length-1];
-          if(lc&&candleSeries){_p1=candleSeries.priceToCoordinate(lc.low);_p2=candleSeries.priceToCoordinate(lc.high);}}catch(e){}
+          if(lc&&candleSeries){const _a=candleSeries.priceToCoordinate(lc.low),_b=candleSeries.priceToCoordinate(lc.high);
+            if(_a!=null&&_b!=null){_p1=Math.round(_a/3);_p2=Math.round(_b/3);}}}catch(e){}
       const sig=[d.symbol,d.tf,d.bars_used,d.from,d.to,d.poc&&d.poc.bot,d.poc&&d.poc.top,
                  d.value_area&&d.value_area.low,d.value_area&&d.value_area.high,
                  box&&box.clientWidth,box&&box.clientHeight,_vr,_p1,_p2,
@@ -4142,6 +4199,15 @@ function drawVolume(){
     geo.push({r,top,hh:bot-top,isVah:near(r.top,va&&va.high),isVal:near(r.bot,va&&va.low)});
   }
 
+  // one layout read for the whole pass
+  let _afBand=null;
+  try{
+    const _c=document.getElementById('alert-float'), _p=document.getElementById('vwap-layer');
+    if(_c&&!_c.hidden&&_p){
+      const _cr=_c.getBoundingClientRect(), _pr=_p.getBoundingClientRect();
+      if(_pr.height) _afBand={top:_cr.top-_pr.top,bottom:_cr.bottom-_pr.top};
+    }
+  }catch(e){}
   _pool(gB,_VL.bands,geo.length,'rect');
   _pool(gB,_VL.meters,geo.length,'rect');
   const labels=[];
@@ -4168,15 +4234,10 @@ function drawVolume(){
     // only the three rows that matter carry text: the point of control and the two
     // edges of the value area. Every other row keeps its volume bar and says nothing.
     if((isPoc||g.isVah||g.isVal)&&g.hh>=5&&bw>110){
-      // don't print a level under the floating alert card: half-covered text is worse than none
-      const _c=document.getElementById('alert-float');
-      let covered=false;
-      if(_c&&!_c.hidden&&_c.getBoundingClientRect){
-        const _cr=_c.getBoundingClientRect(), _plot=document.getElementById('vwap-layer');
-        if(_plot){const _pr=_plot.getBoundingClientRect();
-          const yTop=g.top+_pr.top, yBot=yTop+g.hh;
-          covered=(yBot>_cr.top&&yTop<_cr.bottom&&_cr.bottom>_pr.top);}
-      }
+      // don't print a level under the floating alert card: half-covered text is worse than
+      // none. The card's box is measured once per pass, before any attribute is written,
+      // so the loop can never force a layout per row.
+      const covered=_afBand&&(g.top+g.hh>_afBand.top&&g.top<_afBand.bottom);
       if(!covered) labels.push({g,isPoc,isVah:g.isVah,isVal:g.isVal});
     }
   }
@@ -4288,13 +4349,23 @@ function drawVolume(){
 }
 
 // ---------- zone boxes: 15m = TARGET (solid) · 5m = ENTRY (thin dashed) ----------
-let _drawPending=false;
+let _drawPending=false,_zLastAt=0,_zTimer=0;
 function scheduleZoneDraw(){
   // drawings ride on the same repaint: data, ticks, resize and zoom all land here
   if(typeof scheduleDraw==='function')scheduleDraw();
   if(_drawPending)return;
   _drawPending=true;
-  requestAnimationFrame(()=>{_drawPending=false;drawZones();});
+  requestAnimationFrame(()=>{_drawPending=false;_zLastAt=performance.now();drawZones();});
+}
+// A quote is not a reason to rebuild a hundred SVG rows. Ticks ask for a redraw at most
+// sixteen times a second, always with a trailing one so the last state is never lost;
+// panning, zooming and new data still repaint on the very next frame.
+function scheduleTickDraw(){
+  if(typeof scheduleDraw==='function')scheduleDraw();
+  if(_zTimer||_drawPending) return;
+  const wait=Math.max(0,60-(performance.now()-_zLastAt));
+  if(wait<1){ scheduleZoneDraw(); return; }
+  _zTimer=setTimeout(function(){_zTimer=0;scheduleZoneDraw();},wait);
 }
 function zoneColor(side){return side==='demand'?(isDark()?'38,166,154':'16,185,129'):(isDark()?'239,83,80':'239,68,68');}
 function drawZones(){
