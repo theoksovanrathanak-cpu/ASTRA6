@@ -1296,7 +1296,8 @@ body[data-view="home"] .wrap{position:relative;overflow:hidden}
                    linear-gradient(180deg,var(--edge-1),var(--edge-2) 48%,var(--edge-3));
   background-origin:border-box;background-clip:padding-box,border-box;
   border-left:1px solid transparent;
-  -webkit-backdrop-filter:blur(22px) saturate(170%);backdrop-filter:blur(22px) saturate(170%);
+  /* no backdrop blur here: the sheet is opaque, so the blur only re-sampled the page
+     behind it on every scrolled row (measured 41 ms p90 inside this sheet) */
   box-shadow:-30px 0 70px -34px rgba(15,23,42,.6),inset 1px 0 0 rgba(255,255,255,.12);
 }
 [data-theme="dark"] .menu{box-shadow:-30px 0 80px -30px rgba(0,0,0,.9),inset 1px 0 0 rgba(255,255,255,.06)}
@@ -1765,7 +1766,11 @@ body[data-view="chart"] .hd-quote{left:auto;right:9px;bottom:2px;text-align:righ
   body[data-view="chart"] #mkt-float{top:40px}
 }
 </style>
-<script src="/static/vendor/lightweight-charts.js"></script>
+<!-- The chart engine is 156 KB. It used to sit in the middle of the document, so nothing
+     on the page could paint until it had been fetched and parsed. It is deferred now: the
+     shell paints immediately, and initChart() has always known how to pull it in on demand
+     if someone opens the chart before it has landed. -->
+<script defer src="/static/vendor/lightweight-charts.js"></script>
 <link rel="stylesheet" href="/static/ibm-plex-mono/fonts.css">
 <script>try{document.documentElement.setAttribute("data-theme",localStorage.getItem("astra6_theme")||"dark");}catch(e){}</script>
 </head>
@@ -8150,7 +8155,10 @@ applyTheme();document.getElementById('sound-btn')&&(document.getElementById('sou
 initClicks();document.addEventListener('DOMContentLoaded',initClicks);setTimeout(initClicks,500);
 setTimeout(()=>{renderMarketSwitch();fetchBoard();fetchDashboard();fetchLive();fetchFastPrice();},800);
 setInterval(updateTimeSmooth,500);updateTimeSmooth();
-setView('home');fitScreen();jnStats();loadCalendar();loadNews();netWatch();setTimeout(fitScreen,300);setTimeout(fitScreen,1200);startPriceStream();setInterval(fetchFastPrice,1500);setInterval(fetchOtherPrice,12000);
+// The economic calendar and the news wires are only ever shown inside the drawer, and
+// openMenu() already refreshes both. Loading them at boot meant two large responses and
+// their parsing competing with the chart on a phone, so boot no longer asks for them.
+setView('home');fitScreen();jnStats();netWatch();setTimeout(fitScreen,300);setTimeout(fitScreen,1200);startPriceStream();setInterval(fetchFastPrice,1500);setInterval(fetchOtherPrice,12000);
 setInterval(()=>{renderMarketSwitch();},60000);setInterval(()=>{if(window._strategy==='volume')fetchVolume();},20000);setInterval(fetchLive,10000);setInterval(()=>{fetchDashboard();},15000);
 document.getElementById('venue-select')?.addEventListener('change',e=>setVenue(e.target.value));
 loadVenues().then(()=>{if(currentSymbol==='XAUUSD')fetchTVCompare();});updateSymTabs();fetchOtherPrice();renderZoneAlerts();renderMarketSwitch();
