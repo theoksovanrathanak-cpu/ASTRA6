@@ -480,33 +480,28 @@ html.ua-nomotion .swap-bar i{animation:none;left:20%}
 .flow-line .of-chip.up{color:#12b981}
 .flow-line .of-chip.dn{color:#f4525f}
 .flow-line .of-more{color:var(--muted);font-weight:700;font-size:9.5px;margin-left:auto}
-.flow-row{display:flex;gap:6px;align-items:stretch;margin-top:8px}
-/* In the chart view the read card is a dock: it floats over the bottom of the plot instead
-   of taking a strip of the device away from the candles. One line, one tap to the ladder. */
-@media(max-width:720px){
-body[data-view="chart"] .flow-row{
-  margin:0;z-index:7;flex:0 0 auto;align-items:center;gap:6px;
-  padding:3px 8px calc(3px + env(safe-area-inset-bottom));
-  background:var(--surface);border-top:1px solid color-mix(in srgb,var(--line) 80%,transparent)}
-body[data-view="chart"] .flow-row .flow-line{
-  margin:0;padding:5px 9px;border-radius:10px;font-size:10px;gap:2px;
-  background:color-mix(in srgb,var(--surface) 93%,#000);
-  box-shadow:0 6px 16px -14px #000;max-height:30px;overflow:hidden}
-body[data-view="chart"] .flow-row .flow-line .of-row{flex-wrap:nowrap;overflow:hidden;white-space:nowrap;gap:6px}
-body[data-view="chart"] .flow-row .flow-line .of-row>span:not(.of-lock):not(.of-chip){min-width:0;overflow:hidden;text-overflow:ellipsis}
-body[data-view="chart"] .flow-row .flow-line .of-row>span:nth-child(2){flex:1 1 auto}
-body[data-view="chart"] .flow-row .flow-line .of-row>b,body[data-view="chart"] .flow-row .of-lock,
-body[data-view="chart"] .flow-row .of-chip{flex:0 0 auto}
-body[data-view="chart"] .flow-row .flow-line .of-row:nth-of-type(2){display:none}
-body[data-view="chart"] .flow-row .flow-ai{pointer-events:auto;width:34px;border-radius:10px}
-body[data-view="chart"] .flow-row .flow-ai svg{width:14px;height:14px}
-}
-@media(min-width:721px){body[data-view="chart"] .flow-row{margin-top:6px}}
-.flow-row .flow-line{margin-top:0;flex:1 1 auto;min-width:0}
-.flow-ai{flex:0 0 auto;width:46px;border-radius:11px;border:1px solid color-mix(in srgb,var(--a-violet) 40%,var(--line));
-  background:linear-gradient(160deg,color-mix(in srgb,var(--a-violet) 26%,transparent),color-mix(in srgb,var(--a-cyan) 18%,transparent));
-  color:var(--ink);font-size:15px;line-height:1;cursor:pointer;font-family:inherit;-webkit-tap-highlight-color:transparent}
-.flow-ai:active{transform:scale(.97)}
+/* The trade read used to be a dock under the plot. It is a card in the menu now: nothing
+   sits between the candles and the phone's own navigation any more. */
+.menu-flow{width:100%;margin:6px 0 2px;padding:10px 11px 9px;border-radius:12px;gap:6px;
+  font-size:11px;cursor:default;background:color-mix(in srgb,var(--surface) 90%,#000);
+  border:1px solid color-mix(in srgb,var(--a-violet) 30%,var(--line));
+  box-shadow:inset 2px 0 0 color-mix(in srgb,var(--a-violet) 55%,transparent)}
+.menu-flow:hover{border-color:color-mix(in srgb,var(--a-violet) 30%,var(--line))}
+.menu-flow .of-row{gap:6px 8px;align-items:flex-start}
+.menu-flow .of-row:first-of-type>span:first-of-type{
+  flex:1 1 130px;min-width:0;font-size:11px;line-height:1.45;font-weight:600;color:var(--ink-2);
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.menu-flow .of-row>span:not(.of-lock):not(.of-chip):not(.flow-k){min-width:0}
+.menu-flow b{font-size:12.5px;padding:2px 7px;border-radius:7px;line-height:1.35}
+.menu-flow b.buy{background:rgba(18,185,129,.14);border:1px solid rgba(18,185,129,.42)}
+.menu-flow b.sell{background:rgba(244,82,95,.14);border:1px solid rgba(244,82,95,.42)}
+.menu-flow b.hold{background:color-mix(in srgb,var(--line) 60%,transparent);border:1px solid var(--line)}
+.menu-flow .of-lock{flex:0 0 auto;max-width:100%;align-self:flex-start;text-transform:none;font-weight:800}
+/* the numbers already sit under the card in the menu (CVD · Δ · levels): one owner */
+.menu-flow .of-row:nth-of-type(2){display:none}
+.mz-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
+.mz-row .chip{height:30px;font-size:11px}
+.mz-row .chip.on{background-image:linear-gradient(140deg,var(--a-violet),#6d5cf0);color:#fff;border-color:transparent}
 
 .ai-head{padding:2px 0 10px;border-bottom:1px solid var(--line-soft);margin-bottom:10px}
 .ai-k{font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:800}
@@ -789,7 +784,7 @@ body[data-view="signal"] #hero-signal{position:relative}
 [data-theme="dark"] .gf-story{background:var(--hold-bg)}
 .gf-story:hover{background:var(--line-soft)}
 .gf-side{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:3px;padding-top:1px}
-.gf-tag{font:900 8.5px/1 ui-sans-serif,system-ui,sans-serif;letter-spacing:.06em;padding:4px 5px;border-radius:5px;
+.gf-tag{flex:0 0 auto;font:900 8.5px/1 ui-sans-serif,system-ui,sans-serif;letter-spacing:.06em;padding:4px 5px;border-radius:5px;
   color:#04120a;background:#12b981}
 .gf-tag.sell{color:#1a0507;background:#f4525f}
 .gf-tag.hold{color:#141414;background:#94a3b8}
@@ -1615,7 +1610,6 @@ body[data-view="home"] .wrap{position:relative;overflow:hidden}
 .mv-sym{font:inherit;font-size:10.5px;font-weight:800;letter-spacing:.3px;color:#fff;background:none;border:0;cursor:pointer;padding:0}
 .mv-px{margin-left:auto;font-size:10px;color:var(--muted)}
 .mv-chart{flex:1;min-height:0}
-body[data-lay="2"] .flow-row,body[data-lay="4"] .flow-row,
 body[data-lay="2"] .meta-row,body[data-lay="4"] .meta-row{display:none}
 .mkt-foot{padding:7px 2px 1px;border-top:1px solid rgba(255,255,255,.07);margin-top:6px}
 .mkt-wl{width:100%;padding:7px;border-radius:8px;font:inherit;font-size:10.5px;font-weight:700;cursor:pointer;
@@ -1791,7 +1785,7 @@ body[data-view="chart"] #oanda_chart{flex:1 1 auto;min-height:0;height:auto}
 /* Full screen. Where the browser allows element fullscreen the page really goes full
    screen; where it does not (iPhone Safari, in-app WebViews) the same layout runs without
    the browser's chrome: header, phone nav and the read dock give their space to the chart. */
-body.chart-full .hd,body.chart-full #bnav,body.chart-full .flow-row,
+body.chart-full .hd,body.chart-full #bnav,
 body.chart-full .foot,body.chart-full .meta-row{display:none!important}
 body.chart-full .wrap,body.chart-full[data-view="chart"] .wrap{
   height:var(--app-h)!important;min-height:0!important;max-width:none;padding:0;margin:0}
@@ -1810,8 +1804,6 @@ body.chart-full #ctb-full{background:rgba(41,98,255,.30);border-color:rgba(96,16
 @media (max-height:520px) and (orientation:landscape){
   .hd-in{padding-top:4px!important;padding-bottom:4px!important}
   .brand-sub,.hd .brand-name{display:none}
-  body[data-view="chart"] .flow-row{bottom:6px}
-  body[data-view="chart"] .flow-row .flow-line{max-height:28px;font-size:9.5px}
 }
 @media(max-width:620px){
   #rail-toggle{left:5px;top:108px;width:32px;height:32px;border-radius:10px}
@@ -2046,10 +2038,28 @@ body[data-view="chart"] .hd-quote{left:auto;right:9px;bottom:2px;text-align:righ
   </div>
 
   <div class="menu-sec">
-    <div class="menu-label">Order flow</div>
+    <div class="menu-label">Strategy · this chart</div>
+    <div id="flow-line" class="flow-line menu-flow" role="status" aria-live="polite" hidden></div>
     <div class="menu-hint" id="of-menu-mini" style="font-family:ui-monospace,monospace">reading the volume…</div>
-    <button class="chip" style="width:100%;justify-content:center;margin-top:8px" onclick="closeMenu();openOrderFlow()">Open the full ladder</button>
-    <button class="chip" style="width:100%;justify-content:center;margin-top:6px" onclick="closeMenu();openAIRead()">Ask for a market read</button>
+    <div class="menu-btns">
+      <button class="chip" onclick="closeMenu();openOrderFlow()">Full ladder</button>
+      <button class="chip" onclick="closeMenu();openAIRead()">Market read ✦</button>
+    </div>
+  </div>
+
+  <div class="menu-sec">
+    <div class="menu-label">Strategy overlay</div>
+    <div class="menu-hint">How the trade boxes stick to the candles.</div>
+    <div class="mz-row" id="mz-presets">
+      <button class="chip" data-zp="clean" onclick="setZoneStyle({preset:'clean'})">Clean</button>
+      <button class="chip" data-zp="bold" onclick="setZoneStyle({preset:'bold'})">Bold</button>
+      <button class="chip" data-zp="minimal" onclick="setZoneStyle({preset:'minimal'})">Minimal</button>
+    </div>
+    <div class="mz-row" id="mz-toggles">
+      <button class="chip" data-zt="labels" onclick="setZoneStyle({labels:!zoneStyle().labels})">Labels</button>
+      <button class="chip" data-zt="fill" onclick="setZoneStyle({fill:zoneStyle().fill==='none'?'soft':(zoneStyle().fill==='soft'?'solid':'none')})">Fill</button>
+      <button class="chip" data-zt="extend" onclick="setZoneStyle({extend:!zoneStyle().extend})">Extend</button>
+    </div>
   </div>
 
   <div class="menu-sec" id="menu-alerts-sec">
@@ -2269,10 +2279,6 @@ body[data-view="chart"] .hd-quote{left:auto;right:9px;bottom:2px;text-align:righ
       <!-- the phone nav lives outside the chart shell: contain:layout would otherwise
            make it position itself against the plot instead of the device -->
 
-    </div>
-    <div class="flow-row">
-      <button id="flow-line" class="flow-line" type="button" hidden onclick="openOrderFlow()" aria-label="Open the full order flow"></button>
-      <button id="flow-ai" class="flow-ai" type="button" hidden onclick="openAIRead()" aria-label="Market read: what the numbers say" title="Market read">✦</button>
     </div>
     <div class="meta-row">
       <span>ASTRA6 chart · <span id="chart-info-tf">M1</span> · <span id="chart-candle-count">--</span> · <span class="ok" id="chart-source">connecting</span></span>
@@ -3523,6 +3529,7 @@ function openMenu(){
   try{paintInstall();}catch(e){}
   if(typeof loadCalendar==='function'){ loadCalendar(); }
   if(typeof loadGoldFundamentals==='function'){ loadGoldFundamentals(); }
+  if(typeof paintZoneStyleChips==='function'){ paintZoneStyleChips(); }
   const m=document.getElementById('menu'), s=document.getElementById('scrim'), b=document.getElementById('burger');
   if(m)m.classList.add('open');
   if(s)s.classList.add('on');
@@ -5625,6 +5632,7 @@ function motionBegin(){
   clearTimeout(_gestEndTimer);
   if(_gestActive){ return; }
   _gestActive=true; _gestPaintAt=0; _mGestAt=0;
+  window._userPanned=true;    // the opening fit belongs to the first paint, not to a reader
   document.documentElement.classList.add('is-panning');
   // Freeze the price scale while the finger is down. With auto-scale on, every frame of a
   // horizontal pan re-fits the visible high/low, so the candles also slide vertically and
@@ -5984,6 +5992,7 @@ try{setTimeout(function(){try{alertIndTick();}catch(e){}},900);
       const px=(typeof CHART_VIEW!=='undefined'&&CHART_VIEW.bars)?CHART_VIEW.bars:11;
       return Math.max(10,Math.min(400,Math.round((w-56)/px)));};
     const _fit=()=>{try{
+      if(window._userPanned) return;      // a hand on the plot outranks the opening view
       const n=clean.length, show=Math.min(n,_want());
       rangeLock(900);
       chart.timeScale().setVisibleLogicalRange({from:n-show-0.5,to:n+2.5});
@@ -6697,6 +6706,10 @@ function drawVolume(){
   }
   const ts=chart.timeScale();
   const plotW=(typeof ts.width==='function'?ts.width():w-64);
+  const ST=zoneStyle();
+  const bandA=(ST.fill==='none')?0.018:(ST.fill==='solid'?0.085:0.032);
+  const meterK=(ST.fill==='none')?0.16:(ST.fill==='solid'?0.46:0.30);
+  const meterW=(ST.fill==='solid')?0.15:0.11;
 
   // The cluster is pinned to the candles it was measured from. The server sends the
   // first and last bar time of the profile, in the same timeframe as the chart, so the
@@ -6775,20 +6788,20 @@ function drawVolume(){
     b.setAttribute('y',g.top.toFixed(1));
     b.setAttribute('width',bw.toFixed(1));
     b.setAttribute('height',g.hh.toFixed(1));
-    b.setAttribute('fill',pos?'rgba(13,148,136,0.032)':'rgba(239,68,68,0.03)');
+    b.setAttribute('fill',pos?'rgba(13,148,136,'+bandA+')':'rgba(239,68,68,'+bandA+')');
     b.setAttribute('stroke',isPoc?'#f59e0b':'none');
     b.setAttribute('stroke-width',isPoc?'1.6':'0');
     // volume meter hugging the left edge of the cluster
-    const m=_VL.meters[i], ml=Math.max(1.5,bw*0.11*((r.total||0)/maxTot));
+    const m=_VL.meters[i], ml=Math.max(1.5,bw*meterW*((r.total||0)/maxTot));
     if(m.getAttribute('data-role')!=='meter') m.setAttribute('data-role','meter');
     m.setAttribute('x',(xL+1).toFixed(1));
     m.setAttribute('y',g.top.toFixed(1));
     m.setAttribute('width',ml.toFixed(1));
     m.setAttribute('height',g.hh.toFixed(1));
-    m.setAttribute('fill',pos?'rgba(13,148,136,0.30)':'rgba(239,68,68,0.27)');
+    m.setAttribute('fill',pos?'rgba(13,148,136,'+meterK+')':'rgba(239,68,68,'+meterK+')');
     // only the three rows that matter carry text: the point of control and the two
     // edges of the value area. Every other row keeps its volume bar and says nothing.
-    if((isPoc||g.isVah||g.isVal)&&g.hh>=5&&bw>110){
+    if(ST.labels&&(isPoc||g.isVah||g.isVal)&&g.hh>=5&&bw>110){
       // don't print a level under the floating alert card: half-covered text is worse than
       // none. The card's box is measured once per pass, before any attribute is written,
       // so the loop can never force a layout per row.
@@ -7082,11 +7095,22 @@ function paintSMC(){
   const Y=function(p){let y=null;try{y=candleSeries.priceToCoordinate(p);}catch(e){}return y;};
   let out='';
   const d=_smcCache;
+  const ST=zoneStyle();
+  // a label may never sit on the price axis: that axis is the reader's own scale
+  const _plotW=(typeof ts.width==='function'?ts.width():w-56)-3;
+  // a label is a small tab, not a floating word: it carries its own background so it stays
+  // readable over a candle body, and it never grows past the plot edge
   const lab=function(x,y,text,c,anchor){
-    if(x==null||y==null)return '';
-    return '<text x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" fill="'+c+'" font-size="8.6" font-weight="800" '+
-      'font-family="ui-monospace,SFMono-Regular,Menlo,monospace" text-anchor="'+(anchor||'start')+'" '+
-      'paint-order="stroke" stroke="rgba(6,8,14,.85)" stroke-width="2.4">'+esc(text)+'</text>';
+    if(x==null||y==null) return '';
+    const txt=esc(text), tw=txt.length*5.05+11, th=13.6;
+    let x0=(anchor==='end')?x-tw:x;
+    x0=Math.max(4,Math.min(Math.max(4,_plotW-tw-2),x0));
+    const y0=y-th/2;
+    return '<g pointer-events="none">'
+      +'<rect x="'+x0.toFixed(1)+'" y="'+y0.toFixed(1)+'" width="'+tw.toFixed(1)+'" height="'+th+'" rx="'+(th/2)+'" '
+      +'fill="'+c+'" fill-opacity=".16" stroke="'+c+'" stroke-opacity=".55" stroke-width=".8"/>'
+      +'<text x="'+(x0+tw/2).toFixed(1)+'" y="'+(y0+th/2+3.1).toFixed(1)+'" fill="'+c+'" font-size="8.4" font-weight="800" '
+      +'font-family="ui-monospace,SFMono-Regular,Menlo,monospace" text-anchor="middle">'+txt+'</text></g>';
   };
   const lastT=lastCandles[lastCandles.length-1].time;
   const lastX=X(lastT);
@@ -7097,38 +7121,53 @@ function paintSMC(){
   }catch(e){}
   const edge=(lastX==null?w:Math.min(w,lastX+_bp));
   const usedLab=[];
-  const freeLab=function(y){return usedLab.every(function(u){return Math.abs(u-y)>11;});};
+  const freeLab=function(y){return usedLab.every(function(u){return Math.abs(u-y)>15;});};
   (d.zones||[]).forEach(function(z){
     const xa=Math.max(0,Math.min(X(z.t1)||0,w));
-    const xb=(z.t2>=lastT)?edge:Math.max(xa,Math.min(X(z.t2)||0,edge));
+    const _stop=(ST.extend||lastX==null)?edge:Math.max(0,Math.min(lastX,edge));
+    const xb=(z.t2>=lastT)?_stop:Math.max(xa,Math.min(X(z.t2)||0,edge));
     const yA=Y(z.p1),yB=Y(z.p2);
     if(yA==null||yB==null)return;
     const y=Math.min(yA,yB),hh=Math.max(1.5,Math.abs(yB-yA));
-    out+='<rect x="'+xa.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+Math.max(1,xb-xa).toFixed(1)+
-      '" height="'+hh.toFixed(1)+'" fill="'+z.c+'" fill-opacity=".07" stroke="'+z.c+
-      '" stroke-opacity=".3" stroke-width="1"'+(z.k==='ob'?' stroke-dasharray="4 3"':'')+'/>';
-    if(z.label&&freeLab(y-3)){usedLab.push(y-3);out+=lab(xb+4,y+3,z.label,z.c);}
+    const bw=Math.max(1,xb-xa), fat=ST.fill==='solid';
+    // a box a few pixels wide with a full-height spine reads as a bright bar, not as a zone
+    const thin=bw<16;
+    const fa0=ST.fill==='none'?0:(fat?.13:.07);
+    const fa=hh>120?fa0*0.55:fa0;
+    if(ST.glow&&fat&&!thin){
+      out+='<rect x="'+(xa-1).toFixed(1)+'" y="'+(y-1).toFixed(1)+'" width="'+(bw+2).toFixed(1)+'" height="'+(hh+2).toFixed(1)+
+        '" rx="4" fill="none" stroke="'+z.c+'" stroke-opacity=".16" stroke-width="5"/>';
+    }
+    out+='<rect x="'+xa.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+bw.toFixed(1)+
+      '" height="'+hh.toFixed(1)+'" rx="'+(hh>7?4:2)+'" fill="'+z.c+'" fill-opacity="'+fa+'" stroke="'+z.c+
+      '" stroke-opacity="'+(fat?.55:.34)+'" stroke-width="'+ST.stroke+'"'+
+      (ST.dash||z.k==='ob'?' stroke-dasharray="'+(ST.dash==='dash'?'5 4':'4 3')+'"':'')+'/>';
+    if(ST.fill!=='none'&&hh>=5&&!thin){
+      out+='<rect x="'+xa.toFixed(1)+'" y="'+(y+0.6).toFixed(1)+'" width="'+ST.spine+'" height="'+Math.max(2,hh-1.2).toFixed(1)+
+        '" rx="'+(ST.spine/2)+'" fill="'+z.c+'" fill-opacity=".8"/>';
+    }
+    if(ST.labels&&z.label&&freeLab(y-3)){usedLab.push(y-3);out+=lab(xb-2,y+7,z.label,z.c,'end');}
   });
   (d.sess||[]).forEach(function(z){
     const x1=X(z.t1),x2=X(z.t2),yA=Y(z.p1),yB=Y(z.p2);
     if(x1==null||x2==null||yA==null||yB==null)return;
     out+='<rect x="'+x1.toFixed(1)+'" y="'+Math.min(yA,yB).toFixed(1)+'" width="'+Math.max(2,x2-x1).toFixed(1)+
-      '" height="'+Math.max(2,Math.abs(yB-yA)).toFixed(1)+'" fill="'+z.c+'" fill-opacity=".035" stroke="'+z.c+
-      '" stroke-opacity=".18" stroke-width="1"/>';
-    if(freeLab(Math.min(yA,yB)-3)){usedLab.push(Math.min(yA,yB)-3);out+=lab(x1+3,Math.min(yA,yB)-3,z.label,z.c);}
+      '" height="'+Math.max(2,Math.abs(yB-yA)).toFixed(1)+'" rx="3" fill="'+z.c+'" fill-opacity="'+(ST.fill==='none'?0:.04)+'" stroke="'+z.c+
+      '" stroke-opacity=".2" stroke-width="'+Math.min(1.2,ST.stroke)+'"/>';
+    if(ST.labels&&freeLab(Math.min(yA,yB)-3)){usedLab.push(Math.min(yA,yB)-3);out+=lab(x1+3,Math.min(yA,yB)-3,z.label,z.c);}
   });
   (d.lines||[]).forEach(function(l){
     const x1=X(l.t1),x2=X(l.t2),y1=Y(l.p1),y2=Y(l.p2);
     if(x1==null||x2==null||y1==null||y2==null)return;
     out+='<line x1="'+x1.toFixed(1)+'" y1="'+y1.toFixed(1)+'" x2="'+(l.plain?w:x2).toFixed(1)+'" y2="'+y2.toFixed(1)+
       '" stroke="'+l.c+'" stroke-width="'+(l.dash?1.2:1.5)+'" stroke-opacity=".75"'+(l.dash?' stroke-dasharray="5 4"':'')+'/>';
-    if(l.label&&freeLab(y2-4)){usedLab.push(y2-4);out+=lab(l.plain?6:x2+4,y2-4,l.label,l.c);}
+    if(ST.labels&&l.label&&freeLab(y2-4)){usedLab.push(y2-4);out+=lab(l.plain?78:x2+4,y2-4,l.label,l.c);}
   });
   (d.marks||[]).forEach(function(m){
     const x=X(m.t),y=Y(m.p);
     if(x==null||y==null)return;
     out+='<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="2.4" fill="'+m.c+'"/>';
-    if(freeLab(y-5)){usedLab.push(y-5);out+=lab(x+5,y-5,m.text,m.c);}
+    if(ST.labels&&freeLab(y-5)){usedLab.push(y-5);out+=lab(x+5,y-5,m.text,m.c);}
   });
   if(svg.innerHTML!==out)svg.innerHTML=out;
 }
@@ -7152,6 +7191,51 @@ function scheduleTickDraw(){
   _zTimer=setTimeout(function(){_zTimer=0;scheduleZoneDraw();},wait);
 }
 function zoneColor(side){return side==='demand'?(isDark()?'38,166,154':'16,185,129'):(isDark()?'239,83,80':'239,68,68');}
+// ---------- how the trade boxes are painted ----------
+// Three presets and three switches, saved on the device. The boxes are the strategy's own
+// levels, so they are drawn as a band with a spine and a price tab - not as two rectangles
+// that look like a drawing tool.
+function zonePresets(){
+  return {
+    clean:  {fill:'soft',  stroke:1.6, spine:3, labels:true,  extend:true,  glow:false, dash:''},
+    bold:   {fill:'solid', stroke:2.2, spine:4, labels:true,  extend:true,  glow:true,  dash:''},
+    minimal:{fill:'none',  stroke:1.0, spine:2, labels:false, extend:true,  glow:false, dash:'dash'}
+  };
+}
+function zoneStyle(){
+  const P=zonePresets();
+  if(window._zoneStyle) return window._zoneStyle;
+  let saved=null;
+  try{ saved=JSON.parse(localStorage.getItem('astra6_zstyle')||'null'); }catch(e){}
+  const preset=(saved&&P[saved.preset])?saved.preset:'clean';
+  window._zoneStyle=Object.assign({preset:preset},P[preset],saved||{});
+  window._zoneStyle.preset=preset;
+  return window._zoneStyle;
+}
+function setZoneStyle(patch){
+  const P=zonePresets(), cur=Object.assign({},zoneStyle()), next=Object.assign(cur,patch||{});
+  // only a preset request resets the other fields - a switch keeps the preset's look
+  if(patch&&patch.preset&&P[patch.preset]) Object.assign(next,P[patch.preset],{preset:patch.preset});
+  window._zoneStyle=next;
+  try{ localStorage.setItem('astra6_zstyle',JSON.stringify(next)); }catch(e){}
+  paintZoneStyleChips();
+  try{ window._volForceDraw=true; }catch(e){}
+  try{ paintSMC(); }catch(e){}
+  try{ drawVolume(); }catch(e){}
+  try{ drawZones(); }catch(e){}
+  return next;
+}
+function paintZoneStyleChips(){
+  const st=zoneStyle();
+  document.querySelectorAll('#mz-presets .chip').forEach(b=>b.classList.toggle('on',b.getAttribute('data-zp')===st.preset));
+  document.querySelectorAll('#mz-toggles .chip').forEach(b=>{
+    const k=b.getAttribute('data-zt');
+    const on=k==='labels'?!!st.labels:(k==='fill'?(st.fill!=='none'):!!st.extend);
+    const txt=k==='labels'?'Labels':(k==='fill'?('Fill · '+st.fill):'Extend');
+    b.textContent=k==='extend'?'Extend right':txt;
+    b.classList.toggle('on',on);
+  });
+}
 // ---------- session levels: the context a rejection trade needs ----------
 // Prior-day high / low / close and the overnight range, all computed from the feed's own
 // bars. Nothing here is typed in by hand: the day is a UTC calendar day, "overnight" is
@@ -7297,19 +7381,41 @@ function drawZones(){
   const xLast=ts.timeToCoordinate(lastT);
   const xEnd=Math.min(plotW-2,(xLast==null?plotW-40:xLast)+46);
   const px=lastPrice||(lastCandles.length?lastCandles[lastCandles.length-1].close:0);
+  const ST=zoneStyle(), dark=isDark();
+  const cD=zoneColor('demand'), cS=zoneColor('supply');
+  const grad=(id,c,a1,a2)=>`<linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1">`
+    +`<stop offset="0" stop-color="rgb(${c})" stop-opacity="${a1}"/>`
+    +`<stop offset="1" stop-color="rgb(${c})" stop-opacity="${a2}"/></linearGradient>`;
+  const defs='<defs>'+grad('zgDs',cD,.30,.07)+grad('zgDm',cD,.52,.16)
+                    +grad('zgSs',cS,.30,.07)+grad('zgSm',cS,.52,.16)+'</defs>';
   let out='',labelY=-99;
   const near=(a,b)=>Math.min(Math.abs(a.top-px),Math.abs(a.bot-px))-Math.min(Math.abs(b.top-px),Math.abs(b.bot-px));
+  const tab=(txt,c,xr,y,h,tone)=>{
+    const wpx=Math.max(38,txt.length*4.9+13);
+    const x0=xr-wpx;
+    return `<rect x="${x0.toFixed(1)}" y="${(y-h/2).toFixed(1)}" width="${wpx.toFixed(1)}" height="${h.toFixed(1)}" rx="${(h/2).toFixed(1)}"`
+      +` fill="rgb(${c})" fill-opacity="${tone===2?.9:.16}" stroke="rgb(${c})" stroke-opacity="${tone===2?.9:.5}"/>`
+      +`<text x="${(xr-6.5).toFixed(1)}" y="${(y+2.9).toFixed(1)}" text-anchor="end" font-family="ui-monospace,monospace"`
+      +` font-size="8.4" font-weight="800" letter-spacing=".3" fill="${tone===2?(dark?'#06110d':'#ffffff'):`rgb(${c})`}">${txt}</text>`;
+  };
 
-  // 5m ENTRY boxes first (thin, dashed, quiet)
+  // 5m ENTRY boxes: a quiet dashed band with its own tag - the level the trade waits at
   entries.slice().sort(near).slice(0,4).forEach(z=>{
     const y1=candleSeries.priceToCoordinate(z.top),y2=candleSeries.priceToCoordinate(z.bot);
     if(y1==null||y2==null)return;
     let x1=ts.timeToCoordinate(z.from); if(x1==null)x1=xEnd-160;
-    const c=zoneColor(z.side),top=Math.min(y1,y2),hgt=Math.max(1.5,Math.abs(y2-y1));
-    out+=`<rect x="${x1.toFixed(1)}" y="${top.toFixed(1)}" width="${Math.max(4,xEnd-x1).toFixed(1)}" height="${hgt.toFixed(1)}" rx="2" fill="none" stroke="rgba(${c},.55)" stroke-width="1" stroke-dasharray="3 3"></rect>`;
+    const c=zoneColor(z.side),top=Math.min(y1,y2),hgt=Math.max(3,Math.abs(y2-y1));
+    const w=Math.max(8,xEnd-x1), r=Math.min(7,hgt/2);
+    out+=`<rect x="${x1.toFixed(1)}" y="${top.toFixed(1)}" width="${w.toFixed(1)}" height="${hgt.toFixed(1)}" rx="${r.toFixed(1)}"`
+      +` fill="rgb(${c})" fill-opacity="${ST.fill==='none'?0:(dark?.05:.06)}"`
+      +` stroke="rgb(${c})" stroke-opacity=".62" stroke-width="${(ST.stroke*0.85).toFixed(1)}" stroke-dasharray="5 4"/>`;
+    if(ST.labels&&hgt>=9){
+      out+=tab('ENTRY '+((z.top+z.bot)/2).toFixed(2),c,x1+w-3,top+hgt/2,Math.min(15,Math.max(12,hgt-2)),1);
+    }
   });
 
-  // 15m TARGET boxes (solid) — nearest + tested first
+  // 15m TARGET boxes: the trade's own band - gradient body, a solid spine on the left and a
+  // price tab on the right that names the side. Nearest and already-tested first.
   const keep=[];
   targets.slice().sort((a,b)=>near(a,b)).forEach(z=>{
     if(keep.some(k=>k.side===z.side&&Math.min(k.top,z.top)-Math.max(k.bot,z.bot)>=-Math.min(k.top-k.bot,z.top-z.bot)*0.55))return;
@@ -7319,16 +7425,28 @@ function drawZones(){
     const y1=candleSeries.priceToCoordinate(z.top),y2=candleSeries.priceToCoordinate(z.bot);
     if(y1==null||y2==null)return;
     let x1=ts.timeToCoordinate(z.from); if(x1==null)x1=xEnd-240;
-    const c=zoneColor(z.side),top=Math.min(y1,y2),hgt=Math.max(2,Math.abs(y2-y1));
-    const tested=z.touches>0;
-    out+=`<rect x="${x1.toFixed(1)}" y="${top.toFixed(1)}" width="${Math.max(4,xEnd-x1).toFixed(1)}" height="${hgt.toFixed(1)}" rx="2" fill="${hgt<5?'none':`rgba(${c},${tested?(isDark()?0.11:0.14):(isDark()?0.05:0.07)})`}" stroke="rgba(${c},${tested?0.9:0.55})" stroke-width="1" ${z.state==='WEAK'?'stroke-dasharray="4 3"':''}></rect>`;
-    const ly=top+9;
-    if(hgt>=12&&Math.abs(ly-labelY)>=13&&xEnd-x1>74){
+    const c=zoneColor(z.side),top=Math.min(y1,y2),hgt=Math.max(3,Math.abs(y2-y1));
+    const tested=z.touches>0, weak=z.state==='WEAK';
+    const w=Math.max(8,xEnd-x1), r=Math.min(7,hgt/2);
+    const fillId='zg'+(z.side==='demand'?'D':'S')+(ST.fill==='solid'?'m':'s');
+    const dash=ST.dash||(weak?'7 4':'');
+    if(ST.glow&&hgt>=6){
+      out+=`<rect x="${x1.toFixed(1)}" y="${(top-1.5).toFixed(1)}" width="${w.toFixed(1)}" height="${(hgt+3).toFixed(1)}" rx="${(r+1).toFixed(1)}"`
+        +` fill="none" stroke="rgb(${c})" stroke-opacity=".16" stroke-width="6"/>`;
+    }
+    out+=`<rect x="${x1.toFixed(1)}" y="${top.toFixed(1)}" width="${w.toFixed(1)}" height="${hgt.toFixed(1)}" rx="${r.toFixed(1)}"`
+      +` fill="${ST.fill==='none'?'none':`url(#${fillId})`}" stroke="rgb(${c})" stroke-opacity="${tested?.95:.58}"`
+      +` stroke-width="${ST.stroke}"${dash?` stroke-dasharray="${dash}"`:''}/>`
+      +`<rect x="${x1.toFixed(1)}" y="${(top+0.6).toFixed(1)}" width="${ST.spine}" height="${Math.max(2,hgt-1.2).toFixed(1)}" rx="${(ST.spine/2).toFixed(1)}"`
+      +` fill="rgb(${c})" fill-opacity="${tested?.95:.72}"/>`;
+    const ly=top+Math.max(10,hgt/2);
+    if(ST.labels&&hgt>=13&&Math.abs(ly-labelY)>=15&&w>64){
       labelY=ly;
-      out+=`<text x="${(xEnd-6).toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="end" font-family="ui-monospace,monospace" font-size="8.5" font-weight="700" fill="rgba(${c},.95)">TARGET ${z.side==='demand'?'BUY':'SELL'}</text>`;
+      out+=tab((z.side==='demand'?'BUY ':'SELL ')+z.top.toFixed(2),c,xEnd-2,ly,16,tested?2:1);
     }
   });
-  if(svg.innerHTML!==out)svg.innerHTML=out;
+  out=defs+out;
+    if(svg.innerHTML!==out)svg.innerHTML=out;
 }
 
 async function fetchZones(){

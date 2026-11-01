@@ -122,6 +122,7 @@ eval([
   'firedKeys', 'markFired', 'zoneAlerts', 'recordZoneAlert', 'latestTrade', 'renderZoneAlerts',
   'openMenu', 'closeMenu', 'toggleMenu', 'setView', 'endIntro', 'playIntro',
   'drawVolume', 'syncChrome', 'setTabPrice',
+  'zonePresets', 'zoneStyle', 'setZoneStyle', 'paintZoneStyleChips',
   'esc', 'ago', 'evClock', 'evDay', 'jnLoad', 'jnSave', 'jnR', 'jnStats', 'jnAdd', 'jnDel',
   'journalHtml', 'openJournal', 'openSheet', 'closeSheet', 'calHtml', 'newsHtml',
   'renderCalStrip', 'renderNewsStrip',
@@ -283,9 +284,9 @@ section('chart fills the device');
      /--bnav-h/.test(css) && /#bnav\{[^}]*height:var\(--bnav-h/.test(css));
   ok('the chrome respects the notch and the rounded corners',
      /\.hd\{[^}]*padding-top:env\(safe-area-inset-top\)/.test(css));
-  ok('the read card is a one-line strip, not a card that eats the plot',
-     /body\[data-view="chart"\] \.flow-row \.flow-line\{[^}]*max-height:30px/.test(css)
-     && /body\[data-view="chart"\] \.flow-row \.flow-line \.of-row:nth-of-type\(2\)\{display:none\}/.test(css));
+  ok('the read card lives in the menu, not under the candles',
+     /\.menu-flow\{[^}]*padding:10px 11px/.test(css) && !/\.flow-row\{/.test(css)
+     && !/body\[data-view="chart"\] \.flow-row/.test(html));
   ok('full screen gives the chart the whole device',
      /body\.chart-full \.hd,body\.chart-full #bnav/.test(css) && /body\.chart-full #chart-section\{[^}]*height:var\(--app-h\)/.test(css));
   ok('the card stops being a card', /body\[data-view="chart"\] #chart-section\{[^}]*height:100%/.test(css));
@@ -1019,7 +1020,7 @@ print('|'.join([rej['type'], rej.get('style') or '-', rejh['type'], base['type']
     return files.every(f => { const st = require('fs').statSync(path.join(root, f)); return st.size > 300000 && st.size < 12e6; });
   })());
   // ---- the market read: an assistant bound to the page's own numbers ----
-  ok('the trade strip offers a market read', /id="flow-ai"[^>]*onclick="openAIRead\(\)"/.test(html) && /function openAIRead\(\)/.test(html));
+  ok('the trade card offers a market read', /class="chip"[^>]*openAIRead\(\)/.test(html) && /function openAIRead\(\)/.test(html));
   ok('the read is built from measured facts, not guesses', /function aiFacts\(\)/.test(html)
      && /value_area/.test(html) && /delta_series/.test(html) && /function aiRead\(f\)/.test(html));
   ok('the read says what would change it, not what will happen', /What would change the read/.test(html)
@@ -1075,7 +1076,7 @@ print('|'.join([rej['type'], rej.get('style') or '-', rejh['type'], base['type']
      && /id="cc-fs"/.test(html) && /function openLesson\(i\)/.test(html) && /#cc-fs-video/.test(html.replace(/\s/g,''))
      && /object-fit:contain/.test(html));
   ok('a lesson can be picked from the list', /function playLesson\(i\)/.test(html) && /onclick="playLesson\(/.test(html));
-  ok('the full order flow is a sheet, reachable from the chart strip', /onclick="openOrderFlow\(\)"/.test(html)
+  ok('the full order flow is a sheet, reachable from the strategy card', /onclick="[^"]*openOrderFlow\(\)"/.test(html)
      && /function openOrderFlow\(/.test(html));
   ok('the order flow sheet shows the ladder and the cumulative delta', /of-ladder/.test(html) && /Cumulative delta/.test(html));
   ok('the API publishes the delta series and the unbalanced levels', (() => {
@@ -1084,7 +1085,13 @@ print('|'.join([rej['type'], rej.get('style') or '-', rejh['type'], base['type']
   })());
   ok('cumulative delta is its own pane, on by default', /\['cvd','Order flow · CVD pane'\]/.test(html)
      && /const PANE_TITLE=\{cvd:/.test(html) && /cvd:true\}/.test(html));
-  ok('the strategy readout sits under the chart', /id="flow-line"/.test(html) && /function paintFlowLine/.test(html));
+  ok('the strategy readout sits in the menu', /id="flow-line" class="flow-line menu-flow"/.test(html)
+     && /function paintFlowLine/.test(html)
+     && html.indexOf('id="flow-line"') > html.indexOf('id="menu"'));
+  ok('the trade boxes have presets and switches of their own',
+     /function zonePresets\(\)\{/.test(html) && /function setZoneStyle\(/.test(html)
+     && /onclick="setZoneStyle\(\{preset:'clean'\}\)"/.test(html)
+     && /astra6_zstyle/.test(html));
   ok('the readout prints entry, stop and both targets', /flow-k">SL<\/span>/.test(html) && /flow-k">TP2<\/span>/.test(html));
   ok('forex pairs are gone from the market table', !/'EUR\/USD'/.test(html) && !/'USD\/JPY'/.test(html) && !/'GBP\/USD'/.test(html));
   ok('the market chip is a label, not a picker', /<span id="mkt-float"/.test(html)
