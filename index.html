@@ -661,6 +661,7 @@ body[data-view="home"] .wrap{
 .cc-i-t{font-size:12px;font-weight:800;color:var(--ink)}
 .cc-i-d{font-size:10px;line-height:1.4;color:var(--muted)}
 .cc-i-len{flex:0 0 auto;font-family:ui-monospace,monospace;font-size:10px;font-weight:800;color:var(--ink-2)}
+.cc-i-fs{flex:0 0 auto;color:var(--muted);font-size:12px}
 .cat-steps{margin:12px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:9px}
 .cat-steps li{display:flex;gap:9px;font-size:12px;line-height:1.5;color:var(--ink-2)}
 .cat-steps b{color:var(--ink)}
@@ -679,6 +680,53 @@ body[data-view="home"] .wrap{
 }
 
 /* ---------- device lock: Face ID / Touch ID + 4-digit PIN ---------- */
+#cc-fs{position:fixed;inset:0;z-index:650;background:#05070d;overflow:hidden;
+  -webkit-tap-highlight-color:transparent}
+#cc-fs[hidden]{display:none}
+body.cc-open{overflow:hidden}
+/* the picture owns the whole screen: no bar of chrome takes height away from it */
+#cc-fs-video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;
+  background:#05070d;display:block;transition:object-fit .2s ease}
+/* fill = the clip covers the whole device screen (phone default); fit = whole frame visible */
+#cc-fs.fill #cc-fs-video{object-fit:cover}
+/* controls float on top of the picture and fade out while it plays */
+.cc-fs-hd,.cc-fs-foot,.cc-fs-arrow{position:absolute;z-index:2;
+  transition:opacity .3s ease,transform .3s ease}
+.cc-fs-hd{top:0;left:0;right:0;display:flex;align-items:center;gap:10px;
+  padding:calc(9px + env(safe-area-inset-top)) 12px 34px;
+  background:linear-gradient(180deg,rgba(5,7,13,.92),rgba(5,7,13,.5) 58%,rgba(5,7,13,0))}
+.cc-fs-x{width:34px;height:34px;border-radius:50%;border:1px solid rgba(255,255,255,.2);
+  background:rgba(10,14,24,.6);color:#fff;font-size:20px;line-height:1;font-family:inherit;
+  cursor:pointer;flex:0 0 auto;order:3;margin-left:auto;backdrop-filter:blur(6px)}
+.cc-fs-tt{flex:0 1 auto;min-width:0;font-size:12.5px;font-weight:800;color:#eef3ff;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  padding:6px 11px;border-radius:999px;background:rgba(6,9,16,.72);
+  border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(8px)}
+.cc-fs-ix{flex:0 0 auto;font-family:ui-monospace,monospace;font-size:11px;font-weight:800;
+  color:#c3cfe6;padding:5px 9px;border-radius:999px;background:rgba(6,9,16,.72);
+  border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(8px)}
+.cc-fs-arrow{top:50%;transform:translateY(-50%);width:42px;height:66px;border-radius:14px;
+  border:1px solid rgba(255,255,255,.16);background:rgba(10,14,24,.55);color:#fff;
+  font-size:26px;line-height:1;font-family:inherit;cursor:pointer;backdrop-filter:blur(6px)}
+.cc-fs-arrow.prev{left:8px}
+.cc-fs-arrow.next{right:8px}
+.cc-fs-arrow[disabled]{opacity:0;pointer-events:none}
+.cc-fs-foot{display:none}
+#cc-fs.bare .cc-fs-hd{opacity:0;transform:translateY(-12px);pointer-events:none}
+#cc-fs.bare .cc-fs-arrow{opacity:0;pointer-events:none}
+.cc-fs-big{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(.86);
+  width:68px;height:68px;border-radius:50%;display:grid;place-items:center;padding-left:5px;
+  font-size:24px;color:#fff;background:rgba(10,14,24,.6);border:1px solid rgba(255,255,255,.2);
+  backdrop-filter:blur(6px);opacity:0;transition:opacity .22s ease,transform .22s ease;
+  pointer-events:none;z-index:2}
+#cc-fs.paused .cc-fs-big{opacity:1;transform:translate(-50%,-50%) scale(1)}
+.cc-fs-prog{position:absolute;left:0;right:0;bottom:0;height:3px;z-index:3;
+  background:rgba(255,255,255,.14);transition:opacity .3s ease}
+#cc-fs.bare .cc-fs-prog{opacity:0}
+.cc-fs-prog i{display:block;height:100%;width:0;
+  background:linear-gradient(90deg,var(--a-violet,#7c5cff),var(--a-cyan,#22d3ee));
+  transition:width .18s linear}
+
 #lock{position:fixed;inset:0;z-index:600;display:grid;place-items:center;padding:22px;
   background:radial-gradient(120% 90% at 50% 0%,#141a2b 0%,#0a0e17 55%,#05070d 100%);color:#e8eefc}
 #lock[hidden]{display:none}
@@ -1342,6 +1390,20 @@ body[data-view="home"] .home>*:nth-child(4){animation-delay:.18s}
 <body data-view="home">
 <script>try{document.body.setAttribute("data-view","home");}catch(e){}</script>
 
+<div id="cc-fs" role="dialog" aria-modal="true" aria-label="Lesson player" hidden>
+  <video id="cc-fs-video" playsinline preload="metadata" onclick="toggleLessonPlay()"></video>
+  <div class="cc-fs-hd">
+    <div class="cc-fs-tt" id="cc-fs-title">Lesson</div>
+    <div class="cc-fs-ix" id="cc-fs-ix">1 / 6</div>
+    <button class="cc-fs-x" type="button" id="cc-fs-fit" onclick="toggleLessonFit()" aria-label="Fill the screen">⤢</button>
+    <button class="cc-fs-x" type="button" onclick="closeLesson()" aria-label="Close the player">×</button>
+  </div>
+  <button class="cc-fs-arrow prev" type="button" id="cc-fs-prev" onclick="prevLesson()" aria-label="Previous lesson">‹</button>
+  <button class="cc-fs-arrow next" type="button" id="cc-fs-next" onclick="nextLesson()" aria-label="Next lesson">›</button>
+  <div class="cc-fs-big" aria-hidden="true">▶</div>
+  <div class="cc-fs-prog" aria-hidden="true"><i id="cc-fs-fill"></i></div>
+</div>
+
 <div id="lock" role="dialog" aria-modal="true" aria-label="ASTRA6 is locked" hidden>
   <div class="lock-card">
     <div class="lock-mark">A6</div>
@@ -1451,7 +1513,7 @@ body[data-view="home"] .home>*:nth-child(4){animation-delay:.18s}
       </span>
       <span class="cc-txt">
         <span class="cc-t">How to trade this strategy</span>
-        <span class="cc-k">5 lessons · 4:10 with voice · beginner → pro</span>
+        <span class="cc-k">5 lessons · 5:03 with voice · beginner → pro</span>
       </span>
     </button>
   </div>
@@ -4506,17 +4568,17 @@ function alertsOf(sym){
 // the Catalog playlist: the lessons are plain MP4s next to index.html, so a slow
 // connection still plays them and nothing is pulled from a third party
 const PLAYLIST=[
-  {id:'pl1',t:'1 · Meet the screen',k:'beginner',len:'1:15',file:'/astra6-pl1.mp4',
+  {id:'pl1',t:'1 · Meet the screen',k:'beginner',len:'1:29',file:'/astra6-pl1.mp4',
    d:'The header, the timeframe row, the market picker, the drawing rail, the indicators and the trade strip.'},
-  {id:'pl2',t:'2 · Read the volume profile',k:'beginner',len:'0:54',file:'/astra6-pl2.mp4',
+  {id:'pl2',t:'2 · Read the volume profile',k:'beginner',len:'1:04',file:'/astra6-pl2.mp4',
    d:'Volume by price: what a block means, the POC, the 70% value area and the daily VWAP.'},
-  {id:'pl3',t:'3 · Delta and cumulative delta',k:'intermediate',len:'1:02',file:'/astra6-pl3.mp4',
+  {id:'pl3',t:'3 · Delta and cumulative delta',k:'intermediate',len:'1:14',file:'/astra6-pl3.mp4',
    d:'Aggressive buying minus selling, the CVD line and pane, and how to tell trend from absorption.'},
-  {id:'pl4',t:'4 · The two rejection trades',k:'intermediate',len:'0:31',file:'/astra6-pl4.mp4',
+  {id:'pl4',t:'4 · The two rejection trades',k:'intermediate',len:'0:40',file:'/astra6-pl4.mp4',
    d:'Bounce off VAL = BUY, rejection at VAH = SELL, with the stop and both targets.'},
-  {id:'pl5',t:'5 · The strip, the ladder and HOLD',k:'core',len:'0:28',file:'/astra6-pl5.mp4',
+  {id:'pl5',t:'5 · The strip, the ladder and HOLD',k:'core',len:'0:36',file:'/astra6-pl5.mp4',
    d:'Where the trade is printed, how to read the full ladder, and why HOLD is part of the plan.'},
-  {id:'full',t:'Full walkthrough · all of it',k:'combined',len:'2:01',file:'/astra6-orderflow.mp4',
+  {id:'full',t:'Full walkthrough · all of it',k:'combined',len:'2:33',file:'/astra6-full.mp4',
    d:'The single narrated cut, if you would rather watch the whole thing once.'}
 ];
 function openCatalog(){
@@ -4526,6 +4588,7 @@ function openCatalog(){
       +'<span class="cc-i-txt"><span class="cc-i-t">'+p.t+'</span>'
       +'<span class="cc-i-d">'+p.d+'</span></span>'
       +'<span class="cc-i-len">'+p.len+'</span>'
+      +'<span class="cc-i-fs" aria-hidden="true">⤢</span>'
       +'</button>';
   }).join('')+'</div>'
    +'<div class="cc-stage"><video id="cc-video" class="cat-player" src="'+PLAYLIST[0].file+'" controls playsinline preload="metadata"></video>'
@@ -4535,6 +4598,7 @@ function openCatalog(){
 }
 function playLesson(i){
   const p=PLAYLIST[i]; if(!p) return;
+  openLesson(i);
   const v=document.getElementById('cc-video');
   if(v){ v.src=p.file; try{v.play().catch(function(){});}catch(e){} }
   const now=document.getElementById('cc-now'); if(now) now.textContent='Now playing · '+p.t;
@@ -4543,6 +4607,88 @@ function playLesson(i){
   });
   const q=document.querySelector('.cc-item.on'); if(q&&q.scrollIntoView) try{q.scrollIntoView({block:'nearest'});}catch(e){}
 }
+let _lessonIx=0;
+function openLesson(i){
+  const p=PLAYLIST[i]; if(!p) return;
+  _lessonIx=i;
+  const box=document.getElementById('cc-fs'), v=document.getElementById('cc-fs-video');
+  if(!box||!v) return;
+  box.hidden=false; document.body.classList.add('cc-open');
+  v.src=p.file;
+  try{v.currentTime=0;v.play().catch(function(){});}catch(e){}
+  const t=document.getElementById('cc-fs-title'); if(t) t.textContent=p.t;
+  const ix=document.getElementById('cc-fs-ix'); if(ix) ix.textContent=(i+1)+' / '+PLAYLIST.length;
+  const prev=document.getElementById('cc-fs-prev'), next=document.getElementById('cc-fs-next');
+  if(prev) prev.disabled=(i===0);
+  if(next) next.setAttribute('aria-label',(i===PLAYLIST.length-1)?'Back to lesson 1':'Next lesson');
+  const fill=document.getElementById('cc-fs-fill'); if(fill) fill.style.width='0%';
+  box.classList.remove('paused'); box.classList.remove('bare');
+  _fsFitApply();
+  _fsShow();
+  document.querySelectorAll('.cc-item').forEach(function(el){el.classList.toggle('on', Number(el.dataset.i)===i);});
+}
+function _fsFitMode(){
+  let m=''; try{ m=localStorage.getItem('astra6_fs_fit')||''; }catch(e){}
+  if(m!=='fill'&&m!=='fit') m='fit';
+  return m;
+}
+function _fsFitApply(){
+  const box=document.getElementById('cc-fs'); if(!box) return;
+  const m=_fsFitMode();
+  box.classList.toggle('fill', m==='fill'); box.classList.toggle('fit', m==='fit');
+  const b=document.getElementById('cc-fs-fit');
+  if(b){ b.textContent=(m==='fill')?'⤡':'⤢'; b.setAttribute('aria-label',(m==='fill')?'Show the whole frame':'Fill the screen'); }
+}
+function toggleLessonFit(){
+  const m=(_fsFitMode()==='fill')?'fit':'fill';
+  try{ localStorage.setItem('astra6_fs_fit',m); }catch(e){}
+  _fsFitApply(); _fsShow();
+}
+addEventListener('resize',function(){ if(!_lessonHidden()) _fsFitApply(); });
+function nextLesson(){ openLesson((_lessonIx+1)%PLAYLIST.length); }
+function prevLesson(){ if(_lessonIx>0) openLesson(_lessonIx-1); }
+function toggleLessonPlay(){
+  const v=document.getElementById('cc-fs-video'); if(!v) return;
+  if(v.paused){ v.play().catch(function(){}); } else { v.pause(); }
+  _fsShow();
+}
+let _fsT=null;
+function _fsShow(){
+  const b=document.getElementById('cc-fs'); if(!b) return;
+  b.classList.remove('bare'); clearTimeout(_fsT);
+  _fsT=setTimeout(function(){
+    const v=document.getElementById('cc-fs-video');
+    if(v&&!v.paused&&!b.hidden) b.classList.add('bare');
+  },2800);
+}
+(function lessonPlayerWiring(){
+  const box=document.getElementById('cc-fs'), v=document.getElementById('cc-fs-video');
+  if(!box||!v) return;
+  v.addEventListener('timeupdate',function(){
+    const f=document.getElementById('cc-fs-fill');
+    if(f&&v.duration) f.style.width=Math.min(100,(v.currentTime/v.duration)*100).toFixed(2)+'%';
+  });
+  v.addEventListener('play',function(){ box.classList.remove('paused'); _fsShow(); });
+  v.addEventListener('pause',function(){ box.classList.add('paused'); box.classList.remove('bare'); });
+  v.addEventListener('ended',function(){ box.classList.add('paused'); box.classList.remove('bare'); });
+  box.addEventListener('pointermove',function(){ _fsShow(); });
+})();
+function closeLesson(){
+  const box=document.getElementById('cc-fs'), v=document.getElementById('cc-fs-video');
+  if(v){ try{v.pause();}catch(e){} }
+  if(box){ box.hidden=true; box.classList.remove('bare'); box.classList.remove('paused'); }
+  document.body.classList.remove('cc-open');
+  clearTimeout(_fsT);
+}
+document.addEventListener('keydown',function(e){
+  if(_lessonHidden()) return;
+  if(e.key==='Escape') closeLesson();
+  else if(e.key===' '||e.key==='k'){ e.preventDefault(); toggleLessonPlay(); }
+  else if(e.key==='ArrowRight') nextLesson();
+  else if(e.key==='ArrowLeft') prevLesson();
+});
+function _lessonHidden(){const b=document.getElementById('cc-fs');return !b||b.hidden;}
+
 function openCatalogLegacy(){
   const body='<video class="cat-player" src="/astra6-pl1.mp4" controls playsinline preload="metadata"></video>'
    +'<ol class="cat-steps">'

@@ -894,11 +894,14 @@ print('|'.join([rej['type'], rej.get('style') or '-', rejh['type'], base['type']
     const st = require('fs').statSync(path.join(root, 'astra6-orderflow.mp4'));
     return st.size > 500000 && st.size < 20e6;
   })());
-  ok('the catalog is a voiced playlist', /5 lessons · 4:10 with voice/.test(html) && /const PLAYLIST=\[/.test(html));
+  ok('the catalog is a voiced playlist', /5 lessons · 5:03 with voice/.test(html) && /const PLAYLIST=\[/.test(html));
   ok('every lesson file is on disk and is a real video', (() => {
-    const files = ['astra6-pl1.mp4','astra6-pl2.mp4','astra6-pl3.mp4','astra6-pl4.mp4','astra6-pl5.mp4','astra6-orderflow.mp4'];
+    const files = ['astra6-pl1.mp4','astra6-pl2.mp4','astra6-pl3.mp4','astra6-pl4.mp4','astra6-pl5.mp4','astra6-full.mp4'];
     return files.every(f => { const st = require('fs').statSync(path.join(root, f)); return st.size > 300000 && st.size < 12e6; });
   })());
+  ok('the lessons are the paced cut, full screen, one sentence at a time', /len:'2:33',file:'\/astra6-full\.mp4'/.test(html)
+     && /id="cc-fs"/.test(html) && /function openLesson\(i\)/.test(html) && /#cc-fs-video/.test(html.replace(/\s/g,''))
+     && /object-fit:contain/.test(html));
   ok('a lesson can be picked from the list', /function playLesson\(i\)/.test(html) && /onclick="playLesson\(/.test(html));
   ok('the full order flow is a sheet, reachable from the chart strip', /onclick="openOrderFlow\(\)"/.test(html)
      && /function openOrderFlow\(/.test(html));
