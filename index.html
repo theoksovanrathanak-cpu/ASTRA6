@@ -2934,16 +2934,16 @@ const TV_TOOL_NAME={cursor:'Cursor',trend:'Trend line',ray:'Ray',hline:'Horizont
 const TV_EXTRA=[['arrow','Arrow'],['channel','Channel'],['text','Text'],['position','Position'],
   ['ext','Extended line'],['tri','Triangle'],['poly','Polyline'],['path','Path'],['note','Note'],
   ['callout','Callout'],['plabel','Price label'],['prange','Price range'],['trange','Date range'],
-  ['rr','Risk / reward'],['fibx','Fib extension'],['fibfan','Fib fan']];
+  ['rr','Risk / reward'],['fibx','Fib extension'],['fibfan','Fib fan'],['fibtime','Fib time']];
 // one click, one object: these need no second point
 const ONE_TAP=['text','note','callout','plabel'];
 // these take three taps, the way a real charting tool does
 const THREE_TAP=['tri','poly','path'];
 const TV_COLOR={trend:'#7c5cff',ray:'#a78bfa',hline:'#f59e0b',vline:'#38bdf8',rect:'#10b981',ellipse:'#22d3ee',
-  fib:'#a78bfa',ruler:'#f472b6',arrow:'#f97316',text:'#e2e8f0',channel:'#818cf8',position:'#10b981',
+  fib:'#a78bfa',fibtime:'#c084fc',ruler:'#f472b6',arrow:'#f97316',text:'#e2e8f0',channel:'#818cf8',position:'#10b981',
   brush:'#f8fafc',eraser:'#94a3b8',ext:'#818cf8',tri:'#22d3ee',poly:'#38bdf8',path:'#a78bfa',
   note:'#fbbf24',callout:'#f472b6',plabel:'#e2e8f0',prange:'#10b981',trange:'#6366f1',
-  rr:'#22c55e',fibx:'#c084fc',fibfan:'#c084fc'};
+  rr:'#22c55e',fibx:'#c084fc',fibfan:'#c084fc',fibtime:'#c084fc'};
 const IND_LIST=[
   ['ma20','MA 20 · SMA'],['ma50','MA 50 · SMA'],['ma200','MA 200 · SMA'],['ema20','EMA 20'],
   ['bb','Bollinger 20 · 2σ'],['vwap','Daily VWAP'],['vwapb','VWAP bands ±1σ'],['vol','Volume'],
@@ -3454,7 +3454,7 @@ function drawShape(sh,X,Y,w,h){
   const x1=X(sh.t1),y1=Y(sh.p1);
   if(x1==null||y1==null)return '';
   const two=(sh.k==='trend'||sh.k==='rect'||sh.k==='fib'||sh.k==='ruler'||sh.k==='ray'||sh.k==='arrow'||sh.k==='ellipse'||sh.k==='channel'||sh.k==='position'||
-    sh.k==='ext'||sh.k==='prange'||sh.k==='trange'||sh.k==='rr'||sh.k==='fibx'||sh.k==='fibfan'||sh.k==='tri'||sh.k==='poly'||sh.k==='path');
+    sh.k==='ext'||sh.k==='prange'||sh.k==='trange'||sh.k==='rr'||sh.k==='fibx'||sh.k==='fibfan'||sh.k==='fibtime'||sh.k==='tri'||sh.k==='poly'||sh.k==='path');
   const x2=two?X(sh.t2):null,y2=two?Y(sh.p2):null;
   if(two&&(x2==null||y2==null))return '';
   if(sh.k==='hline'){
@@ -3602,6 +3602,21 @@ function drawShape(sh,X,Y,w,h){
       tag(xb+4,yT,'1 : 2 · target '+fmtPx(target).replace('$',''),'#10b981',false)+
       tag(xb+4,yE,'entry '+fmtPx(entry).replace('$',''),'#94a3b8',false)+
       tag(xb+4,yS,'stop · risk '+rpct.toFixed(2)+'%','#ef4444',false);
+  }
+  if(sh.k==='fibtime'){
+    // the ladder measured in bars, the way a fib-time tool works
+    let bars=0;
+    try{bars=Math.max(1,lastCandles.filter(function(b){return b.time>=Math.min(sh.t1,sh.t2)&&b.time<=Math.max(sh.t1,sh.t2);}).length);}catch(e){bars=1;}
+    const lv=[1,1.618,2.618,4.236,6.854];
+    let out='';
+    lv.forEach(function(m){
+      const tt=sh.t2+(sh.t2-sh.t1)*m;
+      const x=X(tt);
+      if(x==null||x<0||x>w)return;
+      out+='<line x1="'+x.toFixed(1)+'" y1="0" x2="'+x.toFixed(1)+'" y2="'+h+'" stroke="'+c+'" stroke-width="1" opacity=".55" stroke-dasharray="4 4"/>';
+      out+='<text x="'+(x+3).toFixed(1)+'" y="14" fill="'+c+'" font-size="8.4" font-weight="800" font-family="ui-monospace,monospace">'+m.toFixed(3)+'</text>';
+    });
+    return out+'<line x1="'+x1.toFixed(1)+'" y1="0" x2="'+x1.toFixed(1)+'" y2="'+h+'" stroke="'+c+'" stroke-width="1.2"/>';
   }
   if(sh.k==='fibx'||sh.k==='fibfan'){
     const levels=sh.k==='fibx'?[0,0.618,1,1.618,2.618]:[0.236,0.382,0.5,0.618,0.786];
@@ -6376,10 +6391,14 @@ function renderMulti(n){
       borderDownColor:'#ef4444',wickUpColor:'#22c55e',wickDownColor:'#ef4444'});
     ch.timeScale().fitContent();
     ch.subscribeCrosshairMove(function(p){
-      if(!window._syncCross||!p.time)return;
+      if(!window._syncCross)return;
+      const other=window._mse||[];
       mchartList.forEach(function(o,oi){
-        if(oi===i)return;
-        try{o.timeScale().scrollToPosition(0,false);}catch(e){}
+        if(oi===i||!other[oi])return;
+        try{
+          if(p&&p.time&&p.point){o.setCrosshairPosition(p.seriesData&&p.seriesData.get(se)?p.seriesData.get(se).close:undefined,p.time,other[oi]);}
+          else{o.clearCrosshairPosition();}
+        }catch(e){}
       });
     });
     mchartList.push(ch);
