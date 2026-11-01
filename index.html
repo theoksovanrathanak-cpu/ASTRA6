@@ -292,6 +292,22 @@ body[data-view="chart"] .hd{position:sticky;top:0}
   text-wrap:pretty;
 }
 .signal-actions{display:flex;justify-content:center;gap:8px;margin-top:18px;flex-wrap:wrap}
+/* price lock: the badge that says the price behind this read was checked */
+.sig-lock{margin:14px auto 0;max-width:56ch;display:flex;align-items:flex-start;gap:8px;padding:8px 10px;border-radius:10px;
+  border:1px solid rgba(120,220,170,.28);background:rgba(120,220,170,.06);font-size:11.5px;line-height:1.5;text-align:left}
+.sig-lock[hidden]{display:none}
+.sig-lock .sl-k{flex:0 0 auto;font-size:9px;letter-spacing:.1em;font-weight:900;text-transform:uppercase;color:#7ee2ae;white-space:nowrap;padding-top:2px}
+.sig-lock .sl-t{color:var(--ink-2);min-width:0}
+.sig-lock.blocked{border-color:rgba(255,110,120,.4);background:rgba(255,110,120,.08)}
+.sig-lock.blocked .sl-k{color:#ff8f98}
+.sig-lock.warn{border-color:rgba(255,205,110,.32);background:rgba(255,205,110,.06)}
+.sig-lock.warn .sl-k{color:#ffd27a}
+.lock-list{display:flex;flex-direction:column;gap:4px;margin-top:2px}
+.lock-row{display:flex;gap:7px;font-size:11.5px;line-height:1.45;color:var(--ink-2)}
+.lock-row i{font-style:normal;flex:0 0 12px;font-weight:900;color:#7ee2ae}
+.lock-row.no i{color:#ff8f98}
+.lock-row.warn i{color:#ffd27a}
+.lock-row em{font-style:normal;color:var(--muted);font-size:10.5px}
 .signal-foot{font-size:10px;color:#a2a9b6;margin-top:14px;letter-spacing:.2px}
 
 /* ---------- stats ---------- */
@@ -347,7 +363,10 @@ body[data-view="chart"] .hd{position:sticky;top:0}
 .flow-line .sell{color:#f4525f}
 .flow-line .hold{color:var(--muted)}
 .flow-line .flow-k{color:var(--muted);font-weight:700}
-.flow-line .of-chip{
+.flow-line .of-lock{font-size:9.5px;font-weight:900;letter-spacing:.04em;padding:2px 6px;border-radius:6px;white-space:nowrap;
+  border:1px solid rgba(120,220,170,.4);background:rgba(120,220,170,.10);color:#7ee2ae;max-width:44%;overflow:hidden;text-overflow:ellipsis}
+.of-lock.no{border-color:rgba(255,110,120,.45);background:rgba(255,110,120,.12);color:#ff9aa2}
+.of-chip{
   display:inline-flex;align-items:center;gap:4px;padding:1px 6px;border-radius:6px;
   background:color-mix(in srgb,var(--line) 55%,transparent);color:var(--ink-2);font-weight:800;
 }
@@ -1926,6 +1945,7 @@ body[data-view="chart"] .hd-quote{left:auto;right:9px;bottom:2px;text-align:righ
 
       <div class="signal-levels mono" id="sig-sltp"></div>
       <div class="signal-reason" id="sig-reasons">Loading signal…</div>
+      <div class="sig-lock" id="sig-lock" hidden><span class="sl-k" id="sl-k">price lock</span><span class="sl-t" id="sl-t"></span></div>
 
       <div class="signal-actions">
         <button class="btn btn-dark btn-sm" onclick="fetchDashboard()">Refresh</button>
@@ -5445,6 +5465,50 @@ async function fetchVolume(){
   return null;
 }
 
+// PRICE LOCK — the client half. The server already refuses to print a trade on a
+// tape it cannot prove; this adds the one check only the browser can do: does the
+// live tick the page is showing agree with the newest close the profile was built
+// from? A chart that has fallen behind its own tick is the quiet way a "signal"
+// gets taken at a price that no longer exists.
+function lockState(d){
+  const v=(d&&d.verify)||null;
+  const out={ok:true,grade:'ok',checks:[],blocked:[],warn:[]};
+  if(v){
+    out.checks=(v.checks||[]).slice();
+    out.ok=v.ok!==false;
+    out.blocked=(v.blocked_by||[]).slice();
+    out.warn=(v.warned||[]).slice();
+  }
+  const px=Number(d&&d.signal&&(d.signal.price||d.price))||0;
+  const live=Number(window.lastPrice)||0;
+  const atr=Number(d&&d.atr)||0;
+  if(px>0&&live>0&&atr>0){
+    const gap=Math.abs(live-px), tol=Math.max(3*atr, px*0.004);
+    const ok=gap<=tol;
+    out.checks.push({id:'tick_live',ok:ok,grade:ok?'ok':'block',
+      label:'the live tick on screen matches the chart close',
+      val:gap.toFixed(2)+' gap (limit '+tol.toFixed(2)+')'});
+    if(!ok){out.ok=false;out.blocked.push('live tick is '+gap.toFixed(2)+' from the chart close');}
+  }
+  out.grade=!out.ok?'blocked':(out.warn.length?'warn':'ok');
+  return out;
+}
+function paintLock(L){
+  const box=document.getElementById('sig-lock');
+  if(!box) return;
+  if(!L||!L.checks.length){box.hidden=true;return;}
+  const fails=L.checks.filter(c=>!c.ok);
+  box.hidden=false;
+  box.className='sig-lock'+(L.ok?(L.warn.length?' warn':''):' blocked');
+  const k=document.getElementById('sl-k'), t=document.getElementById('sl-t');
+  if(k) k.textContent=L.ok?'price lock':'held';
+  if(t){
+    const passed=L.checks.filter(c=>c.ok).length;
+    t.textContent=L.ok
+      ? passed+' of '+L.checks.length+' price checks passed — quote, tape, book and scale all agree. A lock cannot stop a losing trade; it stops a trade on a wrong price.'
+      : 'No trade printed: '+L.blocked.slice(0,2).join('; ')+'.';
+  }
+}
 // the volume-cluster signal: it owns the card, the boxes and the alerts
 function renderVolumeSignal(d){
   // the volume cluster is the signal. Three guards, because one was not enough:
@@ -5453,6 +5517,7 @@ function renderVolumeSignal(d){
   //   3. the same price bucket never alerts twice
   try{
     const sg=d.signal||{}, t=sg.type||'HOLD';
+    const lok=(d.verify||{}).ok!==false;        // a locked read is not news
     const sym=currentSymbol;
     const prevKey='astra6_vol_prev_'+sym, atKey='astra6_vol_at_'+sym;
     const prev=localStorage.getItem(prevKey);
@@ -5462,7 +5527,7 @@ function renderVolumeSignal(d){
       const key=sym+'|VOL|'+t+'|'+bucket;
       const lastAt=Number(localStorage.getItem(atKey)||0);
       const cooled=(Date.now()-lastAt)>=VOL_COOLDOWN_MS;
-      if(prev!==t && cooled && !firedKeys().includes(key)){
+      if(lok && prev!==t && cooled && !firedKeys().includes(key)){
         markFired(key);
         localStorage.setItem(atKey,String(Date.now()));
         beep();
@@ -5470,14 +5535,21 @@ function renderVolumeSignal(d){
     }
   }catch(e){console.log('vol alert err',e);}
 
-  const sig=JSON.stringify([d.signal&&d.signal.type,d.signal&&d.signal.price,d.signal&&d.signal.entry,
+  const L=lockState(d);
+  const sig=JSON.stringify([L.ok?1:0,L.blocked.join('|'),d.signal&&d.signal.type,d.signal&&d.signal.price,d.signal&&d.signal.entry,
     d.signal&&d.signal.sl,d.signal&&d.signal.tp1,d.signal&&d.signal.tp2,d.vwap,
     d.poc&&d.poc.bot,d.poc&&d.poc.top,currentSymbol]);
   paintFlowLine(d);
   if(window._volSigKey===sig) return;   // nothing changed — leave the card alone
   window._volSigKey=sig;
-  const s=d.signal||{}, type=s.type||'HOLD';
-  const poc=d.poc||{}, rows=(d.rows||[]);
+  const s=d.signal||{}, poc=d.poc||{}, rows=(d.rows||[]);
+  let type=s.type||'HOLD';
+  let lockNote='';
+  if(!L.ok){
+    if(type==='BUY'||type==='SELL') lockNote=' Held by the price lock: '+L.blocked.slice(0,2).join('; ')+'.';
+    type='HOLD';
+  }
+  paintLock(L);
   const est = (d.split||'').indexOf('estimated')>=0;
   const card = document.getElementById('current-signal-card');
   // If this signal is already in the ladder, quote the ladder's numbers exactly —
@@ -5494,7 +5566,7 @@ function renderVolumeSignal(d){
     strategy:'order flow · value area',
     entry:lv.entry, sl:lv.sl, tp1:lv.tp1, tp2:lv.tp2, r:lv.r,
     reasons:[
-      (s.reason||'Waiting for a clean cluster.')+
+      (s.reason||'Waiting for a clean cluster.')+lockNote+
       (poc.top!=null?`  POC ${Number(poc.bot).toFixed(2)}–${Number(poc.top).toFixed(2)} · δ${Number(poc.delta||0).toFixed(0)}.`:'')+
       (est?'  Split is estimated from real tick volume.':'  Real taker buy/sell.')
     ]
@@ -7215,10 +7287,15 @@ function paintFlowLine(d){
   }
   if(!s.type){ el.hidden=true; el.innerHTML=''; if(aiBtn)aiBtn.hidden=true; return; }
   if(aiBtn) aiBtn.hidden=false;
-  if(s.type==='HOLD'){
+  // the strip obeys the same price lock as the card: an unproven price is never a BUY or SELL
+  const L=lockState(d);
+  const lockChip=L.ok
+    ? '<span class="of-lock ok" title="price checks passed">✓ price checked</span>'
+    : '<span class="of-lock no" title="'+L.blocked.join('; ').replace(/"/g,'&quot;')+'">LOCK · '+L.blocked[0].replace(/</g,'&lt;')+'</span>';
+  if(s.type==='HOLD'||!L.ok){
     el.innerHTML='<span class="of-row"><b class="hold">HOLD</b><span>'
-      +((s.reason||'no edge right now').replace(/&/g,'&amp;').replace(/</g,'&lt;'))
-      +'</span></span>'+orderFlowRow(d);
+      +((( !L.ok?(s.type&&s.type!=='HOLD'?s.type+' held — ':'')+'price lock: '+L.blocked[0]:'')||s.reason||'no edge right now').replace(/&/g,'&amp;').replace(/</g,'&lt;'))
+      +'</span>'+lockChip+'</span>'+orderFlowRow(d);
     el.hidden=false; return;
   }
   const cls=s.type==='BUY'?'buy':'sell';
@@ -7228,6 +7305,7 @@ function paintFlowLine(d){
     '<span class="flow-k">TP1</span> '+px(s.tp1),
     '<span class="flow-k">TP2</span> '+px(s.tp2),
     '<span class="flow-k">R</span> '+(s.r!=null?Number(s.r).toFixed(2):'—'),
+    lockChip,
     (s.style?'<span class="of-chip">'+s.style+'</span>':'')];
   el.innerHTML='<span class="of-row">'+bits.join(' ')+'</span>'+orderFlowRow(d);
   el.hidden=false;
@@ -7265,6 +7343,7 @@ function aiFacts(){
     r:sig?aiNum(sig.r):null, conf:sig?sig.confidence:null, style:sig?sig.style:null,
     slv:sl, edge, edgeDist:(edge!=null&&px!=null)?Math.abs(px-edge):null,
     edgeAtr:(edge!=null&&atr)?Math.abs(px-edge)/atr:null,
+    lock:(ok?lockState(d):null),
     live:ok};
 }
 function aiWords(f){
@@ -7448,6 +7527,17 @@ function openAIRead(){
     +'<div class="ai-note" id="ai-engine">computed from this page · no model key configured</div>'
     +'<div class="ai-sec"><h5>What the numbers say</h5><ul class="ai-list">'+see+'</ul></div>'
     +'<div class="ai-sec"><h5>What would change the read</h5><ul class="ai-list ai-change">'+change+'</ul></div>'
+    +'<div class="ai-sec"><h5>Price lock — was the price itself sound?</h5>'
+      +(f.lock&&f.lock.checks.length
+        ? '<div class="lock-list">'+f.lock.checks.map(c=>
+            '<div class="lock-row '+(c.ok?(c.grade==='warn'?'warn':''):'no')+'"><i>'+(c.ok?(c.grade==='warn'?'~':'✓'):'×')+'</i><span>'+esc(c.label)
+            +(c.val?' <em>'+esc(String(c.val))+'</em>':'')+'</span></div>').join('')+'</div>'
+        : '<div class="ai-note">No lock result yet — it appears with the first profile of the session.</div>')
+      +'<div class="ai-note">'+(f.lock?(f.lock.ok
+          ? 'Every check passed, so a BUY or SELL is allowed to print. A lock is not a promise: it stops a trade on a wrong, stale or contradicting price, not a trade that simply goes against you.'
+          : 'Held: '+esc(f.lock.blocked.slice(0,2).join('; '))+'. The read stays HOLD until the tape proves itself again — no alert, no ladder entry.')
+        : '')+'</div>'
+    +'</div>'
     +'<div class="ai-sec"><h5>The strategy\'s checklist</h5><div class="ai-checks">'+checks+'</div></div>'
     +'<div class="ai-sec"><h5>Ask about this market</h5>'
       +'<div class="ai-chips">'
@@ -7536,8 +7626,19 @@ function openOrderFlow(){
       +'<span class="of-d" style="color:'+(dlt>=0?'#12b981':'#f4525f')+'">'+(dlt>=0?'+':'')+fmtVol(Math.abs(dlt))+'</span>'
       +'</div>';
   }).join('');
+  const L=lockState(d);
+  const lockBlk='<div class="sig-lock'+(L.ok?(L.warn.length?' warn':''):' blocked')+'" style="max-width:none;margin:0 0 12px">'
+    +'<span class="sl-k">'+(L.ok?'price lock':'held')+'</span><span class="sl-t">'
+    +(L.ok
+      ? L.checks.filter(c=>c.ok).length+' of '+L.checks.length+' price checks passed before any trade may print. A lock stops a trade on a wrong price, not a trade that goes against you.'
+      : 'No trade printed: '+esc(L.blocked.slice(0,2).join('; '))+'.')
+    +'</span></div>'
+    +'<div class="lock-list" style="margin:0 0 12px">'+L.checks.map(c=>
+        '<div class="lock-row '+(c.ok?(c.grade==='warn'?'warn':''):'no')+'"><i>'+(c.ok?(c.grade==='warn'?'~':'✓'):'×')+'</i><span>'+esc(c.label)
+        +(c.val?' <em>'+esc(String(c.val))+'</em>':'')+'</span></div>').join('')+'</div>';
   const body=
-     '<div class="of-sum">'
+     lockBlk
+     +'<div class="of-sum">'
       +'<div><div class="k">Cumulative delta</div><div class="v" style="color:'+(cvd>=0?'#12b981':'#f4525f')+'">'+(cvd>=0?'+':'-')+fmtVol(Math.abs(cvd))+'</div></div>'
       +'<div><div class="k">Bars read</div><div class="v">'+ds.length+' · '+esc(d.tf||'')+'</div></div>'
       +'<div><div class="k">Bought (est. aggressive)</div><div class="v" style="color:#12b981">'+fmtVol(bt)+' · '+Math.round(100*bt/tot)+'%</div></div>'

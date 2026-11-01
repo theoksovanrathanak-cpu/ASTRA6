@@ -4354,6 +4354,47 @@ def api_market_list():
     except Exception as e:
         return {"status": "error", "error": str(e), "markets": []}
 
+# === PRICE LOCK: prove the price before the strategy may act on it ===
+def _lock_quote(sym, venue=None):
+    """The live price the browser would show, with a real book when the venue has one.
+
+    Used to cross-check the newest candle: if the chart's last close and the live
+    quote disagree by more than a few ATR, one of the two feeds is lying and the
+    read must not be allowed to open a trade.
+    """
+    s = str(sym or "").upper()
+    try:
+        if s in ("BTCUSD", "ETHUSD"):
+            d = fetch_crypto_tick(s) or {}
+            if d.get("mid") or d.get("price"):
+                return {"price": d.get("price") or d.get("mid"), "bid": d.get("bid"),
+                        "ask": d.get("ask"), "source": d.get("source"), "at": d.get("timestamp")}
+        if s in ("XAUUSD", "XAUS"):
+            d = fetch_live_tick("XAUUSD") or {}
+            px = d.get("price") or d.get("mid")
+            if px:
+                return {"price": px, "bid": d.get("bid"), "ask": d.get("ask"),
+                        "source": d.get("source"), "at": d.get("timestamp")}
+        import markets as MKT
+        q = MKT.quote(s)
+        if q and q.get("price"):
+            return {"price": q["price"], "bid": q.get("bid"), "ask": q.get("ask"),
+                    "source": q.get("source"), "at": q.get("time")}
+    except Exception as e:
+        print("lock quote", s, str(e)[:90])
+    return None
+
+
+def _lock_market_open(sym):
+    """Crypto never closes; the metals/futures venues are Mon-Fri. Used only to
+    decide whether a quiet tape is *allowed* to be quiet."""
+    s = str(sym or "").upper()
+    if s.startswith("BTC") or s.startswith("ETH"):
+        return True
+    import datetime as _dt
+    return _dt.datetime.now(_dt.timezone.utc).weekday() < 5
+
+
 @app.get("/api/volume")
 def get_volume(symbol: str = "XAUUSD", venue: str = None, rows: int = 48,
                min_pct: float = 10.0, tf: str = "M15", bars: int = 200,
@@ -4426,8 +4467,12 @@ def get_volume(symbol: str = "XAUUSD", venue: str = None, rows: int = 48,
                 raw = clipped
         if len(raw) < 20:
             return {"status": "error", "error": "not_enough_volume", "real": True, "user": email}
-        data = VOL.analyse(raw, rows=max(12, min(120, rows)), min_pct=max(0.0, min(100.0, min_pct)))
+        lock_q = _lock_quote(symbol, venue)
+        data = VOL.analyse(raw, rows=max(12, min(120, rows)), min_pct=max(0.0, min(100.0, min_pct)),
+                           verify_quote=lock_q, tf_minutes=VOL.TF_MINUTES.get(tf_key, 15),
+                           market_open=_lock_market_open(symbol), min_bars=40)
         data.update({"symbol": str(symbol).upper(), "source": src, "split": split_note,
+                     "lock_quote": lock_q,
                      "tf": tf_key, "bars_used": len(raw),
                      "from": int(raw[0]["time"]), "to": int(raw[-1]["time"]),
                      "real": True, "user": email})
@@ -4451,6 +4496,8 @@ def push_scan_once():
     for sym, venue in (("XAUUSD", "XAUS"), ("XAGUSD", "COMEX"), ("ES", "CME"), ("CL", "NYMEX")):
         try:
             d = get_volume(symbol=sym, venue=venue, tf="M15", bars=150)
+            if not ((d or {}).get("verify") or {}).get("ok", True):
+                continue          # price lock refused: this is not a trade, so it is not news
             sig = (d or {}).get("signal") or {}
             key = PUSH.signal_key(sym, sig)
             if not key or not PUSH.is_new(key):
@@ -4543,6 +4590,9 @@ def _push_read(sym):
         return None
     if not d or d.get("status") not in (None, "ok"):
         return None
+    ver = d.get("verify") or {}
+    if ver and ver.get("ok") is False:
+        return None           # a read on an unproven price is not worth waking a phone for
     sig = d.get("signal") or {}
     typ = str(sig.get("type") or "").upper()
     price = sig.get("price") or sig.get("entry")

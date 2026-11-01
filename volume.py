@@ -471,7 +471,160 @@ def vwap_series(candles):
     return out
 
 
-def analyse(candles, rows=48, min_pct=10.0, bias_from="5m"):
+def _median(v):
+    v = sorted(v)
+    n = len(v)
+    if not n:
+        return None
+    m = n // 2
+    return v[m] if n % 2 else (v[m - 1] + v[m]) / 2.0
+
+
+def _mad(v, med):
+    if med is None or not v:
+        return 0.0
+    return _median([abs(x - med) for x in v]) * 1.4826
+
+
+def verify(candles, atr=None, va=None, quote=None, tf_minutes=15,
+           market_open=True, min_bars=60, now=None):
+    """PRICE LOCK — verify the price before the strategy is allowed to act on it.
+
+    The strategy can only be as right as the price it is reading. Every layer is
+    checked and the answer is binary: either the tape is provably coherent and a
+    BUY/SELL may be printed, or it is not and the strip is forced to HOLD with the
+    failing reason attached. Nothing here claims a trade cannot lose money - it
+    stops a trade being taken on a wrong, stale or contradicting price.
+
+    Checks (block = the read is withheld):
+      history   enough bars for a value area to mean anything           block
+      tape      high>=low, close inside the bar's range, volume>0       block
+      dupes     unique, ascending timestamps                            block
+      fresh     last bar is younger than ~2 bars of the timeframe        block (open market)
+      tick      live quote agrees with the newest bar's close            block
+      spread    bid<ask and the spread is not absurd                    block
+      spike     last close is not a lone outlier vs the last 20         block
+      scale     price sits inside the visible range (catches decimal slips) block
+    """
+    out = {"ok": True, "checks": [], "blocked_by": [], "warned": [], "px": None}
+    now = now or __import__("time").time()
+
+    def add(cid, ok, label, val="", warn=False):
+        grade = "ok" if ok else ("warn" if warn else "block")
+        out["checks"].append({"id": cid, "ok": bool(ok), "grade": grade,
+                              "label": label, "val": val})
+        if grade == "block":
+            out["blocked_by"].append(label)
+        elif grade == "warn":
+            out["warned"].append(label)
+
+    if not candles:
+        add("history", False, "no bars at all")
+        out["ok"] = False
+        return out
+
+    px = float(candles[-1]["close"])
+    out["px"] = round(px, 6)
+
+    # ---- 1. history
+    n = len(candles)
+    add("history", n >= min_bars, "%d bars in the profile" % n,
+        "%s%d bars" % ("" if n >= min_bars else "of %d needed · " % min_bars, n))
+
+    # ---- 2. tape integrity: a corrupted bar is worse than no bar
+    bad = 0
+    for c in candles[-120:]:
+        try:
+            hi, lo, cl, vol = float(c["high"]), float(c["low"]), float(c["close"]), float(c.get("volume") or 0)
+        except Exception:
+            bad += 1
+            continue
+        if hi < lo or cl > hi * 1.0005 or cl < lo * 0.9995 or vol < 0:
+            bad += 1
+    add("tape", bad == 0, "%d odd bars in the last 120" % bad if bad else "every bar is well formed",
+        "" if bad == 0 else "%d bad" % bad)
+
+    # ---- 3. timestamps
+    ts = [int(c.get("time") or 0) for c in candles]
+    dupes = len(ts) - len(set(ts))
+    ordered = all(ts[i] >= ts[i - 1] for i in range(1, len(ts)))
+    add("dupes", dupes == 0 and ordered,
+        "bars are unique and in order" if dupes == 0 and ordered else "duplicate or out-of-order bars",
+        "" if dupes == 0 and ordered else "%d dupes" % dupes)
+
+    # ---- 4. freshness
+    age = max(0.0, now - float(ts[-1])) if ts else 0.0
+    if not market_open:
+        add("fresh", True, "market closed · last real bar is the close",
+            "%.0f h old" % (age / 3600.0) if age > 3600 else "%.0f min old" % (age / 60.0))
+    else:
+        allow = max(180.0, tf_minutes * 60 * 2.0 + 120)
+        add("fresh", age <= allow, "newest bar is from the live tape",
+            "%.0f min old%s" % (age / 60.0, "" if age <= allow else " (limit %.0f min)" % (allow / 60.0)))
+
+    # ---- 5. does the live quote agree with the newest bar?
+    qpx = None
+    if isinstance(quote, dict):
+        qpx = quote.get("price") if quote.get("price") is not None else quote.get("mid")
+    try:
+        qpx = float(qpx) if qpx is not None else None
+    except Exception:
+        qpx = None
+    if qpx is None or qpx <= 0:
+        add("tick", False, "no live quote to cross-check the bar against", "chart only", warn=True)
+    else:
+        a = float(atr) if atr else max(px * 0.0005, 1e-9)
+        gap = abs(qpx - px)
+        tol = max(3.0 * a, px * 0.004)
+        out["quote_px"] = round(qpx, 6)
+        out["gap"] = round(gap, 6)
+        add("tick", gap <= tol, "live quote agrees with the newest bar",
+            "%.2f gap (limit %.2f)" % (gap, tol))
+
+    # ---- 6. spread / crossed book
+    if isinstance(quote, dict) and quote.get("bid") is not None and quote.get("ask") is not None:
+        try:
+            bid, ask = float(quote["bid"]), float(quote["ask"])
+            mid = qpx or ((bid + ask) / 2.0)
+            spread = ask - bid
+            rel = spread / mid if mid else 1.0
+            add("spread", bid > 0 and ask > bid and rel <= 0.0035,
+                "book is not crossed and the spread is tight",
+                "%.4f%% spread" % (rel * 100.0))
+        except Exception:
+            add("spread", False, "book could not be read", "bid/ask unreadable")
+    else:
+        add("spread", True, "single-print feed · no book to cross", "n/a", warn=True)
+
+    # ---- 7. outlier: one bad print must not become a signal
+    prev = [float(c["close"]) for c in candles[-21:-1]]
+    if len(prev) >= 8:
+        med = _median(prev)
+        dev = abs(px - med)
+        mad = _mad(prev, med)
+        a = float(atr) if atr else max(px * 0.0005, 1e-9)
+        lim = max(6.0 * mad, 4.0 * a)
+        add("spike", dev <= lim, "newest close is not a lone outlier",
+            "%.2f from the 20-bar median (limit %.2f)" % (dev, lim))
+    else:
+        add("spike", True, "too few bars to test for a spike", "skipped", warn=True)
+
+    # ---- 8. scale sanity: a price outside the visible range is a broken feed, not a move
+    los = [float(c["low"]) for c in candles[-120:]]
+    his = [float(c["high"]) for c in candles[-120:]]
+    lo, hi = min(los), max(his)
+    span = (hi - lo) or 1e-9
+    pad = span * 0.15
+    add("scale", (lo - pad) <= px <= (hi + pad), "price sits inside the range on screen",
+        "%.2f in %.2f–%.2f" % (px, lo, hi))
+
+    out["ok"] = not out["blocked_by"]
+    out["grade"] = "ok" if out["ok"] and not out["warned"] else ("warn" if out["ok"] else "blocked")
+    return out
+
+
+def analyse(candles, rows=48, min_pct=10.0, bias_from="5m", verify_quote=None,
+            tf_minutes=15, market_open=True, min_bars=60):
     """Full pass: split -> vwap -> clusters -> signal."""
     if not candles:
         return {"status": "error", "error": "no candles"}
@@ -485,6 +638,32 @@ def analyse(candles, rows=48, min_pct=10.0, bias_from="5m"):
     atr = sum(trs[-14:]) / len(trs[-14:]) if trs else None
     va = value_area(cl, poc)
     sig = signal(candles, vwap, cl, poc, atr, min_pct, vwap_series(candles), va=va)
+
+    # ---- PRICE LOCK: nothing is allowed to trade on a price we cannot prove ----
+    ver = verify(candles, atr=atr, va=va, quote=verify_quote, tf_minutes=tf_minutes,
+                 market_open=market_open, min_bars=min_bars)
+    # A closed market is its own kind of wrong price: a setup struck on Friday's
+    # last bar fills after a weekend gap at a price nobody traded. The read keeps
+    # describing the tape, but it may not print a trade on it.
+    if not market_open and sig.get("type") in ("BUY", "SELL"):
+        ver["checks"].append({"id": "session", "ok": False, "grade": "block",
+                              "label": "market is open when the trade would print",
+                              "val": "closed · a setup here would fill through the gap"})
+        ver["blocked_by"].append("market is closed — the entry would fill through the next open")
+        ver["ok"] = False
+        ver["grade"] = "blocked"
+
+    sig = dict(sig or {})
+    sig["verified"] = bool(ver["ok"])
+    if not ver["ok"]:
+        if sig.get("type") in ("BUY", "SELL"):
+            sig["blocked"] = {"type": sig.get("type"), "entry": sig.get("entry"),
+                              "sl": sig.get("sl"), "tp1": sig.get("tp1"),
+                              "tp2": sig.get("tp2"), "price": sig.get("price")}
+        sig["type"] = "HOLD"
+        sig["lock"] = ver["blocked_by"]
+        sig["reason"] = "HOLD — price lock: " + "; ".join(ver["blocked_by"][:2])
+    out_ver = ver
 
     # ---- the full order flow: every bar's aggression and the running total ----
     # Each bar carries buy/sell (real taker split where the feed has it, close-location
@@ -524,7 +703,8 @@ def analyse(candles, rows=48, min_pct=10.0, bias_from="5m"):
             "vwap": round(vwap, 2) if vwap else None,
             "vwap_bars": used, "rows": cl, "poc": poc,
             "value_area": va, "row_size": step,
-            "signal": sig, "atr": round(atr, 2) if atr else None,
+            "signal": sig, "verify": out_ver,
+            "atr": round(atr, 2) if atr else None,
             "bars": n,
             "delta_series": dser[-300:],
             "cvd": round(cvd, 2),
