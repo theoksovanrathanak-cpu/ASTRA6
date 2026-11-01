@@ -2969,22 +2969,55 @@ def simple_login_page():
 
 import re as _re
 
+def _mp4_response(p: Path, request: Request):
+    """Video bytes with real HTTP range support: Safari on iOS needs 206 to play and scrub."""
+    size = p.stat().st_size
+    base = {"Accept-Ranges": "bytes", "Cache-Control": "public, max-age=86400"}
+    rng = (request.headers.get("range") or "").strip()
+    m = _re.fullmatch(r"bytes=(\d*)-(\d*)", rng) if rng else None
+    if not m or (not m.group(1) and not m.group(2)):
+        return FileResponse(p, media_type="video/mp4", headers=base)
+    if m.group(1) == "":
+        n = int(m.group(2)); start = max(0, size - n); end = size - 1
+    else:
+        start = int(m.group(1)); end = int(m.group(2)) if m.group(2) else size - 1
+    end = min(end, size - 1)
+    if start >= size or start > end:
+        return StreamingResponse(iter(()), status_code=416,
+                                 headers={"Content-Range": "bytes */%d" % size, **base})
+    length = end - start + 1
+
+    def _chunks():
+        with open(p, "rb") as f:
+            f.seek(start)
+            left = length
+            while left > 0:
+                chunk = f.read(min(262144, left))
+                if not chunk:
+                    break
+                left -= len(chunk)
+                yield chunk
+
+    return StreamingResponse(_chunks(), status_code=206, media_type="video/mp4",
+                             headers={"Content-Range": "bytes %d-%d/%d" % (start, end, size),
+                                      "Content-Length": str(length), **base})
+
 @app.get("/astra6-{name}.mp4")
-def catalog_clip(name: str):
+def catalog_clip(name: str, request: Request):
     """Catalog playlist clips: served from the app folder, byte-range capable"""
     if not _re.fullmatch(r"[a-z0-9\-]{1,40}", name or ""):
         raise HTTPException(status_code=404, detail="not found")
     p = Path(f"astra6-{name}.mp4")
     if p.exists():
-        return FileResponse(p, media_type="video/mp4", headers={"Accept-Ranges": "bytes"})
+        return _mp4_response(p, request)
     raise HTTPException(status_code=404, detail="video not found")
 
 @app.get("/astra6-orderflow.mp4")
-def orderflow_video():
-    """the Catalog walkthrough: real screenshots, rendered offline, served as a plain file"""
+def orderflow_video(request: Request):
+    """the older single-cut walkthrough, kept so old links still play"""
     p = Path("astra6-orderflow.mp4")
     if p.exists():
-        return FileResponse(p, media_type="video/mp4", headers={"Accept-Ranges": "bytes"})
+        return _mp4_response(p, request)
     raise HTTPException(status_code=404, detail="video not found")
 
 @app.get("/logo.png")

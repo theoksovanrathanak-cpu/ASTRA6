@@ -899,6 +899,11 @@ print('|'.join([rej['type'], rej.get('style') or '-', rejh['type'], base['type']
     const files = ['astra6-pl1.mp4','astra6-pl2.mp4','astra6-pl3.mp4','astra6-pl4.mp4','astra6-pl5.mp4','astra6-full.mp4'];
     return files.every(f => { const st = require('fs').statSync(path.join(root, f)); return st.size > 300000 && st.size < 12e6; });
   })());
+  ok('the clips answer byte ranges, so a phone can scrub them', (() => {
+    const s = require('fs').readFileSync(path.join(root,'main.py'),'utf8');
+    return /def _mp4_response\(p: Path, request: Request\)/.test(s) && /status_code=206/.test(s)
+      && /def catalog_clip\(name: str, request: Request\)/.test(s) && /Content-Range/.test(s);
+  })());
   ok('the lessons are the paced cut, full screen, one sentence at a time', /len:'2:33',file:'\/astra6-full\.mp4'/.test(html)
      && /id="cc-fs"/.test(html) && /function openLesson\(i\)/.test(html) && /#cc-fs-video/.test(html.replace(/\s/g,''))
      && /object-fit:contain/.test(html));
