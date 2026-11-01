@@ -1441,6 +1441,10 @@ body.has-bnav #alert-toast,body.has-bnav #app-toast{bottom:calc(var(--bnav-h) + 
 #app-toast.on{opacity:1;transform:translate(-50%,0)}
 .ws-json{font-size:10px;line-height:1.45;white-space:pre-wrap;word-break:break-word;color:var(--muted)}
 /* price alerts: rows, toggles, toast */
+.alt-side{font-size:9px;letter-spacing:.5px}
+.alt-side.up{color:#22c55e}
+.alt-side.down{color:#ef4444}
+.tp-chip.alt-sig,.chip.alt-sig{color:#0b0b12;background:linear-gradient(92deg,#22c55e,#a78bfa 52%,#ef4444);border-color:transparent;font-weight:800}
 .alt-pairs{display:flex;flex-wrap:wrap;gap:4px;padding:1px 2px 7px}
 body.has-bnav .menu{padding-bottom:calc(var(--bnav-h) + 18px)}
 .alt-pairs .tp-chip{font-size:9.5px;padding:5px 7px;letter-spacing:.2px}
@@ -1457,6 +1461,7 @@ body.has-bnav .menu{padding-bottom:calc(var(--bnav-h) + 18px)}
 #sheet-body .tp-chip.on{background:rgba(167,139,250,.24);border-color:rgba(167,139,250,.6);color:#fff}
 #sheet-body .tp-chip.alt-buy{color:#052e16;background:rgba(34,197,94,.9);border-color:transparent}
 #sheet-body .tp-chip.alt-sell{color:#2a0505;background:rgba(239,68,68,.9);border-color:transparent}
+#sheet-body .tp-chip.alt-sig{color:#0b0b12;background:linear-gradient(92deg,#22c55e,#a78bfa 52%,#ef4444);border-color:transparent}
 #sheet-body .alt-pairs{display:flex;flex-wrap:wrap;gap:5px;padding:1px 0 6px}
 #sheet-body .alt-add{display:flex;flex-wrap:wrap;gap:6px;padding:2px 0 8px}
 #sheet-body .alt-list{gap:6px}
@@ -1774,10 +1779,10 @@ body[data-view="chart"] .hd-quote{left:auto;right:9px;bottom:2px;text-align:righ
     <div class="menu-hint" id="menu-alert-note">no alert armed yet</div>
     <div class="menu-btns">
       <button class="chip" onclick="closeMenu();openAlertsSheet()">Price alerts</button>
-      <button class="chip alt-buy" onclick="closeMenu();alertSignal('read_buy')">BUY setup</button>
-      <button class="chip alt-sell" onclick="closeMenu();alertSignal('read_sell')">SELL setup</button>
+      <button class="chip alt-sig" onclick="closeMenu();alertSignal()">Signal alert</button>
     </div>
     <button class="chip" style="width:100%;justify-content:center;margin-top:6px" onclick="closeMenu();togglePanel('alerts-panel')">Alerts on the chart</button>
+    <div class="menu-hint" style="margin-top:6px">A signal alert rings on this phone even when the app is closed — turn on notifications in Price alerts once.</div>
   </div>
 
   <div class="menu-sec">
@@ -6680,7 +6685,8 @@ function alertsSave(a){try{localStorage.setItem('astra6_alt_alerts',JSON.stringi
 function alertsFor(sym){return alertsLoad().filter(function(a){return a.sym===sym;});}
 // price rules fire on a number; setup rules fire when the app's own cluster read turns
 const ALT_PRICE_KINDS=['above','below','cross'];
-const ALT_READ_KINDS=['read_buy','read_sell'];
+// one rule, both sides: it rings with whatever the read says — SELL when it says SELL, BUY when it says BUY
+const ALT_READ_KINDS=['signal','read_buy','read_sell'];
 function altPair(){
   const s=window._altSym;
   return (s&&MKT[s])?s:currentSymbol;
@@ -6712,7 +6718,14 @@ function alertEdit(id){
 }
 function alertDel(id){alertsSave(alertsLoad().filter(function(a){return a.id!==id;}));alertsRefresh();pushSync();}
 function alertToggle(id){
-  const a=alertsLoad();a.forEach(function(x){if(x.id===id){x.on=!x.on;x.fired=0;}});alertsSave(a);alertsRefresh();pushSync();
+  const a=alertsLoad();
+  a.forEach(function(x){
+    if(x.id!==id)return;
+    if(x.fired){x.fired=0;x.on=true;x.side=null;}   // RE-ARM means armed again, not paused
+    else{x.on=!x.on;}
+    x.last=null;
+  });
+  alertsSave(a);alertsRefresh();pushSync();
 }
 function alertsActive(sym){return alertsFor(sym).filter(function(a){return a.on;});}
 // an RSI alert is checked against the same closes the chart is drawing
@@ -6751,13 +6764,23 @@ function paintMenuAlerts(){
   const syms=[];
   live.forEach(function(a){if(syms.indexOf(a.sym)<0)syms.push(a.sym);});
   const fired=all.filter(function(a){return a.fired;}).length;
-  if(live.length)el.textContent='armed: '+syms.join(', ')+(fired?' · '+fired+' already fired':'');
-  else if(fired)el.textContent=fired+' alert'+(fired>1?'s':'')+' fired — arm again for the next setup';
-  else el.textContent=all.length+' alert'+(all.length>1?'s':'')+' paused';
+  const lastFired=all.filter(function(a){return a.fired;}).slice(-1)[0];
+  let txt;
+  if(live.length)txt='armed: '+syms.join(', ')+(fired?' · last: '+(lastFired&&lastFired.side?lastFired.side:'fired'):'');
+  else if(fired)txt=fired+' alert'+(fired>1?'s':'')+' fired — arm again for the next setup';
+  else txt=all.length+' alert'+(all.length>1?'s':'')+' paused';
+  // whether a locked phone will actually hear it matters as much as what is armed
+  try{
+    if(typeof PUSH_ON!=='undefined'){
+      txt+=(PUSH_ON?' · phone: on':(Notification.permission==='denied'?' · phone: blocked':' · phone: off'));
+    }
+  }catch(e){}
+  el.textContent=txt;
 }
 function alertKindLabel(a){
   if(a.kind==='rsi_above')return 'RSI(14) ABOVE '+a.price;
   if(a.kind==='rsi_below')return 'RSI(14) BELOW '+a.price;
+  if(a.kind==='signal')return 'SIGNAL · BUY or SELL';
   if(a.kind==='read_buy')return 'BUY setup';
   if(a.kind==='read_sell')return 'SELL setup';
   return a.kind.toUpperCase()+' '+fmtPx(a.price,a.sym||currentSymbol);
@@ -6790,15 +6813,19 @@ async function alertReadTick(force){
     arr.forEach(function(a){
       if(a.sym!==sym||!a.on||a.fired)return;
       if(ALT_READ_KINDS.indexOf(a.kind)<0)return;
-      const want=(a.kind==='read_buy')?'BUY':'SELL';
+      // 'signal' follows the read: BUY read rings BUY, SELL read rings SELL
+      let want=typ;
+      if(a.kind==='read_buy')want='BUY';
+      else if(a.kind==='read_sell')want='SELL';
       if(typ!==want)return;
-      a.fired=Date.now();changed=true;
-      const msg=sym+' · '+typ+' setup is live — a read of the volume, not a guarantee';
-      alertToast(msg,lastPrice);
+      a.fired=Date.now();
+      a.side=typ;
+      changed=true;
+      alertToast(sym+' · '+typ+' signal — a read of the volume, not a guarantee',lastPrice);
       try{if(soundOn&&typeof beep==='function')beep(880,.12);}catch(e){}
       try{
         if('Notification' in window&&Notification.permission==='granted'){
-          new Notification('ASTRA6 · '+sym+' '+typ+' setup',{body:'The cluster read on '+sym+' 15m is '+typ+'. A read, not a guarantee.',tag:'astra6-read-'+sym});
+          new Notification('ASTRA6 · '+sym+' · '+typ+' signal',{body:'The 15m cluster read on '+sym+' is '+typ+'. A read, not a guarantee.',tag:'astra6-signal-'+sym});
         }
       }catch(e){}
     });
@@ -6858,7 +6885,7 @@ function alertRowHtml(a){
   const bits=[];
   if(!here)bits.push('<b class="alt-sym">'+a.sym+'</b>');
   if(a.note)bits.push(esc(a.note));
-  if(a.fired)bits.push('fired '+ago(a.fired));
+  if(a.fired)bits.push((a.side?('<b class="alt-side '+(a.side==='BUY'?'up':'down')+'">'+a.side+'</b> · '):'')+'fired '+ago(a.fired));
   else if(!a.on)bits.push('paused');
   else bits.push('armed');
   return '<div class="alt-row'+(a.on?'':' off')+'">'
@@ -6891,24 +6918,32 @@ function priceAlertsHtml(){
   });
   h+='</div>';
   h+='<div class="alt-add">';
-  h+='<button class="tp-chip alt-buy" onclick="alertSignal(\'read_buy\')">BUY setup</button>';
-  h+='<button class="tp-chip alt-sell" onclick="alertSignal(\'read_sell\')">SELL setup</button>';
+  h+='<button class="tp-chip alt-sig" onclick="alertSignal()">Signal alert · BUY or SELL</button>';
   h+='<button class="tp-chip" onclick="alertQuick(\'above\')">Above the price</button>';
   h+='<button class="tp-chip" onclick="alertQuick(\'below\')">Below the price</button>';
   h+='<button class="tp-chip" onclick="alertQuick(\'cross\')">On a cross</button>';
   h+='<button class="tp-chip" onclick="alertAdd(\'rsi_above\',70,\'RSI\',altPair())">RSI above 70</button>';
   h+='<button class="tp-chip" onclick="alertAdd(\'rsi_below\',30,\'RSI\',altPair())">RSI below 30</button>';
   h+='</div>';
-  h+='<div class="tp-note">BUY / SELL is the app\'s own cluster read on 15m — the same read the chart shows, not a promise. One card per setup, then the rule rests.</div>';
+  h+='<div class="tp-note">One signal alert follows the app\'s own 15m cluster read: it rings <b>SELL</b> when the read says sell, <b>BUY</b> when it says buy — the same read the chart shows, not a promise. It rings once, then you re-arm.</div>';
   h+=alertsListHtml();
   h+='<div class="tp-note">Armed alerts on any pair are checked against the real feed. A closed market cannot trigger one, and nothing here is invented.</div>';
   return h;
 }
-// BUY / SELL setup, armed on whichever pair is selected
+// one signal alert on whichever pair is selected; it takes the side the read gives
 function alertSignal(kind){
   const sym=altPair();
-  alertAdd(kind,0,(kind==='read_buy'?'BUY':'SELL')+' setup',sym);
-  toast((kind==='read_buy'?'BUY':'SELL')+' alert armed on '+sym);
+  // only one signal rule per pair: arming again replaces the old one
+  const keep=alertsLoad().filter(function(a){return !(a.sym===sym&&ALT_READ_KINDS.indexOf(a.kind)>=0);});
+  alertsSave(keep);
+  alertAdd('signal',0,'',sym);
+  toast('Signal alert armed on '+sym+' — it will ring BUY or SELL');
+  // a locked phone only hears it if push is on, so ask for it right here
+  if(!PUSH_ON&&pushSupported()&&Notification.permission!=='denied'){
+    pushEnable();
+  }else{
+    pushSync();
+  }
   alertReadTick(true);
 }
 function alertsRefresh(){

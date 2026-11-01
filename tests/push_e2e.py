@@ -145,6 +145,24 @@ def main():
         assert k[0] == "read"
     print("SETUP CARDS SENT:", len(kinds))
 
+    # the single signal rule: it must ring with the side the read gives, both ways
+    import pushweb as _pw
+    for side, want_kind in (("BUY", "read"), ("SELL", "read")):
+        _pw.configure(read_fn=lambda s, side=side: {"state": side + "|$1.00",
+                                                    "title": "TEST · %s signal at $1.00" % side,
+                                                    "body": "cluster read on 15m"})
+        rec_sig = {"endpoint": "x", "rules": [{"id": "g1", "sym": "XAUUSD", "kind": "signal", "price": 0}],
+                   "fired": {}, "last": {}}
+        cards = _pw.eval_rules(rec_sig)
+        assert len(cards) == 1, (side, cards)
+        assert side in cards[0]["title"], cards[0]["title"]
+        assert "not a guarantee" in cards[0]["body"]
+        print("SIGNAL CARD:", side, "->", cards[0]["title"])
+    _pw.configure(read_fn=lambda s: {"state": "WATCH|$1.00", "title": "no edge", "body": "quiet"})
+    rec_quiet = {"endpoint": "x", "rules": [{"id": "g2", "sym": "XAUUSD", "kind": "signal", "price": 0}],
+                 "fired": {}, "last": {}}
+    assert _pw.eval_rules(rec_quiet) == [], "no signal must mean no card"
+
     # the setup branch itself, deterministically: BUY read -> BUY card, never a SELL card
     import pushweb
     pushweb.configure(read_fn=lambda s: {"state": "BUY|$1.00", "title": "TEST · BUY setup at $1.00",
