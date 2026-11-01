@@ -192,7 +192,7 @@ body.intro-open{overflow:hidden}
 @media(max-width:620px){.hd-clean .price-value{font-size:19px}.hd-now{display:none}}
 
 
-.price-block{display:flex;flex-direction:column;align-items:center;gap:0;line-height:1.15;white-space:nowrap}
+.price-block{display:flex;flex-direction:column;align-items:center;gap:0;line-height:1.15;white-space:nowrap;position:relative}
 .net-chip{display:inline-flex;align-items:center;gap:5px;margin-top:5px;font-size:9px;font-weight:800;
   letter-spacing:.07em;text-transform:uppercase;padding:2px 7px;border-radius:999px;
   border:1px solid var(--line);color:var(--muted);background:var(--line-soft);line-height:1.4}
@@ -220,6 +220,12 @@ body.intro-open{overflow:hidden}
 [data-theme="dark"] .sym-btn.active .sym-px{color:#fff}
 @media(max-width:620px){.sym-btn{padding:4px 9px}.sym-btn .sym-px{font-size:11px}}
 .price-value{font-size:28px;font-weight:800;letter-spacing:-1px;line-height:1;color:var(--ink)}
+.hd-quote{display:none;font-size:9px;font-weight:700;letter-spacing:0;color:var(--muted);white-space:nowrap;
+  position:absolute;left:0;right:0;bottom:1px;text-align:center;padding:0 6px;line-height:11px;z-index:1}
+.hd-quote b{font-weight:800;color:var(--ink-2)}
+.hd-quote .u{color:#089981}.hd-quote .d{color:#f23645}
+body[data-view="chart"] .hd-quote{display:block}
+body[data-view="chart"] .hd{position:sticky;top:0}
 .price-meta{font-size:10.5px;color:var(--muted);margin-top:5px;letter-spacing:.1px}
 
 .hd-right{display:flex;flex-direction:column;align-items:flex-end;gap:7px;min-width:0}
@@ -431,17 +437,32 @@ body.intro-open{overflow:hidden}
   border-color:var(--line);font-weight:700}
 .chart-stale.closed::before{content:'';margin:0}
 /* the timeframe belongs to the chart, not the drawer */
+#chart-toolbar{position:absolute;right:6px;top:6px;z-index:6;display:flex;gap:2px;padding:3px;border-radius:10px;
+  background:color-mix(in srgb,var(--surface) 92%,transparent);border:1px solid var(--line);
+  backdrop-filter:blur(10px);box-shadow:0 4px 14px rgba(0,0,0,.28)}
+#chart-toolbar .ctb{width:26px;height:24px;display:grid;place-items:center;border:0;border-radius:7px;cursor:pointer;
+  background:transparent;color:var(--ink-2);font-family:inherit}
+#chart-toolbar .ctb:hover{background:color-mix(in srgb,var(--ink) 10%,transparent);color:var(--ink)}
+#chart-toolbar .ctb.on{background:color-mix(in srgb,var(--a-violet) 26%,transparent);color:var(--ink)}
 #tf-float{
-  position:absolute;top:6px;left:8px;z-index:6;display:flex;gap:3px;padding:3px;border-radius:10px;
-  background:color-mix(in srgb,var(--surface) 84%,transparent);border:1px solid var(--line-soft);
-  backdrop-filter:blur(8px);max-width:calc(100% - 16px);overflow-x:auto;scrollbar-width:none;
-  box-shadow:0 2px 10px -6px rgba(15,23,42,.35);
+  position:absolute;top:6px;left:14px;z-index:6;display:flex;gap:1px;padding:3px;border-radius:9px;
+  background:color-mix(in srgb,var(--surface) 90%,transparent);border:1px solid var(--line);
+  backdrop-filter:blur(10px);max-width:calc(100% - 96px);overflow-x:auto;scrollbar-width:none;
+  box-shadow:0 2px 10px -6px rgba(0,0,0,.5);
 }
 #tf-float::-webkit-scrollbar{display:none}
-#tf-float .tf-btn{height:23px;min-width:30px;padding:0 7px;font-size:10.5px;border-radius:7px;flex:0 0 auto}
+#tf-float .tf-btn{padding:0 6px;min-width:26px;font-size:10.5px;height:23px;min-width:30px;padding:0 7px;font-size:10.5px;border-radius:7px;flex:0 0 auto}
 @media(max-width:620px){#tf-float .tf-btn{min-width:27px;padding:0 5px;font-size:10px}}
 
-#tv-legend{position:absolute;top:44px;left:10px;z-index:4;pointer-events:none;display:flex;align-items:center;gap:10px;font-size:11px;font-weight:600;letter-spacing:.2px;color:var(--muted);background:color-mix(in srgb,var(--surface) 95%,transparent);backdrop-filter:blur(6px);padding:4px 8px;border-radius:7px;border:1px solid var(--line-soft);box-shadow:0 2px 10px rgba(0,0,0,.22)}
+#tv-legend .lg-note{display:none}   /* the VWAP note already sits on its own label on the chart */
+#tv-legend .lg-t{font-weight:900!important}
+#lg-chg{font-weight:800}
+#lg-chg.up{color:#089981}
+#lg-chg.dn{color:#f23645}
+#tv-legend{display:none!important}
+#tv-legend-old{position:absolute;top:74px;left:8px;right:8px;z-index:4;pointer-events:none;display:flex;align-items:center;
+  gap:8px;font-size:10px;font-weight:600;letter-spacing:.1px;color:var(--muted);background:transparent;
+  padding:0;border:0;box-shadow:none;flex-wrap:wrap;max-width:none}
 #tv-legend b{color:var(--ink);font-weight:800}
 #tv-legend .lg-t{font-weight:800;color:var(--ink)}
 #tv-legend .lg-c.up{color:var(--up)} #tv-legend .lg-c.dn{color:var(--down)}
@@ -1226,15 +1247,15 @@ body[data-view="home"] .wrap{position:relative;overflow:hidden}
 }
 #tf-float .tf-btn.active{box-shadow:0 6px 14px -9px rgba(124,92,255,.95),inset 0 1px 0 rgba(255,255,255,.3)}
 /* ---------- the market picker and the alert card, both on the chart ---------- */
-#tf-float{max-width:calc(100% - 108px)}
+#tf-float{max-width:calc(100% - 96px)}
 #mkt-float{
-  position:absolute;top:6px;right:66px;z-index:7;display:inline-flex;align-items:center;gap:5px;
-  height:29px;padding:0 9px;border-radius:10px;cursor:pointer;
-  border:1px solid color-mix(in srgb,var(--a-violet) 26%,var(--line-soft));
-  background:color-mix(in srgb,var(--surface) 78%,transparent);
+  position:absolute;top:44px;left:8px;z-index:7;display:inline-flex;align-items:center;gap:5px;width:auto;max-width:132px;
+  height:26px;padding:0 8px;border-radius:8px;cursor:pointer;
+  border:1px solid color-mix(in srgb,var(--a-violet) 30%,var(--line));
+  background:color-mix(in srgb,var(--surface) 88%,transparent);
   -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
   color:var(--ink);font:800 10.5px/1 ui-monospace,monospace;letter-spacing:.03em;
-  box-shadow:0 8px 18px -14px rgba(15,23,42,.9),inset 0 1px 0 rgba(255,255,255,.35);
+  box-shadow:0 8px 18px -14px rgba(0,0,0,.9),inset 0 1px 0 rgba(255,255,255,.12);
   transition:transform .16s,border-color .16s,box-shadow .16s;
 }
 #mkt-float:hover{transform:translateY(-1px);border-color:color-mix(in srgb,var(--a-violet) 55%,var(--line-soft))}
@@ -1286,13 +1307,22 @@ body[data-view="home"] .wrap{position:relative;overflow:hidden}
 
 /* ---------- TradingView-style chart tools: rail · panels · drawing layer · panes ---------- */
 #draw-layer{position:absolute;left:0;top:0;z-index:4;pointer-events:none;overflow:visible;touch-action:none}
+#rail-toggle{
+  position:absolute;left:6px;top:110px;z-index:8;width:36px;height:36px;display:grid;place-items:center;cursor:pointer;
+  border:1px solid color-mix(in srgb,var(--a-violet) 22%,var(--line-soft));border-radius:12px;
+  background:color-mix(in srgb,var(--surface) 90%,transparent);color:var(--ink-2);
+  -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
+  box-shadow:0 12px 26px -20px rgba(15,23,42,.95),inset 0 1px 0 rgba(255,255,255,.28)}
+#rail-toggle:hover{color:var(--ink);background:color-mix(in srgb,var(--a-violet) 16%,var(--surface))}
+#rail-toggle.on{color:#fff;background-image:linear-gradient(140deg,var(--a-violet),#6d5cf0);border-color:transparent}
+#tv-rail.collapsed{display:none}
 #tv-rail{
-  position:absolute;left:6px;top:110px;z-index:7;display:flex;flex-direction:column;gap:2px;padding:4px;border-radius:12px;
+  position:absolute;left:6px;top:152px;z-index:7;display:flex;flex-direction:column;gap:2px;padding:4px;border-radius:12px;
   background:color-mix(in srgb,var(--surface) 88%,transparent);
   border:1px solid color-mix(in srgb,var(--a-violet) 20%,var(--line-soft));
   -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
   box-shadow:0 16px 32px -26px rgba(15,23,42,.95),inset 0 1px 0 rgba(255,255,255,.32);
-  max-height:calc(100% - 150px);overflow-y:auto;scrollbar-width:none;
+  max-height:calc(100% - 190px);overflow-y:auto;scrollbar-width:none;
 }
 #tv-rail::-webkit-scrollbar{display:none}
 #tv-rail .rail-btn{
@@ -1376,7 +1406,8 @@ body[data-view="chart"] #oanda_chart{flex:1 1 auto;min-height:0;height:auto}
 .chart-stale{bottom:calc(var(--pane-h,0px) + 34px) !important}
 body.chart-full #chart-section{position:fixed;inset:0;z-index:95;height:100dvh;border-radius:0}
 @media(max-width:620px){
-  #tv-rail{left:5px;top:108px;padding:3px;gap:1px;max-height:calc(100% - 140px)}
+  #rail-toggle{left:5px;top:108px;width:32px;height:32px;border-radius:10px}
+  #tv-rail{left:5px;top:146px;padding:3px;gap:1px;max-height:calc(100% - 176px)}
   #tv-rail .rail-btn{width:26px;height:26px}
   .tool-panel{left:38px;top:104px;width:min(244px,calc(100% - 48px));max-height:calc(100% - 118px)}
   .tool-panel .tp-row{padding:5px 8px;font-size:10.6px}
@@ -1436,6 +1467,30 @@ body[data-view="home"] .home>*:nth-child(4){animation-delay:.18s}
    Chat, dark by default. The two rules above keep the light theme identical
    in structure; only hue and light change between them.
 */
+/* ---------- broker quote bar (chart view): one tight row, change + OHLC under it ---------- */
+body[data-view="chart"] .hd{position:sticky;top:0}
+body[data-view="chart"] .hd-in{padding:5px 10px 17px;gap:8px}
+body[data-view="chart"] .brand{gap:8px}
+body[data-view="chart"] .brand-mark{width:26px;height:26px;flex:0 0 26px;font-size:10.5px;border-radius:8px}
+body[data-view="chart"] .brand-name{font-size:13px}
+body[data-view="chart"] .brand-sub{display:none}
+body[data-view="chart"] .price-block{flex:0 1 auto;flex-direction:column;align-items:flex-end;gap:1px;
+  margin:0;padding:0;text-align:right;position:static;line-height:1.05}
+body[data-view="chart"] .price-block::before{display:none}
+body[data-view="chart"] .price-value{font-size:20px;letter-spacing:-.4px;text-shadow:none}
+body[data-view="chart"] .price-meta{font-size:8.5px;letter-spacing:.02em;margin:0}
+body[data-view="chart"] .net-chip{position:absolute;left:10px;bottom:2px;margin:0;height:14px;padding:0 6px;
+  font-size:8.5px;gap:4px;border-radius:5px;letter-spacing:.02em}
+body[data-view="chart"] .net-chip i{width:5px;height:5px;flex:0 0 5px}
+body[data-view="chart"] .hd-quote{left:auto;right:9px;bottom:2px;text-align:right;font-size:9px;line-height:14px;padding:0}
+@media(max-width:400px){
+  #tf-float{left:8px;top:4px;padding:2px;gap:0;max-width:calc(100% - 112px)}
+  #tf-float .tf-btn{min-width:24px;padding:0 4px;font-size:9.6px;height:22px;border-radius:6px}
+  #chart-toolbar{right:4px;top:4px;padding:2px;gap:1px}
+  #chart-toolbar .ctb{width:23px;height:22px}
+  body[data-view="chart"] .hd-quote{font-size:8.6px;left:82px;right:8px}
+  body[data-view="chart"] #mkt-float{top:40px}
+}
 </style>
 <script src="/static/vendor/lightweight-charts.js"></script>
 <link rel="stylesheet" href="/static/ibm-plex-mono/fonts.css">
@@ -1502,6 +1557,7 @@ body[data-view="home"] .home>*:nth-child(4){animation-delay:.18s}
 </div>
 
 <header class="hd">
+  <span class="hd-quote mono" id="hd-quote" aria-label="Change, open, high, low, close"></span>
   <div class="hd-in hd-clean">
     <div class="brand">
       <div class="brand-mark">A6</div>
@@ -1706,16 +1762,33 @@ body[data-view="home"] .home>*:nth-child(4){animation-delay:.18s}
         <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
       </button>
       <div id="mkt-pop" class="mkt-pop" hidden role="dialog" aria-label="Switch market"></div>
+      <div id="chart-toolbar" role="toolbar" aria-label="Chart">
+        <button type="button" class="ctb" onclick="resetZoom()" title="Reset the view" aria-label="Reset the view">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 9V4h5M20 15v5h-5M15 4h5v5M9 20H4v-5"/></svg>
+        </button>
+        <button type="button" class="ctb" onclick="shotChart()" title="Screenshot the chart" aria-label="Screenshot">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 8.5h3l1.4-2h7.2L17 8.5h3v10H4z"/><circle cx="12" cy="13" r="3.2"/></svg>
+        </button>
+        <button type="button" class="ctb" id="ctb-type" onclick="togglePanel('chart-menu')" title="Chart type, scale, drawings" aria-label="Chart type and settings">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 18l5-6 4 3 7-9"/></svg>
+        </button>
+        <button type="button" class="ctb" onclick="toggleLog()" id="ctb-log" title="Logarithmic scale" aria-label="Logarithmic scale">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 19c5 0 5-14 9-14s4 9 7 9"/></svg>
+        </button>
+      </div>
       <div id="tf-float" role="group" aria-label="Chart timeframe">
         <button class="tf-btn" data-tf="M1">M1</button><button class="tf-btn" data-tf="M5">M5</button><button class="tf-btn active" data-tf="M15">M15</button><button class="tf-btn" data-tf="M30">M30</button><button class="tf-btn" data-tf="H1">H1</button><button class="tf-btn" data-tf="H4">H4</button><button class="tf-btn" data-tf="D">D1</button><button class="tf-btn" data-tf="W">W1</button>
       </div>
       <div id="chart-stale" class="chart-stale" hidden></div>
       <div id="swap-note" class="swap-note" hidden></div>
-      <div id="tv-legend"><span class="lg-t" id="lg-sym">XAUUSD</span><span id="lg-tf">M15</span><span id="lg-ohlc">—</span><span class="lg-note" id="lg-note"></span><span id="ind-legend" hidden></span></div>
+      <div id="tv-legend"><span class="lg-t" id="lg-sym">XAUUSD</span><span id="lg-tf">M15</span><span id="lg-ohlc">—</span><span class="lg-note" id="lg-note"></span><span id="lg-chg"></span><span id="ind-legend" hidden></span></div>
       <svg id="vwap-layer" aria-hidden="true"><g id="sl-lines"></g><g id="vw-bands"></g><g id="vw-guides"></g><g id="vw-marks"></g><g id="vw-labels"></g></svg>
       <svg id="zone-layer" aria-hidden="true"></svg>
       <svg id="draw-layer" aria-hidden="true"></svg>
       <div id="draw-hint"></div>
+      <button id="rail-toggle" type="button" onclick="toggleRail()" aria-label="Drawing tools" aria-expanded="true" title="Drawing tools">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9a2.6 2.6 0 0 0-3.7-3.7L4 16z"/></svg>
+      </button>
       <div id="tv-rail" role="toolbar" aria-label="Chart tools"></div>
       <div id="ind-panel" class="tool-panel" hidden role="dialog" aria-label="Indicators"></div>
       <div id="chart-menu" class="tool-panel" hidden role="dialog" aria-label="Chart type and tools"></div>
@@ -3053,6 +3126,29 @@ function renderRail(){
   });
   box.innerHTML=h;
 }
+function railOpen(){const b=document.getElementById('tv-rail');return !!(b&&!b.classList.contains('collapsed'));}
+function paintRailToggle(){
+  const t=document.getElementById('rail-toggle'); if(!t) return;
+  const open=railOpen();
+  t.classList.toggle('on',open); t.setAttribute('aria-expanded',open?'true':'false');
+}
+function toggleRail(){
+  const b=document.getElementById('tv-rail'); if(!b) return;
+  const off=railOpen();
+  b.classList.toggle('collapsed',off);
+  try{localStorage.setItem('astra6_rail',off?'off':'on');}catch(e){}
+  if(off) setTool('cursor');      // a folded rail must never leave an unseen tool armed
+  paintRailToggle();
+  if(typeof drawOverlay==='function') drawOverlay();
+}
+function initRail(){
+  const b=document.getElementById('tv-rail'); if(!b) return;
+  let pref=null; try{pref=localStorage.getItem('astra6_rail');}catch(e){}
+  // a phone gets the candles first: the rail folds away until it is asked for
+  const off=(pref==null)?(window.innerWidth<=620):(pref==='off');
+  b.classList.toggle('collapsed',off);
+  paintRailToggle();
+}
 function railTap(t){
   if(t==='undo'){undoDraw();if(typeof beep==='function')beep(660,.05);return;}
   if(t==='clear'){clearDraw();if(typeof beep==='function')beep(520,.05);return;}
@@ -3093,7 +3189,7 @@ function setTool(t){
                       :{axisPressedMouseMove:{time:false,price:false},mouseWheel:false,pinch:false}
     });
   }
-  renderRail();scheduleDraw();
+  renderRail();paintRailToggle();scheduleDraw();
 }
 
 // ---------- panels ----------
@@ -3172,6 +3268,7 @@ function toggleDrawHidden(){drawHidden=!drawHidden;renderChartMenu();drawOverlay
 function toggleDrawLocked(){drawLocked=!drawLocked;setTool(drawTool);renderChartMenu();}
 function toggleLog(){
   window._logScale=!window._logScale;
+  const lb=document.getElementById('ctb-log'); if(lb) lb.classList.toggle('on',!!window._logScale);
   try{localStorage.setItem('astra6_log',window._logScale?'1':'0');}catch(e){}
   if(chart){try{chart.priceScale('right').applyOptions({mode:window._logScale?1:0});}catch(e){}}
   PANE_KINDS.forEach(function(k){const pr=paneRef[k];if(pr){try{pr.chart.priceScale('right').applyOptions({mode:window._logScale?1:0});}catch(e){}}});
@@ -3526,7 +3623,7 @@ function rebuildMainSeries(){
   }else if(chartType==='bars'){
     candleSeries=chart.addBarSeries({upColor:p.up,downColor:p.dn,thinBars:false,lastValueVisible:true,priceLineWidth:1,priceLineStyle:2});
   }else{
-    candleSeries=chart.addCandlestickSeries({upColor:p.up,downColor:p.dn,borderVisible:false,wickUpColor:p.up,wickDownColor:p.dn,priceLineWidth:1,lastValueVisible:true,priceLineStyle:2});
+    candleSeries=chart.addCandlestickSeries({upColor:p.bodyUp,downColor:p.bodyDn,borderVisible:true,borderUpColor:p.up,borderDownColor:p.dn,wickUpColor:p.wickUp,wickDownColor:p.wickDn,priceLineWidth:1,lastValueVisible:true,lastValueColor:p.text,priceLineStyle:2});
   }
   if(lastCandles.length)paintSeries(lastCandles);
   drawOverlay();
@@ -3539,7 +3636,7 @@ function setChartType(t){
 
 // ---------- wiring ----------
 function initChartTools(){
-  renderRail();renderIndPanel();renderChartMenu();
+  renderRail();initRail();renderIndPanel();renderChartMenu();
   const svg=document.getElementById('draw-layer');
   if(svg){
     svg.style.pointerEvents='none';
@@ -3585,7 +3682,7 @@ function initChart(){try{const c=document.getElementById('oanda_chart');if(!c)re
 function createChart(){try{const c=document.getElementById('oanda_chart');if(!c||typeof LightweightCharts==='undefined')return;if(chart)return;c.innerHTML='';c.style.display='block';c.style.alignItems='stretch';c.style.justifyContent='flex-start';const _ch=c.clientHeight||420;const _p=chartPalette();
     const _opts=tvChartOptions();_opts.width=c.clientWidth;_opts.height=_ch;
     chart=LightweightCharts.createChart(c,_opts);
-    candleSeries=chart.addCandlestickSeries({upColor:_p.up,downColor:_p.dn,borderVisible:false,wickUpColor:_p.up,wickDownColor:_p.dn,priceLineWidth:1,lastValueVisible:true,priceLineStyle:2});
+    candleSeries=chart.addCandlestickSeries({upColor:_p.bodyUp,downColor:_p.bodyDn,borderVisible:true,borderUpColor:_p.up,borderDownColor:_p.dn,wickUpColor:_p.wickUp,wickDownColor:_p.wickDn,priceLineWidth:1,lastValueVisible:true,lastValueColor:_p.text,priceLineStyle:2});
     chart.subscribeCrosshairMove(param=>{let bar=null;try{bar=param.seriesData&&param.seriesData.get(candleSeries);}catch(e){}updateLegend(bar,param.time);});new ResizeObserver(()=>{if(chart){chart.applyOptions({width:c.clientWidth,height:c.clientHeight||420});scheduleZoneDraw();}}).observe(c);chart.timeScale().subscribeVisibleLogicalRangeChange(()=>{scheduleZoneDraw();try{scheduleDraw();}catch(e){}});try{if(typeof initChartTools==='function')initChartTools();}catch(e){console.log('tools err',e);}console.log('chart created rebuilt');}catch(e){console.log('createChart err',e);}}
 function setTimeframe(tf){currentTF=tf;if(typeof closeMenu==='function')closeMenu();updateLegend(null);localStorage.setItem('astra6_tf',tf);document.querySelectorAll('[data-tf]').forEach(b=>b.classList.toggle('active',b.dataset.tf===tf));document.getElementById('chart-tf-label').textContent=tf;document.getElementById('chart-info-tf').textContent=tf;window._volume=null;window._volSigKey=null;if(window._strategy==='volume')setTimeout(fetchVolume,120);scheduleZoneDraw();fetchChart(tf);}
 
@@ -3601,11 +3698,15 @@ async function fetchOtherPrice(){ await fetchBoard(); }
 
 function isDark(){return THEME==='dark';}
 function chartPalette(){
+  // The terminal look: near-black plot, hairline grid, TradingView's own candle pair,
+  // and a translucent white body so a wick is always visible on top of the body.
   const d=isDark();
   return {
-    bg:d?'#131722':'#ffffff', text:d?'#787b86':'#6b7280',
-    grid:d?'#1e222d':'#eef1f5', border:d?'#2a2e39':'#e7e9ee',
-    cross:d?'#758696':'#9aa3b2', up:d?'#26a69a':'#0f9d67', dn:d?'#ef5350':'#dc4444'
+    bg:d?'#0d1117':'#ffffff', text:d?'#8b93a7':'#5f6673',
+    grid:d?'#161b25':'#eef1f5', border:d?'#222836':'#e7e9ee',
+    cross:d?'#7d879b':'#9aa3b2', up:d?'#089981':'#0f9d67', dn:d?'#f23645':'#dc4444',
+    wickUp:d?'#089981':'#0f9d67', wickDn:d?'#f23645':'#dc4444',
+    bodyUp:d?'rgba(8,153,129,0.92)':'rgba(15,157,103,0.92)', bodyDn:d?'rgba(242,54,69,0.92)':'rgba(220,68,68,0.92)'
   };
 }
 function tvChartOptions(){
@@ -3616,9 +3717,12 @@ function tvChartOptions(){
     crosshair:{mode:0,
       vertLine:{color:p.cross,width:1,style:2,labelBackgroundColor:d?'#363a45':'#d9dde5'},
       horzLine:{color:p.cross,width:1,style:2,labelBackgroundColor:d?'#363a45':'#d9dde5'}},
-    rightPriceScale:{borderColor:p.border,scaleMargins:{top:0.06,bottom:0.08},entireTextOnly:false,mode:window._logScale?1:0},
-    timeScale:{borderColor:p.border,timeVisible:true,secondsVisible:false,rightOffset:6,barSpacing:7,
-               fixLeftEdge:false,lockVisibleTimeRangeOnResize:true},
+    rightPriceScale:{borderColor:p.border,scaleMargins:{top:0.06,bottom:0.08},entireTextOnly:false,mode:window._logScale?1:0,
+                     borderVisible:true,minimumWidth:56,ticksVisible:true},
+    // ticks on the axis, a wider bar, and a right offset that leaves the newest candle air
+    timeScale:{borderColor:p.border,timeVisible:true,secondsVisible:false,rightOffset:8,barSpacing:9,
+               fixLeftEdge:false,lockVisibleTimeRangeOnResize:true,borderVisible:true,ticksVisible:true,
+               tickMarkMaxCharacterLength:6},
     handleScroll:{mouseWheel:true,pressedMouseMove:true,horzTouchDrag:true,vertTouchDrag:true,
                   kineticScroll:{touch:true,mouse:true}},
     handleScale:{axisPressedMouseMove:{time:true,price:true},mouseWheel:true,pinch:true},
@@ -3636,7 +3740,8 @@ function applyTheme(){
     const p=chartPalette();
     chart.applyOptions(tvChartOptions());
     try{if(typeof paintIndicators==='function'&&lastCandles.length)paintIndicators(lastCandles);}catch(e){}
-    if(candleSeries)candleSeries.applyOptions({upColor:p.up,downColor:p.dn,wickUpColor:p.up,wickDownColor:p.dn,borderVisible:false});
+    if(candleSeries)candleSeries.applyOptions({upColor:p.bodyUp,downColor:p.bodyDn,wickUpColor:p.wickUp,wickDownColor:p.wickDn,
+      borderVisible:true,borderUpColor:p.up,borderDownColor:p.dn,lastValueColor:p.text});
   }
   scheduleZoneDraw();
 }
@@ -3645,8 +3750,17 @@ function toggleTheme(){THEME=isDark()?'light':'dark';localStorage.setItem('astra
 // ---- TradingView-style OHLC legend (follows the crosshair) ----
 function updateLegend(bar,time){
   const sym=document.getElementById('lg-sym'), tf=document.getElementById('lg-tf');
-  const o=document.getElementById('lg-ohlc');
+  const o=document.getElementById('lg-ohlc'), chg=document.getElementById('lg-chg');
   if(sym)sym.textContent=currentSymbol;
+  if(chg){
+    const b0=(lastCandles&&lastCandles.length)?lastCandles[0]:null;
+    const last=bar||(lastCandles&&lastCandles.length?lastCandles[lastCandles.length-1]:null);
+    if(b0&&last&&b0.open){
+      const d=last.close-b0.open, pc=100*d/b0.open;
+      chg.textContent=(d>=0?'+':'')+fmtPx(d).replace('$','')+' ('+(pc>=0?'+':'')+pc.toFixed(2)+'%)';
+      chg.className=d>=0?'up':'dn';
+    } else { chg.textContent=''; chg.className=''; }
+  }
   if(tf)tf.textContent=(currentTF||'M15').replace('D','D1').replace('W','W1');
   if(!o)return;
   const b=bar||(lastCandles.length?lastCandles[lastCandles.length-1]:null);
@@ -3657,6 +3771,23 @@ function updateLegend(bar,time){
               `<span style="color:${isDark()?'#787b86':'#6b7280'}">L</span> <b class="${cls}">${fmtPx(b.low)}</b> `+
               `<span style="color:${isDark()?'#787b86':'#6b7280'}">C</span> <b class="${cls}">${fmtPx(b.close)}</b>`;
   o.querySelectorAll('b').forEach(e=>e.style.color=up?d.up:d.dn);
+  paintHeaderQuote(b);
+}
+// the header quote line: the same candle the chart is showing, in broker order
+function paintHeaderQuote(b){
+  const el=document.getElementById('hd-quote');
+  if(!el||!b) return;
+  const b0=(lastCandles&&lastCandles.length)?lastCandles[0]:null;
+  const d=(b0&&b0.open)?(b.close-b0.open):0, pc=(b0&&b0.open)?(100*d/b0.open):0;
+  const up=d>=0, cls=up?'u':'d';
+  // a phone has room for the essentials; a big screen gets the full decimal spread
+  const hw=(el.parentElement&&el.parentElement.clientWidth)||window.innerWidth||0;
+  const wide=hw>=420, u=up?'+':'-';
+  const dec=Math.min(2,mkMeta(currentSymbol).dec||2);
+  const f=v=>wide?fmtPx(v).replace('$',''):fmtPx(v,dec).replace('$','').replace(/,(\d{3})/g,'$1');
+  const chg=wide?(u+f(Math.abs(d))+' ('+u+Math.abs(pc).toFixed(2)+'%)'):(u+Math.abs(pc).toFixed(2)+'%');
+  el.innerHTML='<span class="'+cls+'">'+chg+'</span>'
+    +' · O <b>'+f(b.open)+'</b> H <b>'+f(b.high)+'</b> L <b>'+f(b.low)+'</b> C <b>'+f(b.close)+'</b>';
 }
 function symConf(){
   const m=mkMeta(currentSymbol);
@@ -3691,7 +3822,8 @@ try{paintSeries(clean);
     // 150 bars squeezed into a phone width gives ~2 px candles - they read as sticks and
     // the chart feels jittery. Show a readable window of the newest bars instead.
     const _want=()=>{const w=(document.getElementById('oanda_chart')||{}).clientWidth||430;
-      return Math.max(30,Math.min(150,Math.round((w-56)/9)));};
+      // 11 px per candle: full bodies, not thin sticks, and still enough history to see the level
+      return Math.max(28,Math.min(150,Math.round((w-56)/11)));};
     const _fit=()=>{try{
       const n=clean.length, show=Math.min(n,_want());
       chart.timeScale().setVisibleLogicalRange({from:n-show-0.5,to:n+2.5});
@@ -4359,7 +4491,7 @@ function drawVolume(){
     b.setAttribute('y',g.top.toFixed(1));
     b.setAttribute('width',bw.toFixed(1));
     b.setAttribute('height',g.hh.toFixed(1));
-    b.setAttribute('fill',pos?'rgba(13,148,136,0.10)':'rgba(239,68,68,0.09)');
+    b.setAttribute('fill',pos?'rgba(13,148,136,0.075)':'rgba(239,68,68,0.07)');
     b.setAttribute('stroke',isPoc?'#f59e0b':'none');
     b.setAttribute('stroke-width',isPoc?'1.6':'0');
     // volume meter hugging the left edge of the cluster
@@ -4369,7 +4501,7 @@ function drawVolume(){
     m.setAttribute('y',g.top.toFixed(1));
     m.setAttribute('width',ml.toFixed(1));
     m.setAttribute('height',g.hh.toFixed(1));
-    m.setAttribute('fill',pos?'rgba(13,148,136,0.42)':'rgba(239,68,68,0.36)');
+    m.setAttribute('fill',pos?'rgba(13,148,136,0.24)':'rgba(239,68,68,0.22)');
     // only the three rows that matter carry text: the point of control and the two
     // edges of the value area. Every other row keeps its volume bar and says nothing.
     if((isPoc||g.isVah||g.isVal)&&g.hh>=5&&bw>110){

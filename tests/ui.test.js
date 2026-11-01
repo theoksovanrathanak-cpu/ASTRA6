@@ -591,7 +591,13 @@ section('the drawer stays clean');
   ok('no timeframe row inside the menu', !/data-tf=/.test(menu));
   ok('the timeframe bar floats over the chart', /#tf-float\{[^}]*position:absolute/.test(html));
   ok('it scrolls sideways on a phone', /#tf-float\{[^}]*overflow-x:auto/.test(html));
-  ok('the legend moved down to make room', /#tv-legend\{position:absolute;top:44px/.test(html));
+  // the chart's own quote line moved into the header, so no pill covers the candles
+  ok('the quote line lives in the header, not on top of the candles', /id="hd-quote"/.test(html)
+     && /function paintHeaderQuote\(b\)/.test(html) && /#tv-legend\{display:none!important\}/.test(html));
+  // the line belongs to the header, not to the narrow price column that clipped it
+  ok('the quote line hangs off the header itself', html.indexOf('id="hd-quote"') < html.indexOf('<div class="price-block">')
+     && /\.hd-quote\{[^}]*position:absolute;left:0;right:0/.test(html)
+     && /body\[data-view="chart"\] \.hd-quote\{left:auto;right:9px/.test(html));
   ok('sections are divided, not stacked blindly', /\.menu-sec\{[^}]*border-top:1px solid/.test(html));
   ok('the signal list is no longer a drawer ladder', html.indexOf('id="alerts-list"') < 0);
   const order = ['View', 'Economic calendar', 'Latest news', 'Trade journal', 'Price source', 'Tools']
@@ -745,6 +751,12 @@ section('the chart carries real trading tools');
   ok('seven drawing tools', ['cursor','trend','hline','vline','rect','fib','ruler'].every(t => tools.includes(t)), tools.join(','));
   ok('undo and clear are on the rail', tools.includes('undo') && tools.includes('clear'));
   ok('the rail opens the indicator and chart panels', tools.includes('fx') && tools.includes('more'));
+  // a broker chart on a phone gives the width to the candles: the rail folds to one button
+  ok('the rail folds away and one tap brings it back', html.includes('id="rail-toggle"')
+     && /function toggleRail\(\)/.test(html) && /#tv-rail\.collapsed\{display:none\}/.test(html));
+  ok('a phone opens folded, a desk opens open', /window\.innerWidth<=620/.test(grab('initRail'))
+     && /localStorage\.setItem\('astra6_rail'/.test(html) && /getItem\('astra6_rail'\)/.test(grab('initRail')));
+  ok('a folded rail never leaves an unseen tool armed', /if\(off\) setTool\('cursor'\)/.test(grab('toggleRail')));
 
   const types = [...html.slice(html.indexOf('const CTYPE_LIST='), html.indexOf('let drawTool=')).matchAll(/\['(\w+)','/g)].map(m => m[1]);
   ok('five chart types, heikin included', types.length === 5 && types.includes('heikin') && types.includes('line'), types.join(','));
