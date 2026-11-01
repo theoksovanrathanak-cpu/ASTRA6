@@ -130,6 +130,8 @@ eval([
   'paintAlertCard', 'alertsOf', 'alertsHtml', 'renderMarketSwitch',
   'taSMA', 'taEMA', 'taRSI', 'taMACD', 'taBB', 'toHeikin',
   'taATR', 'taSupertrend', 'taStoch', 'taVWAPbands',
+  'taDonchian', 'taKeltner', 'taIchimoku', 'taPSAR', 'taADX', 'taCCI', 'taWilliams', 'taOBV',
+  'segDist', 'shapeDist',
 ].map(n => grab(n)).join('\n'));
 ['recordZoneAlert', 'renderZoneAlerts', 'zoneAlerts', 'latestTrade',
  'openMenu', 'closeMenu', 'toggleMenu', 'setView', 'endIntro', 'playIntro',
@@ -141,7 +143,9 @@ eval([
  'marketOpenNow', 'setNet', 'candlesLate', 'nextOpenLocal', 'paintEventLive', 'mkMeta',
  'paintAlertCard', 'alertsOf', 'alertsHtml', 'renderMarketSwitch',
  'taSMA', 'taEMA', 'taRSI', 'taMACD', 'taBB', 'toHeikin',
- 'taATR', 'taSupertrend', 'taStoch', 'taVWAPbands'].forEach(n => { global[n] = eval(n); });
+ 'taATR', 'taSupertrend', 'taStoch', 'taVWAPbands',
+ 'taDonchian', 'taKeltner', 'taIchimoku', 'taPSAR', 'taADX', 'taCCI', 'taWilliams', 'taOBV',
+ 'segDist', 'shapeDist'].forEach(n => { global[n] = eval(n); });
 // the page's own price formatter, kept out of the sandbox so the older stub survives
 const realFmtPx = new Function('mkMeta', 'currentSymbol',
   grab('fmtPx').replace('function fmtPx', 'return function fmtPx'))(mkMeta, 'XAUUSD');
@@ -779,6 +783,21 @@ section('the chart carries real trading tools');
   const tools = [...rail.matchAll(/\{t:'(\w+)'/g)].map(m => m[1]);
   ok('seven drawing tools', ['cursor','trend','hline','vline','rect','fib','ruler'].every(t => tools.includes(t)), tools.join(','));
   ok('undo and clear are on the rail', tools.includes('undo') && tools.includes('clear'));
+  ok('a brush, an eraser and a magnet joined the rail', tools.includes('brush') && tools.includes('eraser') && tools.includes('magnet'));
+  ok('redo is on the rail', tools.includes('redo'));
+  ok('a drawing carries its own colour and width', /sh\.c\|\|TV_COLOR\[sh\.k\]/.test(html) && /const W=function\(def\)/.test(html));
+  ok('the eraser hit-tests a real shape, not a guess', /function shapeDist\(sh,X,Y,mx,my\)/.test(html)
+     && /function eraseAt\(mx,my\)/.test(html));
+  {
+    const seg = segDist(5, 0, 0, 10, 10, 10);        // a point 10 px above the middle of a flat segment
+    ok('distance to a segment is real', Math.abs(seg - 10) < 1e-9, String(seg));
+    const X = t => t, Y = p => p;
+    ok('a horizontal line hit-tests its own price', shapeDist({k:'hline',p1:40}, X, Y, 10, 43) === 3);
+    ok('a box is hit anywhere inside it', shapeDist({k:'rect',t1:0,p1:0,t2:50,p2:50}, X, Y, 25, 25) === 0);
+    ok('a brush is hit along its stroke', shapeDist({k:'brush',pts:[{t:0,p:0},{t:100,p:100}]}, X, Y, 50, 50) < 1e-6);
+  }
+  ok('the magnet snaps to a real open, high, low or close', /function snapPoint\(t,p\)/.test(html)
+     && /cands=\[b\.open,b\.high,b\.low,b\.close\]/.test(grab('snapPoint')));
   ok('the rail opens the indicator and chart panels', tools.includes('fx') && tools.includes('more'));
   // a broker chart on a phone gives the width to the candles: the rail folds to one button
   ok('the rail folds away and one tap brings it back', html.includes('id="rail-toggle"')
@@ -853,15 +872,32 @@ section('one strategy, one price, more tools');
      && html.indexOf("['text','Text']") > 0 && html.indexOf("['position','Position']") > 0);
 
   const inds = html.slice(html.indexOf('const IND_LIST=['), html.indexOf('const PANE_KINDS='));
-  ok('fourteen indicators are on offer', (inds.match(/\['/g) || []).length === 14, String((inds.match(/\['/g)||[]).length));
+  ok('twenty-two indicators are on offer', (inds.match(/\['/g) || []).length === 22, String((inds.match(/\['/g)||[]).length));
   ok('supertrend and vwap bands are there', inds.includes("'st'") && inds.includes("'vwapb'"));
-  ok('five panes are wired', /const PANE_KINDS=\['cvd','rsi','macd','stoch','atr'\]/.test(html));
+  ok('nine panes are wired', /const PANE_KINDS=\['cvd','rsi','macd','stoch','atr','adx','cci','willr','obv'\]/.test(html));
 
   // the new maths
   const bars = Array.from({length: 40}, (_, i) => ({
     time: 1793000000 + i*900, open: 100+i, high: 101+i, low: 99+i, close: 100.5+i, v: 1000+i,
   }));
   const atr = taATR(bars, 14);
+  // the indicators added with the terminal upgrade
+  const don = taDonchian(bars, 20);
+  ok('Donchian hugs the last 20 highs and lows', don.up[19] === bars[19].high && don.dn[19] === bars[0].low
+     && don.up[18] === null && don.mid[19] === (bars[19].high + bars[0].low) / 2, JSON.stringify([don.up[19], don.dn[19]]));
+  const kc = taKeltner(bars, 20, 2);
+  ok('Keltner is the EMA plus a multiple of ATR', kc.up[30] > kc.mid[30] && kc.dn[30] < kc.mid[30]
+     && Math.abs((kc.up[30] - kc.mid[30]) - 2 * taATR(bars, 10)[30]) < 1e-9);
+  const ic = taIchimoku(bars);
+  ok('Ichimoku has all four lines', ['tenkan','kijun','senkouA','senkouB'].every(k => Array.isArray(ic[k]) && ic[k].length === bars.length));
+  const ps = taPSAR(bars, 0.02, 0.2);
+  ok('every SAR value is a real number', ps.length === bars.length && ps.every(v => isFinite(v)));
+  const ax = taADX(bars, 14);
+  ok('a one-way ramp is all +DI, never −DI', ax.plus[39] > ax.minus[39] && ax.adx[39] > 0, JSON.stringify([ax.plus[39], ax.minus[39]]));
+  const flat = Array.from({length: 30}, (_, i) => ({ time: 1 + i * 900, open: 50, high: 50, low: 50, close: 50, v: 10 }));
+  ok('a flat market has Williams %R at −50 and CCI at 0', taWilliams(flat, 14)[29] === -50 && taCCI(flat, 20)[29] === 0);
+  const upOnly = Array.from({length: 10}, (_, i) => ({ time: i, open: 1 + i, high: 1 + i, low: 1 + i, close: 1 + i, v: 100 }));
+  ok('OBV only ever adds real volume', taOBV(upOnly)[9] === 900);
   ok('ATR is positive and finite', atr.length === 40 && atr[39] > 0 && isFinite(atr[39]), String(atr[39]));
   ok('ATR of a steady climb is about the bar range', Math.abs(atr[39] - 2) < 0.05, String(atr[39]));
 
