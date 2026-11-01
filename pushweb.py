@@ -249,6 +249,20 @@ def eval_rules(rec):
         sym = r["sym"]
         kind = r["kind"]
         lvl = float(r.get("price") or 0)
+        # BUY / SELL setup: the app's own cluster read, pushed when it turns (no level needed)
+        if kind in ("read_buy", "read_sell"):
+            rd = _read_fn(sym) if _read_fn else None
+            if not rd:
+                continue
+            typ = (rd.get("state") or "").split("|")[0].upper()
+            want = "BUY" if kind == "read_buy" else "SELL"
+            if typ == want:
+                fired[str(r["id"])] = time.time()
+                out.append(card(
+                    rd.get("title") or ("%s %s setup" % (sym, want)),
+                    (rd.get("body") or "") + " · a read of the volume, not a guarantee",
+                    sym, "read", "astra6-read-" + str(r["id"])))
+            continue
         if not lvl:
             continue
         if kind.startswith("rsi"):

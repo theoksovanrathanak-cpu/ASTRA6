@@ -62,7 +62,13 @@ def main():
     up = HTTPServer(("127.0.0.1", 8899), H)
     threading.Thread(target=up.serve_forever, daemon=True).start()
 
-    base = "http://127.0.0.1:8008"
+    base = "http://127.0.0.1:8010"
+    # a clean slate: subscriptions left by an earlier run would decrypt to nothing
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    try:
+        os.remove(os.path.join(here, "push_subs.json"))
+    except OSError:
+        pass
     st = requests.get(base + "/api/push/status", timeout=10).json()
     assert st.get("ready"), st
     print("status:", st)
@@ -94,7 +100,6 @@ def main():
 
     # ---- the market-read card: only a CHANGE of read is news ----
     import pushweb
-    import os
     subs = pushweb.subscribers()
     rec0 = [r for r in subs if r.get("endpoint") == sub["endpoint"]][0]
     assert rec0.get("fired"), "the fired marks were not stored"
@@ -119,6 +124,40 @@ def main():
     card = decrypt(RECEIVED[-1], priv, b"\x01" * 16)
     print("READ CARD:", json.dumps(card, ensure_ascii=False))
     assert card["kind"] == "read" and "not a guarantee" in card["body"]
+
+    # ---- a BUY / SELL setup rule rides the same read ----
+    requests.post(base + "/api/push/subscribe", json={
+        "subscription": sub, "readCard": {"on": False, "syms": []},
+        "rules": [{"id": "r3", "sym": "XAUUSD", "kind": "read_buy", "price": 0},
+                  {"id": "r4", "sym": "XAUUSD", "kind": "read_sell", "price": 0}]}, timeout=20)
+    requests.post(base + "/api/push/sync", json={"endpoint": sub["endpoint"], "awake": False,
+                 "rules": [{"id": "r3", "sym": "XAUUSD", "kind": "read_buy", "price": 0},
+                           {"id": "r4", "sym": "XAUUSD", "kind": "read_sell", "price": 0}]}, timeout=20)
+    before = len(RECEIVED)
+    requests.post(base + "/api/push/scan", timeout=60)
+    time.sleep(1)
+    kinds = []
+    for rec in RECEIVED[before:]:
+        c = decrypt(rec, priv, b"\x01" * 16)
+        kinds.append((c["kind"], c["title"]))
+        assert "not a guarantee" in c["body"]
+    for k in kinds:
+        assert k[0] == "read"
+    print("SETUP CARDS SENT:", len(kinds))
+
+    # the setup branch itself, deterministically: BUY read -> BUY card, never a SELL card
+    import pushweb
+    pushweb.configure(read_fn=lambda s: {"state": "BUY|$1.00", "title": "TEST · BUY setup at $1.00",
+                                         "body": "cluster read on 15m"})
+    r_buy = {"endpoint": "x", "rules": [{"id": "b1", "sym": "XAUUSD", "kind": "read_buy", "price": 0}],
+             "fired": {}, "last": {}}
+    cards_buy = pushweb.eval_rules(r_buy)
+    assert len(cards_buy) == 1 and cards_buy[0]["kind"] == "read", cards_buy
+    assert "not a guarantee" in cards_buy[0]["body"]
+    r_sell = {"endpoint": "x", "rules": [{"id": "s1", "sym": "XAUUSD", "kind": "read_sell", "price": 0}],
+              "fired": {}, "last": {}}
+    assert pushweb.eval_rules(r_sell) == [], "a BUY read must never fire a SELL alert"
+    print("SETUP BRANCH OK:", cards_buy[0]["title"])
 
     # a test card always goes out, awake or not
     t = requests.post(base + "/api/push/test", json={"endpoint": sub["endpoint"], "sym": "BTCUSD"},

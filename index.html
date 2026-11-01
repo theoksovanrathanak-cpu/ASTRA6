@@ -1441,7 +1441,31 @@ body.has-bnav #alert-toast,body.has-bnav #app-toast{bottom:calc(var(--bnav-h) + 
 #app-toast.on{opacity:1;transform:translate(-50%,0)}
 .ws-json{font-size:10px;line-height:1.45;white-space:pre-wrap;word-break:break-word;color:var(--muted)}
 /* price alerts: rows, toggles, toast */
+.alt-pairs{display:flex;flex-wrap:wrap;gap:4px;padding:1px 2px 7px}
+body.has-bnav .menu{padding-bottom:calc(var(--bnav-h) + 18px)}
+.alt-pairs .tp-chip{font-size:9.5px;padding:5px 7px;letter-spacing:.2px}
 .alt-add{display:flex;flex-wrap:wrap;gap:6px;padding:2px 2px 8px}
+.tp-chip.alt-buy,.chip.alt-buy{color:#052e16;background:rgba(34,197,94,.85);border-color:transparent;font-weight:800}
+.tp-chip.alt-sell,.chip.alt-sell{color:#2a0505;background:rgba(239,68,68,.85);border-color:transparent;font-weight:800}
+.alt-count{float:right;font-size:8.5px;font-weight:700;letter-spacing:.4px;color:var(--a-violet,#a78bfa)}
+/* the same alert block lives in the drawer sheet, so its parts are styled there too */
+#sheet-body .tp-h{font-size:9.5px;letter-spacing:1.1px;text-transform:uppercase;color:var(--muted);
+  font-weight:800;margin:6px 2px 3px}
+#sheet-body .tp-note{font-size:11px;line-height:1.5;color:var(--muted);margin:4px 2px}
+#sheet-body .tp-chip{font:inherit;font-size:11px;font-weight:700;padding:8px 11px;border-radius:9px;cursor:pointer;
+  color:var(--ink);background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.13)}
+#sheet-body .tp-chip.on{background:rgba(167,139,250,.24);border-color:rgba(167,139,250,.6);color:#fff}
+#sheet-body .tp-chip.alt-buy{color:#052e16;background:rgba(34,197,94,.9);border-color:transparent}
+#sheet-body .tp-chip.alt-sell{color:#2a0505;background:rgba(239,68,68,.9);border-color:transparent}
+#sheet-body .alt-pairs{display:flex;flex-wrap:wrap;gap:5px;padding:1px 0 6px}
+#sheet-body .alt-add{display:flex;flex-wrap:wrap;gap:6px;padding:2px 0 8px}
+#sheet-body .alt-list{gap:6px}
+#sheet-body .alt-row{padding:9px 10px}
+#sheet-body .alt-main b{font-size:12px}
+#sheet-body .alt-main span{font-size:10px}
+#sheet-body .alt-btn{font-size:10px;padding:6px 9px}
+#sheet-body .push-main b{font-size:10px}
+.alt-sym{color:var(--a-violet,#a78bfa);font-size:10px;letter-spacing:.3px;margin-right:3px}
 .alt-add .tp-chip{font-size:10.5px;padding:6px 9px}
 .alt-list{display:flex;flex-direction:column;gap:5px}
 .alt-row{display:flex;align-items:center;gap:6px;padding:7px 8px;border-radius:9px;
@@ -1454,6 +1478,7 @@ body.has-bnav #alert-toast,body.has-bnav #app-toast{bottom:calc(var(--bnav-h) + 
   color:var(--muted);background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1)}
 .alt-btn.on{color:#0b0b12;background:var(--up,#22c55e);border-color:transparent}
 .alt-btn.del{color:#f87171;background:rgba(239,68,68,.1);border-color:rgba(239,68,68,.3)}
+.alt-btn.edit{color:#a78bfa;background:rgba(167,139,250,.12);border-color:rgba(167,139,250,.35);display:inline-flex;align-items:center;justify-content:center}
 #alert-toast{position:fixed;left:50%;bottom:74px;transform:translate(-50%,14px);z-index:9400;
   max-width:min(92vw,420px);padding:10px 14px;border-radius:12px;font-size:12px;line-height:1.35;
   color:#f4f4f8;background:rgba(24,20,38,.97);border:1px solid rgba(167,139,250,.55);
@@ -1742,6 +1767,17 @@ body[data-view="chart"] .hd-quote{left:auto;right:9px;bottom:2px;text-align:righ
     <div class="menu-hint" id="of-menu-mini" style="font-family:ui-monospace,monospace">reading the volume…</div>
     <button class="chip" style="width:100%;justify-content:center;margin-top:8px" onclick="closeMenu();openOrderFlow()">Open the full ladder</button>
     <button class="chip" style="width:100%;justify-content:center;margin-top:6px" onclick="closeMenu();openAIRead()">Ask for a market read</button>
+  </div>
+
+  <div class="menu-sec" id="menu-alerts-sec">
+    <div class="menu-label">Alerts</div>
+    <div class="menu-hint" id="menu-alert-note">no alert armed yet</div>
+    <div class="menu-btns">
+      <button class="chip" onclick="closeMenu();openAlertsSheet()">Price alerts</button>
+      <button class="chip alt-buy" onclick="closeMenu();alertSignal('read_buy')">BUY setup</button>
+      <button class="chip alt-sell" onclick="closeMenu();alertSignal('read_sell')">SELL setup</button>
+    </div>
+    <button class="chip" style="width:100%;justify-content:center;margin-top:6px" onclick="closeMenu();togglePanel('alerts-panel')">Alerts on the chart</button>
   </div>
 
   <div class="menu-sec">
@@ -2422,6 +2458,7 @@ async function openNews(){
 // gone it opens from the cached shell and keeps the LAST REAL chart on screen, clearly
 // marked with how old it is: a blank page or a made-up candle would both be worse.
 let _swReady=false,_wasOnline=navigator.onLine!==false;
+setInterval(function(){try{alertReadTick();}catch(e){}},60000);
 function registerOfflineShell(){
   setTimeout(function(){try{pushRestore();}catch(e){}},2500);
   if(!('serviceWorker' in navigator)) return;
@@ -2644,6 +2681,7 @@ function openJournal(){ openSheet('Trade journal', journalHtml()); }
 function openSheet(title,html){
   const sh=document.getElementById('sheet'), sc=document.getElementById('sheet-scrim'), b=document.getElementById('sheet-body');
   if(!sh) return;
+  window._sheetAlerts=false;
   const t=document.getElementById('sheet-title'); if(t) t.textContent=title;
   if(b) b.innerHTML=html||'';
   sh.classList.add('open'); sh.setAttribute('aria-hidden','false');
@@ -2808,6 +2846,7 @@ function openMarket(sym){
   if(typeof closeMenu==='function') closeMenu();
 }
 function openMenu(){
+  try{paintMenuAlerts();}catch(e){}
   if(typeof loadCalendar==='function'){ loadCalendar(); loadNews(); }
   const m=document.getElementById('menu'), s=document.getElementById('scrim'), b=document.getElementById('burger');
   if(m)m.classList.add('open');
@@ -5312,6 +5351,7 @@ async function fetchVolume(){
     const d = await r.json();
     if(d && d.status==='ok' && currentSymbol===sym && currentTF===tf){
       window._volume = d; _volAt = Date.now();
+      try{alertReadTick();}catch(e){}
       if(window._strategy==='volume') renderVolumeSignal(d);
       scheduleZoneDraw();
       return d;
@@ -6638,16 +6678,41 @@ function alertsLoad(){
 }
 function alertsSave(a){try{localStorage.setItem('astra6_alt_alerts',JSON.stringify(a.slice(-60)));}catch(e){}}
 function alertsFor(sym){return alertsLoad().filter(function(a){return a.sym===sym;});}
-function alertAdd(kind,price,note){
+// price rules fire on a number; setup rules fire when the app's own cluster read turns
+const ALT_PRICE_KINDS=['above','below','cross'];
+const ALT_READ_KINDS=['read_buy','read_sell'];
+function altPair(){
+  const s=window._altSym;
+  return (s&&MKT[s])?s:currentSymbol;
+}
+function altPickSym(s){
+  if(!MKT[s])return;
+  window._altSym=s;
+  alertsRefresh();
+}
+function alertAdd(kind,price,note,sym){
+  const target=(sym&&MKT[sym])?sym:altPair();
   const a=alertsLoad();
-  a.push({id:'a'+Date.now()+Math.floor(Math.random()*99),sym:currentSymbol,kind:kind,
-    price:+Number(price).toFixed(4),note:(note||'').slice(0,60),on:true,fired:0,created:Date.now(),last:null});
-  alertsSave(a);renderAlertsPanel();pushSync();
+  a.push({id:'a'+Date.now()+Math.floor(Math.random()*999),sym:target,kind:kind,
+    price:(ALT_READ_KINDS.indexOf(kind)>=0?0:+Number(price||0).toFixed(4)),
+    note:(note||'').slice(0,60),on:true,fired:0,created:Date.now(),last:null});
+  alertsSave(a);alertsRefresh();pushSync();
   return true;
 }
-function alertDel(id){alertsSave(alertsLoad().filter(function(a){return a.id!==id;}));renderAlertsPanel();pushSync();}
+function alertEdit(id){
+  const list=alertsLoad(),a=list.find(function(x){return x.id===id;});
+  if(!a)return;
+  let txt='';
+  try{txt=window.prompt('New level for '+a.sym+' ('+fmtPx(a.price,a.sym).replace('$','')+')',String(a.price))||'';}catch(e){}
+  const v=parseFloat(String(txt).replace(/[^0-9.\-]/g,''));
+  if(!isFinite(v)||v<=0)return;
+  a.price=+v.toFixed(4);a.fired=0;a.last=null;
+  alertsSave(list);alertsRefresh();pushSync();
+  toast(a.sym+' alert moved to '+fmtPx(v,a.sym));
+}
+function alertDel(id){alertsSave(alertsLoad().filter(function(a){return a.id!==id;}));alertsRefresh();pushSync();}
 function alertToggle(id){
-  const a=alertsLoad();a.forEach(function(x){if(x.id===id){x.on=!x.on;x.fired=0;}});alertsSave(a);renderAlertsPanel();pushSync();
+  const a=alertsLoad();a.forEach(function(x){if(x.id===id){x.on=!x.on;x.fired=0;}});alertsSave(a);alertsRefresh();pushSync();
 }
 function alertsActive(sym){return alertsFor(sym).filter(function(a){return a.on;});}
 // an RSI alert is checked against the same closes the chart is drawing
@@ -6677,10 +6742,68 @@ function alertIndTick(){
   });
   if(changed)alertsSave(list);
 }
+function paintMenuAlerts(){
+  const el=document.getElementById('menu-alert-note');
+  if(!el)return;
+  const all=alertsLoad();
+  const live=all.filter(function(a){return a.on&&!a.fired;});
+  if(!all.length){el.textContent='no alert armed yet';return;}
+  const syms=[];
+  live.forEach(function(a){if(syms.indexOf(a.sym)<0)syms.push(a.sym);});
+  const fired=all.filter(function(a){return a.fired;}).length;
+  el.textContent=live.length?('armed: '+syms.join(', ')+(fired?' · '+fired+' already fired':''))
+    :(all.length+' alert'+(all.length>1?'s':'')+' · all paused or fired');
+}
 function alertKindLabel(a){
   if(a.kind==='rsi_above')return 'RSI(14) ABOVE '+a.price;
   if(a.kind==='rsi_below')return 'RSI(14) BELOW '+a.price;
-  return a.kind.toUpperCase()+' '+fmtPx(a.price);
+  if(a.kind==='read_buy')return 'BUY setup';
+  if(a.kind==='read_sell')return 'SELL setup';
+  return a.kind.toUpperCase()+' '+fmtPx(a.price,a.sym||currentSymbol);
+}
+// the cluster read for any market: the one on screen comes from the chart's own data
+async function alertReadSignal(sym){
+  try{
+    if(sym===currentSymbol&&window._volume&&window._volume.signal){
+      const t=String(window._volume.signal.type||'').toUpperCase();
+      if(t)return t;
+    }
+    const r=await fetch('/api/volume?symbol='+encodeURIComponent(sym)+'&tf=M15&bars=150&since=0',{cache:'no-store'});
+    const d=await r.json();
+    return String(((d||{}).signal||{}).type||'').toUpperCase();
+  }catch(e){return '';}
+}
+let _readTickAt=0;
+async function alertReadTick(force){
+  const armed=alertsLoad().filter(function(a){return a.on&&!a.fired&&ALT_READ_KINDS.indexOf(a.kind)>=0;});
+  if(!armed.length)return;
+  if(!force&&Date.now()-_readTickAt<45000)return;
+  _readTickAt=Date.now();
+  const syms=[];
+  armed.forEach(function(a){if(syms.indexOf(a.sym)<0)syms.push(a.sym);});
+  for(let i=0;i<syms.length&&i<6;i++){
+    const sym=syms[i];
+    const typ=await alertReadSignal(sym);
+    if(!typ||(typ!=='BUY'&&typ!=='SELL'))continue;
+    const arr=alertsLoad();let changed=false;
+    arr.forEach(function(a){
+      if(a.sym!==sym||!a.on||a.fired)return;
+      if(ALT_READ_KINDS.indexOf(a.kind)<0)return;
+      const want=(a.kind==='read_buy')?'BUY':'SELL';
+      if(typ!==want)return;
+      a.fired=Date.now();changed=true;
+      const msg=sym+' · '+typ+' setup is live — a read of the volume, not a guarantee';
+      alertToast(msg,lastPrice);
+      try{if(soundOn&&typeof beep==='function')beep(880,.12);}catch(e){}
+      try{
+        if('Notification' in window&&Notification.permission==='granted'){
+          new Notification('ASTRA6 · '+sym+' '+typ+' setup',{body:'The cluster read on '+sym+' 15m is '+typ+'. A read, not a guarantee.',tag:'astra6-read-'+sym});
+        }
+      }catch(e){}
+    });
+    if(changed){alertsSave(arr);}
+  }
+  alertsRefresh();
 }
 // one tick in, every armed rule on this market checked against the real print
 function alertTick(px,sym){
@@ -6688,6 +6811,7 @@ function alertTick(px,sym){
   const list=alertsLoad();let changed=false;
   list.forEach(function(a){
     if(a.sym!==sym||!a.on||a.fired)return;
+    if(ALT_PRICE_KINDS.indexOf(a.kind)<0)return;      // setup rules are judged on the read, not on a level
     const prev=(a.last==null?px:a.last);
     let hit=false;
     if(a.kind==='above')hit=px>=a.price;
@@ -6728,40 +6852,89 @@ function alertToast(text,px){
   clearTimeout(window._altToastT);
   window._altToastT=setTimeout(function(){el.classList.remove('on');},6000);
 }
-function priceAlertsHtml(){
-  const list=alertsFor(currentSymbol);
-  let h=pushBlockHtml()+'<div class="alt-add">';
-  h+='<button class="tp-chip" onclick="alertQuick(\'above\')">Alert above the price</button>';
-  h+='<button class="tp-chip" onclick="alertQuick(\'below\')">Alert below the price</button>';
-  h+='<button class="tp-chip" onclick="alertQuick(\'cross\')">Alert on a cross</button>';
-  h+='<button class="tp-chip" onclick="alertAdd(\'rsi_above\',70,\'RSI\')">RSI above 70</button>';
-  h+='<button class="tp-chip" onclick="alertAdd(\'rsi_below\',30,\'RSI\')">RSI below 30</button>';
-  h+='</div>';
-  if(!list.length)return h+'<div class="tp-note">No alert on '+currentSymbol+' yet. Alerts live on this device only and fire off the real feed — a closed market cannot trigger one.</div>';
-  h+='<div class="alt-list">';
-  list.forEach(function(a){
-    h+='<div class="alt-row'+(a.on?'':' off')+'">'
-      +'<div class="alt-main"><b>'+alertKindLabel(a)+'</b>'
-      +'<span>'+currentSymbol+(a.note?' · '+esc(a.note):'')+(a.fired?' · fired '+ago(a.fired):'')+'</span></div>'
-      +'<button class="alt-btn'+(a.on?' on':'')+'" onclick="alertToggle(\''+a.id+'\');openAlertsSheet()">'+(a.on?'ON':'OFF')+'</button>'
-      +'<button class="alt-btn del" onclick="alertDel(\''+a.id+'\');openAlertsSheet()" aria-label="Delete alert">✕</button></div>';
-  });
-  return h+'</div>';
+function alertRowHtml(a){
+  const here=(a.sym===currentSymbol);
+  const bits=[];
+  if(!here)bits.push('<b class="alt-sym">'+a.sym+'</b>');
+  if(a.note)bits.push(esc(a.note));
+  if(a.fired)bits.push('fired '+ago(a.fired));
+  else if(!a.on)bits.push('paused');
+  else bits.push('armed');
+  return '<div class="alt-row'+(a.on?'':' off')+'">'
+    +'<div class="alt-main"><b>'+alertKindLabel(a)+'</b><span>'+(here?'this chart · ':'')+bits.join(' · ')+'</span></div>'
+    +'<button class="alt-btn'+(a.on?' on':'')+'" onclick="alertToggle(\''+a.id+'\')" aria-label="Pause or arm">'+(a.on?'ON':'OFF')+'</button>'
+    +(ALT_PRICE_KINDS.indexOf(a.kind)>=0?'<button class="alt-btn edit" onclick="alertEdit(\''+a.id+'\')" aria-label="Edit the level"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9a2.6 2.6 0 0 0-3.7-3.7L4 16z"/></svg></button>':'')
+    +'<button class="alt-btn del" onclick="alertDel(\''+a.id+'\')" aria-label="Delete alert">✕</button></div>';
 }
-function renderAlertsPanel(){
+function alertsListHtml(){
+  const all=alertsLoad();
+  if(!all.length)return '<div class="tp-note">No alert yet. Pick a pair above, then choose what you want to be told.</div>';
+  const syms=[];
+  all.forEach(function(a){if(syms.indexOf(a.sym)<0)syms.push(a.sym);});
+  let h='';
+  syms.forEach(function(sym){
+    const rows=all.filter(function(a){return a.sym===sym;});
+    const live=rows.filter(function(a){return a.on&&!a.fired;}).length;
+    h+='<div class="tp-h">'+sym+'<span class="alt-count">'+live+' armed</span></div>';
+    h+='<div class="alt-list">'+rows.map(alertRowHtml).join('')+'</div>';
+  });
+  return h;
+}
+function priceAlertsHtml(){
+  const cur=altPair();
+  let h=pushBlockHtml();
+  h+='<div class="tp-h">Pair for the next alert</div><div class="alt-pairs">';
+  Object.keys(MKT).forEach(function(s){
+    h+='<button class="tp-chip'+(s===cur?' on':'')+'" onclick="altPickSym(\''+s+'\')">'+s+'</button>';
+  });
+  h+='</div>';
+  h+='<div class="alt-add">';
+  h+='<button class="tp-chip alt-buy" onclick="alertSignal(\'read_buy\')">BUY setup</button>';
+  h+='<button class="tp-chip alt-sell" onclick="alertSignal(\'read_sell\')">SELL setup</button>';
+  h+='<button class="tp-chip" onclick="alertQuick(\'above\')">Above the price</button>';
+  h+='<button class="tp-chip" onclick="alertQuick(\'below\')">Below the price</button>';
+  h+='<button class="tp-chip" onclick="alertQuick(\'cross\')">On a cross</button>';
+  h+='<button class="tp-chip" onclick="alertAdd(\'rsi_above\',70,\'RSI\',altPair())">RSI above 70</button>';
+  h+='<button class="tp-chip" onclick="alertAdd(\'rsi_below\',30,\'RSI\',altPair())">RSI below 30</button>';
+  h+='</div>';
+  h+='<div class="tp-note">BUY / SELL is the app\'s own cluster read on 15m — the same read the chart shows, not a promise. One card per setup, then the rule rests.</div>';
+  h+=alertsListHtml();
+  h+='<div class="tp-note">Armed alerts on any pair are checked against the real feed. A closed market cannot trigger one, and nothing here is invented.</div>';
+  return h;
+}
+// BUY / SELL setup, armed on whichever pair is selected
+function alertSignal(kind){
+  const sym=altPair();
+  alertAdd(kind,0,(kind==='read_buy'?'BUY':'SELL')+' setup',sym);
+  toast((kind==='read_buy'?'BUY':'SELL')+' alert armed on '+sym);
+  alertReadTick(true);
+}
+function alertsRefresh(){
   const box=document.getElementById('alerts-panel');
   if(box&&!box.hidden)box.innerHTML=priceAlertsHtml();
+  const sh=document.getElementById('sheet');
+  if(sh&&sh.classList.contains('open')&&window._sheetAlerts){
+    const b=document.getElementById('sheet-body');
+    if(b)b.innerHTML=priceAlertsHtml();
+  }
+  try{paintMenuAlerts();}catch(e){}
 }
-function openAlertsSheet(){openSheet('Price alerts · '+currentSymbol,priceAlertsHtml());}
+function renderAlertsPanel(){alertsRefresh();}
+function openAlertsSheet(){
+  openSheet('Price alerts · '+altPair(),priceAlertsHtml());
+  window._sheetAlerts=true;
+}
 function alertQuick(kind){
-  const p=lastPrice||(lastCandles.length?lastCandles[lastCandles.length-1].close:0);
-  if(!p){alertToast('no real price yet — wait a tick');return;}
+  const sym=altPair();
+  const p=(sym===currentSymbol)?(lastPrice||(lastCandles.length?lastCandles[lastCandles.length-1].close:0))
+    :((window._board&&window._board[sym]&&window._board[sym].price)||0);
+  if(!p){alertToast('no real price for '+sym+' yet — wait a tick');return;}
   let txt='';
-  try{txt=window.prompt('Alert price ('+currentSymbol+')',fmtPx(p).replace('$',''))||'';}catch(e){}
+  try{txt=window.prompt('Alert price ('+sym+')',fmtPx(p,sym).replace('$',''))||'';}catch(e){}
   const v=parseFloat(String(txt).replace(/[^0-9.\-]/g,''));
   if(!isFinite(v)||v<=0)return;
-  alertAdd(kind,v,'');
-  openAlertsSheet();
+  alertAdd(kind,v,'',sym);
+  toast(sym+' alert armed at '+fmtPx(v,sym));
 }
 
 function firedKeys(){try{return JSON.parse(localStorage.getItem('astra6_fired_'+currentSymbol)||'[]');}catch(e){return [];}}
