@@ -418,10 +418,11 @@ body[data-view="chart"] .hd{position:sticky;top:0}
 .swap-note[hidden]{display:none}
 #oanda_chart{transition:opacity .18s ease}
 #oanda_chart.swapping{opacity:.22}
-.chart-stale{position:absolute;left:10px;bottom:34px;z-index:6;max-width:min(78%,320px);
-  font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;line-height:1.35;
-  color:#7a4b00;background:rgba(255,196,84,.20);border:1px solid #e3b258;border-radius:8px;
-  padding:5px 8px;backdrop-filter:blur(6px);pointer-events:none}
+.chart-stale{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(var(--pane-h,0px) + 26px);z-index:6;
+  max-width:calc(100% - 20px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  font-size:9px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;line-height:1;
+  color:#7a4b00;background:rgba(255,196,84,.20);border:1px solid #e3b258;border-radius:999px;
+  padding:5px 11px;backdrop-filter:blur(6px);pointer-events:none}
 .chart-stale::before{content:'⚠';margin-right:5px}
 .event-live{display:flex;align-items:center;gap:7px;width:100%;border:0;
   border-top:1px solid #e3b258;background:rgba(255,196,84,.20);color:#6f4400;
@@ -437,6 +438,13 @@ body[data-view="chart"] .hd{position:sticky;top:0}
   border-color:var(--line);font-weight:700}
 .chart-stale.closed::before{content:'';margin:0}
 /* the timeframe belongs to the chart, not the drawer */
+#chart-live{position:absolute;right:8px;bottom:calc(var(--pane-h,0px) + 8px);z-index:7;display:inline-flex;align-items:center;gap:6px;
+  height:26px;padding:0 10px;border-radius:13px;cursor:pointer;font:800 9.6px/1 ui-sans-serif,system-ui,sans-serif;letter-spacing:.1em;
+  color:#fff;background:linear-gradient(140deg,#089981,#0b7a68);border:1px solid rgba(255,255,255,.22);
+  box-shadow:0 10px 22px -14px rgba(8,153,129,.95)}
+#chart-live[hidden]{display:none}
+#chart-live i{width:6px;height:6px;border-radius:50%;background:#b8ffe9;animation:liveDot 1.6s ease-in-out infinite}
+@keyframes liveDot{0%,100%{opacity:1}50%{opacity:.35}}
 #chart-toolbar{position:absolute;right:6px;top:6px;z-index:6;display:flex;gap:2px;padding:3px;border-radius:10px;
   background:color-mix(in srgb,var(--surface) 92%,transparent);border:1px solid var(--line);
   backdrop-filter:blur(10px);box-shadow:0 4px 14px rgba(0,0,0,.28)}
@@ -1403,7 +1411,7 @@ body[data-view="chart"] #oanda_chart{flex:1 1 auto;min-height:0;height:auto}
   font-size:8.5px;font-weight:900;letter-spacing:.08em;color:var(--muted);
   font-family:ui-monospace,monospace;
 }
-.chart-stale{bottom:calc(var(--pane-h,0px) + 34px) !important}
+.chart-stale{bottom:calc(var(--pane-h,0px) + 26px) !important}
 body.chart-full #chart-section{position:fixed;inset:0;z-index:95;height:100dvh;border-radius:0}
 @media(max-width:620px){
   #rail-toggle{left:5px;top:108px;width:32px;height:32px;border-radius:10px}
@@ -1483,8 +1491,8 @@ body[data-view="chart"] .net-chip{position:absolute;left:10px;bottom:2px;margin:
   font-size:8.5px;gap:4px;border-radius:5px;letter-spacing:.02em}
 body[data-view="chart"] .net-chip i{width:5px;height:5px;flex:0 0 5px}
 body[data-view="chart"] .hd-quote{left:auto;right:9px;bottom:2px;text-align:right;font-size:9px;line-height:14px;padding:0}
-@media(max-width:400px){
-  #tf-float{left:8px;top:4px;padding:2px;gap:0;max-width:calc(100% - 112px)}
+@media(max-width:440px){
+  #tf-float{left:8px;top:4px;padding:2px;gap:0;max-width:calc(100% - 132px)}
   #tf-float .tf-btn{min-width:24px;padding:0 4px;font-size:9.6px;height:22px;border-radius:6px}
   #chart-toolbar{right:4px;top:4px;padding:2px;gap:1px}
   #chart-toolbar .ctb{width:23px;height:22px}
@@ -1772,10 +1780,16 @@ body[data-view="chart"] .hd-quote{left:auto;right:9px;bottom:2px;text-align:righ
         <button type="button" class="ctb" id="ctb-type" onclick="togglePanel('chart-menu')" title="Chart type, scale, drawings" aria-label="Chart type and settings">
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 18l5-6 4 3 7-9"/></svg>
         </button>
-        <button type="button" class="ctb" onclick="toggleLog()" id="ctb-log" title="Logarithmic scale" aria-label="Logarithmic scale">
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 19c5 0 5-14 9-14s4 9 7 9"/></svg>
+        <button type="button" class="ctb" onclick="zoomBy(1.3)" title="Zoom out" aria-label="Zoom out">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l4.5 4.5M7.6 10.5h5.8"/></svg>
+        </button>
+        <button type="button" class="ctb" onclick="zoomBy(0.77)" title="Zoom in" aria-label="Zoom in">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l4.5 4.5M7.6 10.5h5.8M10.5 7.6v5.8"/></svg>
         </button>
       </div>
+      <button id="chart-live" type="button" hidden onclick="goLive()" aria-label="Return to the live candle">
+        <i></i><span>LIVE</span>
+      </button>
       <div id="tf-float" role="group" aria-label="Chart timeframe">
         <button class="tf-btn" data-tf="M1">M1</button><button class="tf-btn" data-tf="M5">M5</button><button class="tf-btn active" data-tf="M15">M15</button><button class="tf-btn" data-tf="M30">M30</button><button class="tf-btn" data-tf="H1">H1</button><button class="tf-btn" data-tf="H4">H4</button><button class="tf-btn" data-tf="D">D1</button><button class="tf-btn" data-tf="W">W1</button>
       </div>
@@ -2735,7 +2749,7 @@ const IND_LIST=[
 const PANE_KINDS=['cvd','rsi','macd','stoch','atr'];
 const PANE_H={cvd:112,rsi:92,macd:104,stoch:92,atr:88};
 const PANE_TITLE={cvd:'Order flow · cumulative delta',rsi:'RSI 14',macd:'MACD 12 26 9',stoch:'Stoch 14 3 3',atr:'ATR 14'};
-const CTYPE_LIST=[['candles','Candles'],['bars','Bars'],['line','Line'],['area','Area'],['heikin','Heikin']];
+const CTYPE_LIST=[['candles','Candles'],['hollow','Hollow'],['bars','Bars'],['line','Line'],['area','Area'],['baseline','Baseline'],['heikin','Heikin']];
 
 let drawTool='cursor',drawings=[],drawHidden=false,drawLocked=false,_dStart=null,_dPreview=null,_drawSym='',_drawRaf=0;
 let chartType=localStorage.getItem('astra6_ctype')||'candles';
@@ -3234,8 +3248,17 @@ function renderChartMenu(){
   CTYPE_LIST.forEach(function(c){
     h+='<button type="button" class="tp-chip'+(chartType===c[0]?' on':'')+'" onclick="setChartType(\''+c[0]+'\')">'+c[1]+'</button>';
   });
-  h+='</div><div class="tp-h">Scale</div>';
-  h+='<div class="tp-row'+(window._logScale?' on':'')+'" onclick="toggleLog()">Logarithmic<span class="tp-sw"></span></div>';
+  h+='</div><div class="tp-h">Price scale</div><div class="tp-chips">';
+  [['auto','Auto',CHART_VIEW.auto],['log','Log',CHART_VIEW.mode===1],['pct','%',CHART_VIEW.mode===2],
+   ['invert','Invert',CHART_VIEW.invert],['lock','Lock',CHART_VIEW.lock]].forEach(function(sc){
+    h+='<button type="button" class="tp-chip'+(sc[2]?' on':'')+'" onclick="setScale(\''+sc[0]+'\')">'+sc[1]+'</button>';
+  });
+  h+='</div><div class="tp-h">Candle width</div><div class="tp-chips">';
+  h+='<button type="button" class="tp-chip" onclick="setBarWidth(1)">Wider</button>';
+  h+='<button type="button" class="tp-chip" onclick="setBarWidth(-1)">Narrower</button>';
+  h+='<button type="button" class="tp-chip'+(CHART_VIEW.bars?'':' on')+'" onclick="setBarWidth(0,true)">Auto</button>';
+  h+='</div><div class="tp-h">Quote lines</div>';
+  h+='<div class="tp-row'+(CHART_VIEW.ba?' on':'')+'" onclick="setScale(\'ba\')">Bid / ask lines<span class="tp-sw"></span></div>';
   h+='<div class="tp-h">More drawing tools</div><div class="tp-chips">';
   TV_EXTRA.forEach(function(t){
     h+='<button type="button" class="tp-chip'+(drawTool===t[0]?' on':'')+'" onclick="pickTool(\''+t[0]+'\')">'+t[1]+'</button>';
@@ -3266,13 +3289,111 @@ function renderChartMenu(){
 }
 function toggleDrawHidden(){drawHidden=!drawHidden;renderChartMenu();drawOverlay();}
 function toggleDrawLocked(){drawLocked=!drawLocked;setTool(drawTool);renderChartMenu();}
-function toggleLog(){
-  window._logScale=!window._logScale;
-  const lb=document.getElementById('ctb-log'); if(lb) lb.classList.toggle('on',!!window._logScale);
+// ---------- how the chart itself behaves: scale, bar width, live follow ----------
+// Every one of these is a real option on the chart engine and every one is remembered.
+const CHART_VIEW=Object.assign({auto:true,mode:0,invert:false,lock:false,bars:0,ba:true},
+  (function(){try{return JSON.parse(localStorage.getItem('astra6_view')||'{}');}catch(e){return {};}})());
+window._logScale=(CHART_VIEW.mode===1);
+function saveView(){try{localStorage.setItem('astra6_view',JSON.stringify(CHART_VIEW));}catch(e){}}
+function applyPriceScale(){
+  if(!chart)return;
+  const V=CHART_VIEW;
+  // auto = the scale follows the candles; manual leaves whatever the trader dragged
+  try{chart.priceScale('right').applyOptions({mode:V.mode,autoScale:!!V.auto,invertScale:!!V.invert});}catch(e){}
+  try{chart.applyOptions({handleScale:{axisPressedMouseMove:{time:true,price:!V.lock},mouseWheel:true,pinch:true}});}catch(e){}
+  PANE_KINDS.forEach(function(k){const pr=paneRef[k];
+    if(pr){try{pr.chart.priceScale('right').applyOptions({mode:V.mode,autoScale:!!V.auto,invertScale:!!V.invert});}catch(e){}}});
+  if(V.lock&&chart)chart.priceScale('right').applyOptions({autoScale:false});
+}
+function setScale(k){
+  const V=CHART_VIEW;
+  if(k==='auto'){V.auto=!V.auto; if(V.auto)try{chart.priceScale('right').applyOptions({autoScale:true});}catch(e){}}
+  else if(k==='log')V.mode=(V.mode===1?0:1);
+  else if(k==='pct')V.mode=(V.mode===2?0:2);
+  else if(k==='invert')V.invert=!V.invert;
+  else if(k==='lock')V.lock=!V.lock;
+  else if(k==='ba')V.ba=!V.ba;
+  window._logScale=(V.mode===1);
   try{localStorage.setItem('astra6_log',window._logScale?'1':'0');}catch(e){}
-  if(chart){try{chart.priceScale('right').applyOptions({mode:window._logScale?1:0});}catch(e){}}
-  PANE_KINDS.forEach(function(k){const pr=paneRef[k];if(pr){try{pr.chart.priceScale('right').applyOptions({mode:window._logScale?1:0});}catch(e){}}});
-  renderChartMenu();scheduleDraw();
+  saveView(); applyPriceScale(); renderChartMenu();
+  if(k==='ba'){_baLines=null; paintBidAskLines(_lastBid,_lastAsk);}
+  scheduleDraw();
+}
+function toggleLog(){setScale('log');}
+
+// bar width: a smaller px-per-bar means fatter candles
+function applyBarWidth(){
+  if(!chart||!lastCandles.length)return;
+  const w=(document.getElementById('oanda_chart')||{}).clientWidth||430;
+  const px=CHART_VIEW.bars||11, show=Math.max(10,Math.round((w-56)/px));
+  try{
+    const ts=chart.timeScale(), r=ts.getVisibleLogicalRange();
+    const to=(r&&isFinite(r.to))?r.to:lastCandles.length+2.5;
+    ts.setVisibleLogicalRange({from:to-show,to:to});
+  }catch(e){}
+  scheduleDraw();
+}
+function setBarWidth(dir,reset){
+  // dir +1 widens the candles, -1 narrows them; 0 with reset goes back to the automatic width
+  if(reset)CHART_VIEW.bars=0;
+  else CHART_VIEW.bars=Math.max(6,Math.min(44,(CHART_VIEW.bars||11)+dir));
+  saveView(); applyBarWidth(); renderChartMenu();
+}
+
+// zoom: the buttons, the wheel and pinch all end up as one logical-range change
+function zoomBy(f){
+  if(!chart)return;
+  try{
+    const ts=chart.timeScale(), r=ts.getVisibleLogicalRange();
+    if(!r)return;
+    const mid=(r.from+r.to)/2, half=Math.max(4,(r.to-r.from)/2*f);
+    ts.setVisibleLogicalRange({from:mid-half,to:mid+half});
+  }catch(e){}
+  setTimeout(paintLivePill,60); scheduleDraw();
+}
+// a trader who scrolled back into history is not forced forward, and not left stranded
+function paintLivePill(){
+  const el=document.getElementById('chart-live');
+  if(!el||!chart)return;
+  let away=false;
+  try{
+    const n=lastCandles.length, r=chart.timeScale().getVisibleLogicalRange();
+    if(n>20&&r)away=(n-1-r.to)>14;
+  }catch(e){}
+  el.hidden=!away;
+}
+function goLive(){
+  try{chart.timeScale().scrollToRealTime();}catch(e){}
+  setTimeout(function(){paintLivePill();scheduleDraw();},140);
+}
+
+// bid / ask lines: only when the feed actually sends both numbers
+let _baLines=null,_lastBid=null,_lastAsk=null;
+function paintBidAskLines(bid,ask){
+  _lastBid=(bid==null||bid==='')?null:Number(bid); _lastAsk=(ask==null||ask==='')?null:Number(ask);
+  if(!candleSeries)return;
+  const on=CHART_VIEW.ba&&_lastBid!=null&&_lastAsk!=null&&isFinite(_lastBid)&&isFinite(_lastAsk);
+  try{
+    if(!on){
+      if(_baLines){_baLines.forEach(function(l){try{candleSeries.removePriceLine(l);}catch(e){}});_baLines=null;}
+      return;
+    }
+    if(!_baLines){
+      _baLines=[candleSeries.createPriceLine({price:_lastBid,color:'#f0b90b',lineWidth:1,lineStyle:2,axisLabelVisible:true,title:'BID'}),
+                candleSeries.createPriceLine({price:_lastAsk,color:'#a78bfa',lineWidth:1,lineStyle:2,axisLabelVisible:true,title:'ASK'})];
+    }else{
+      _baLines[0].applyOptions({price:_lastBid});
+      _baLines[1].applyOptions({price:_lastAsk});
+    }
+    // three tags on one pixel of axis is noise: a bid or ask hugging the price keeps its
+    // dotted line but drops its badge until it moves away again
+    try{
+      const yP=candleSeries.priceToCoordinate(lastPrice);
+      const near=function(v){const y=candleSeries.priceToCoordinate(v);return y==null||yP==null||Math.abs(y-yP)<15;};
+      _baLines[0].applyOptions({axisLabelVisible:!near(_lastBid)});
+      _baLines[1].applyOptions({axisLabelVisible:!near(_lastAsk)});
+    }catch(e){}
+  }catch(e){}
 }
 function resetZoom(){
   if(!chart)return;
@@ -3593,7 +3714,7 @@ function paintSeries(bars){
   if(!candleSeries||!bars)return;
   lastCandles=bars;
   try{
-    if(chartType==='line'||chartType==='area'){
+    if(chartType==='line'||chartType==='area'||chartType==='baseline'){
       candleSeries.setData(bars.map(function(b){return {time:b.time,value:b.close};}));
     }else if(chartType==='heikin'){
       candleSeries.setData(toHeikin(bars));
@@ -3607,7 +3728,7 @@ function paintSeries(bars){
 function updateSeries(bar){
   if(!candleSeries||!bar)return;
   try{
-    if(chartType==='line'||chartType==='area')candleSeries.update({time:bar.time,value:bar.close});
+    if(chartType==='line'||chartType==='area'||chartType==='baseline')candleSeries.update({time:bar.time,value:bar.close});
     else if(chartType==='heikin'){/* the 30 s refresh rebuilds heikin bars honestly */}
     else candleSeries.update({time:bar.time,open:bar.open,high:bar.high,low:bar.low,close:bar.close});
   }catch(e){}
@@ -3616,12 +3737,24 @@ function rebuildMainSeries(){
   if(!chart)return;
   const p=chartPalette();
   if(candleSeries){try{chart.removeSeries(candleSeries);}catch(e){}candleSeries=null;}
+  _baLines=null;
   if(chartType==='line'){
     candleSeries=chart.addLineSeries({color:p.up,lineWidth:2,lastValueVisible:true,priceLineWidth:1,priceLineStyle:2,crosshairMarkerVisible:true});
   }else if(chartType==='area'){
     candleSeries=chart.addAreaSeries({lineColor:p.up,topColor:'rgba(16,185,129,.34)',bottomColor:'rgba(16,185,129,.02)',lineWidth:2,lastValueVisible:true,priceLineWidth:1,priceLineStyle:2});
   }else if(chartType==='bars'){
     candleSeries=chart.addBarSeries({upColor:p.up,downColor:p.dn,thinBars:false,lastValueVisible:true,priceLineWidth:1,priceLineStyle:2});
+  }else if(chartType==='hollow'){
+    // the broker's hollow candle: an up bar is an outline, a down bar stays filled
+    candleSeries=chart.addCandlestickSeries({upColor:'rgba(0,0,0,0)',downColor:p.bodyDn,borderVisible:true,
+      borderUpColor:p.up,borderDownColor:p.dn,wickUpColor:p.wickUp,wickDownColor:p.wickDn,
+      priceLineWidth:1,lastValueVisible:true,lastValueColor:p.text,priceLineStyle:2});
+  }else if(chartType==='baseline'){
+    const _base=(lastCandles.length?lastCandles[lastCandles.length-1].close:0);
+    candleSeries=chart.addBaselineSeries({baseValue:{type:'price',price:_base},
+      topLineColor:p.up,topFillColor1:'rgba(8,153,129,.26)',topFillColor2:'rgba(8,153,129,.02)',
+      bottomLineColor:p.dn,bottomFillColor1:'rgba(242,54,69,.02)',bottomFillColor2:'rgba(242,54,69,.24)',
+      lineWidth:2,lastValueVisible:true,priceLineWidth:1,priceLineStyle:2});
   }else{
     candleSeries=chart.addCandlestickSeries({upColor:p.bodyUp,downColor:p.bodyDn,borderVisible:true,borderUpColor:p.up,borderDownColor:p.dn,wickUpColor:p.wickUp,wickDownColor:p.wickDn,priceLineWidth:1,lastValueVisible:true,lastValueColor:p.text,priceLineStyle:2});
   }
@@ -3657,7 +3790,8 @@ function initChartTools(){
   document.addEventListener('click',function(e){
     const t=e.target;
     if(!t||!t.closest)return;
-    if(t.closest('#ind-panel')||t.closest('#chart-menu')||t.closest('#tv-rail'))return;
+    // a click on the chart's own chrome must not shut the panel that chrome just opened
+    if(t.closest('#ind-panel')||t.closest('#chart-menu')||t.closest('#tv-rail')||t.closest('#chart-toolbar')||t.closest('#rail-toggle'))return;
     closePanels();
   });
   document.addEventListener('keydown',function(e){
@@ -3683,7 +3817,7 @@ function createChart(){try{const c=document.getElementById('oanda_chart');if(!c|
     const _opts=tvChartOptions();_opts.width=c.clientWidth;_opts.height=_ch;
     chart=LightweightCharts.createChart(c,_opts);
     candleSeries=chart.addCandlestickSeries({upColor:_p.bodyUp,downColor:_p.bodyDn,borderVisible:true,borderUpColor:_p.up,borderDownColor:_p.dn,wickUpColor:_p.wickUp,wickDownColor:_p.wickDn,priceLineWidth:1,lastValueVisible:true,lastValueColor:_p.text,priceLineStyle:2});
-    chart.subscribeCrosshairMove(param=>{let bar=null;try{bar=param.seriesData&&param.seriesData.get(candleSeries);}catch(e){}updateLegend(bar,param.time);});new ResizeObserver(()=>{if(chart){chart.applyOptions({width:c.clientWidth,height:c.clientHeight||420});scheduleZoneDraw();}}).observe(c);chart.timeScale().subscribeVisibleLogicalRangeChange(()=>{scheduleZoneDraw();try{scheduleDraw();}catch(e){}});try{if(typeof initChartTools==='function')initChartTools();}catch(e){console.log('tools err',e);}console.log('chart created rebuilt');}catch(e){console.log('createChart err',e);}}
+    chart.subscribeCrosshairMove(param=>{let bar=null;try{bar=param.seriesData&&param.seriesData.get(candleSeries);}catch(e){}updateLegend(bar,param.time);});new ResizeObserver(()=>{if(chart){chart.applyOptions({width:c.clientWidth,height:c.clientHeight||420});scheduleZoneDraw();}}).observe(c);chart.timeScale().subscribeVisibleLogicalRangeChange(()=>{scheduleZoneDraw();try{scheduleDraw();}catch(e){}try{paintLivePill();}catch(e){}});try{if(typeof initChartTools==='function')initChartTools();}catch(e){console.log('tools err',e);}try{applyPriceScale();}catch(e){}console.log('chart created rebuilt');}catch(e){console.log('createChart err',e);}}
 function setTimeframe(tf){currentTF=tf;if(typeof closeMenu==='function')closeMenu();updateLegend(null);localStorage.setItem('astra6_tf',tf);document.querySelectorAll('[data-tf]').forEach(b=>b.classList.toggle('active',b.dataset.tf===tf));document.getElementById('chart-tf-label').textContent=tf;document.getElementById('chart-info-tf').textContent=tf;window._volume=null;window._volSigKey=null;if(window._strategy==='volume')setTimeout(fetchVolume,120);scheduleZoneDraw();fetchChart(tf);}
 
 function updateSymTabs(){
@@ -3717,7 +3851,10 @@ function tvChartOptions(){
     crosshair:{mode:0,
       vertLine:{color:p.cross,width:1,style:2,labelBackgroundColor:d?'#363a45':'#d9dde5'},
       horzLine:{color:p.cross,width:1,style:2,labelBackgroundColor:d?'#363a45':'#d9dde5'}},
-    rightPriceScale:{borderColor:p.border,scaleMargins:{top:0.06,bottom:0.08},entireTextOnly:false,mode:window._logScale?1:0,
+    rightPriceScale:{borderColor:p.border,scaleMargins:{top:0.06,bottom:0.08},entireTextOnly:false,
+                     mode:(typeof CHART_VIEW!=='undefined'?CHART_VIEW.mode:(window._logScale?1:0)),
+                     autoScale:(typeof CHART_VIEW==='undefined'||CHART_VIEW.auto),
+                     invertScale:(typeof CHART_VIEW!=='undefined'&&!!CHART_VIEW.invert),
                      borderVisible:true,minimumWidth:56,ticksVisible:true},
     // ticks on the axis, a wider bar, and a right offset that leaves the newest candle air
     timeScale:{borderColor:p.border,timeVisible:true,secondsVisible:false,rightOffset:8,barSpacing:9,
@@ -3725,7 +3862,7 @@ function tvChartOptions(){
                tickMarkMaxCharacterLength:6},
     handleScroll:{mouseWheel:true,pressedMouseMove:true,horzTouchDrag:true,vertTouchDrag:true,
                   kineticScroll:{touch:true,mouse:true}},
-    handleScale:{axisPressedMouseMove:{time:true,price:true},mouseWheel:true,pinch:true},
+    handleScale:{axisPressedMouseMove:{time:true,price:!(typeof CHART_VIEW!=='undefined'&&CHART_VIEW.lock)},mouseWheel:true,pinch:true},
     kineticScroll:{touch:true,mouse:true},
     localization:{priceFormatter:p2=>fmtPx(p2).replace('$','')}
   };
@@ -3740,8 +3877,13 @@ function applyTheme(){
     const p=chartPalette();
     chart.applyOptions(tvChartOptions());
     try{if(typeof paintIndicators==='function'&&lastCandles.length)paintIndicators(lastCandles);}catch(e){}
-    if(candleSeries)candleSeries.applyOptions({upColor:p.bodyUp,downColor:p.bodyDn,wickUpColor:p.wickUp,wickDownColor:p.wickDn,
-      borderVisible:true,borderUpColor:p.up,borderDownColor:p.dn,lastValueColor:p.text});
+    if(candleSeries){
+      if(chartType==='hollow')candleSeries.applyOptions({upColor:'rgba(0,0,0,0)',downColor:p.bodyDn,wickUpColor:p.wickUp,wickDownColor:p.wickDn,
+        borderVisible:true,borderUpColor:p.up,borderDownColor:p.dn,lastValueColor:p.text});
+      else if(chartType==='candles'||chartType==='heikin')candleSeries.applyOptions({upColor:p.bodyUp,downColor:p.bodyDn,wickUpColor:p.wickUp,wickDownColor:p.wickDn,
+        borderVisible:true,borderUpColor:p.up,borderDownColor:p.dn,lastValueColor:p.text});
+      else if(chartType==='baseline')candleSeries.applyOptions({topLineColor:p.up,bottomLineColor:p.dn});
+    }
   }
   scheduleZoneDraw();
 }
@@ -3823,7 +3965,8 @@ try{paintSeries(clean);
     // the chart feels jittery. Show a readable window of the newest bars instead.
     const _want=()=>{const w=(document.getElementById('oanda_chart')||{}).clientWidth||430;
       // 11 px per candle: full bodies, not thin sticks, and still enough history to see the level
-      return Math.max(28,Math.min(150,Math.round((w-56)/11)));};
+      const px=(typeof CHART_VIEW!=='undefined'&&CHART_VIEW.bars)?CHART_VIEW.bars:11;
+      return Math.max(10,Math.min(400,Math.round((w-56)/px)));};
     const _fit=()=>{try{
       const n=clean.length, show=Math.min(n,_want());
       chart.timeScale().setVisibleLogicalRange({from:n-show-0.5,to:n+2.5});
@@ -3832,7 +3975,7 @@ try{paintSeries(clean);
     requestAnimationFrame(_fit);
     setTimeout(_fit,120);
   }
-}catch(e){console.log('chart data err',e);}document.getElementById('chart-candle-count').textContent=`${clean.length} candles`;setTimeout(scheduleZoneDraw,60);if(window._strategy==='volume'&&typeof scheduleVolume==='function')scheduleVolume();updateLegend(null);setCandleAge(d);if(srcEl)srcEl.textContent=((marketOpenNow(currentSymbol)?'':'market closed · ')+(d.source||'REAL OHLCV')).replace('xaus.com /api/v1/chart XAU/USD (REAL OHLCV, spot-anchored)','XAUS spot · TradingView bar').replace('xaus.com /api/v1/chart XAU/USD (REAL spot OHLCV)','XAUS REAL spot').replace('yfinance GC=F (REAL futures OHLCV)','yfinance GC=F REAL');if(clean.length){const last=clean[clean.length-1];if(lastPrice===0){lastPrice=last.close;const p=document.getElementById('price');if(p&&p.textContent==='$--.--')p.textContent=fmtPx(last.close);}}let fb=document.getElementById('chart-price-fallback');if(fb&&lastPrice)fb.textContent=fmtPx(lastPrice);window._lastRealAt=window._lastRealAt||Date.now();}else if(srcEl){srcEl.textContent=(!candleSeries?'chart library loading…':'feed reconnecting (no fake data)');setCandleAge(null);}}catch(e){console.log('chart fetch err',e);const s=document.getElementById('chart-source');if(s)s.textContent='feed reconnecting…';}}
+}catch(e){console.log('chart data err',e);}document.getElementById('chart-candle-count').textContent=`${clean.length} candles`;setTimeout(scheduleZoneDraw,60);if(window._strategy==='volume'&&typeof scheduleVolume==='function')scheduleVolume();updateLegend(null);setCandleAge(d);setTimeout(function(){try{paintLivePill();}catch(e){}},200);if(srcEl)srcEl.textContent=((marketOpenNow(currentSymbol)?'':'market closed · ')+(d.source||'REAL OHLCV')).replace('xaus.com /api/v1/chart XAU/USD (REAL OHLCV, spot-anchored)','XAUS spot · TradingView bar').replace('xaus.com /api/v1/chart XAU/USD (REAL spot OHLCV)','XAUS REAL spot').replace('yfinance GC=F (REAL futures OHLCV)','yfinance GC=F REAL');if(clean.length){const last=clean[clean.length-1];if(lastPrice===0){lastPrice=last.close;const p=document.getElementById('price');if(p&&p.textContent==='$--.--')p.textContent=fmtPx(last.close);}}let fb=document.getElementById('chart-price-fallback');if(fb&&lastPrice)fb.textContent=fmtPx(lastPrice);window._lastRealAt=window._lastRealAt||Date.now();}else if(srcEl){srcEl.textContent=(!candleSeries?'chart library loading…':'feed reconnecting (no fake data)');setCandleAge(null);}}catch(e){console.log('chart fetch err',e);const s=document.getElementById('chart-source');if(s)s.textContent='feed reconnecting…';}}
 
 // One path for applying a price to the page: the SSE stream and the polling
 // fallback both come through here, so behaviour can never drift between them.
@@ -3954,6 +4097,7 @@ function applyTick(d){
       ba.textContent=`BID ${Number(bid).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})} / ASK ${Number(ask).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}${chg}`;
     }
   }
+  try{paintBidAskLines(bid,ask);}catch(e){}
   const fb=document.getElementById('chart-price-fallback');
   if(fb)fb.textContent=fmtPx(newPrice);
   if(candleSeries&&lastCandles.length){

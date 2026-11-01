@@ -738,6 +738,35 @@ section('the market picker and the alert card live on the chart');
   ok('switching market repaints the card', /renderZoneAlerts\(\)/.test(grab('setSymbol')));
 }
 
+section('the chart behaves like a terminal, not a picture of one');
+{
+  // price scale: the six things a trader actually reaches for
+  ok('the price scale locks, inverts, logs and reads in percent', /function setScale\(k\)/.test(html)
+     && /invertScale/.test(grab('applyPriceScale')) && /autoScale/.test(grab('applyPriceScale'))
+     && /V\.mode===2/.test(html) && /V\.mode===1/.test(html));
+  ok('a locked scale cannot be dragged by accident', /price:!V\.lock/.test(grab('applyPriceScale')));
+  ok('the scale choices survive a reload', /astra6_view/.test(html) && /function saveView\(\)/.test(html));
+  ok('a theme repaint cannot reset the scale', /mode:\(typeof CHART_VIEW!=='undefined'\?CHART_VIEW\.mode/.test(html));
+
+  // zoom and follow
+  ok('zoom buttons move the visible range, never the data', /function zoomBy\(f\)/.test(html)
+     && /setVisibleLogicalRange/.test(grab('zoomBy')));
+  ok('both zoom buttons are on the chart', /zoomBy\(1\.3\)/.test(html) && /zoomBy\(0\.77\)/.test(html));
+  ok('scrolling into history offers a way back to live', /id="chart-live"/.test(html)
+     && /scrollToRealTime/.test(grab('goLive')));
+  ok('the live pill appears only when the view left the last candle', /n-1-r\.to\)>14/.test(grab('paintLivePill'))
+     && /paintLivePill\(\)/.test(html));
+  ok('candle width is a stored setting, not a one-off', /function setBarWidth\(dir,reset\)/.test(html)
+     && /CHART_VIEW\.bars/.test(html) && /function applyBarWidth\(\)/.test(html));
+
+  // bid / ask lines are only ever drawn from real numbers
+  const ba = grab('paintBidAskLines');
+  ok('bid and ask get their own dotted lines', /createPriceLine\(\{price:_lastBid/.test(ba) && /title:'BID'/.test(ba));
+  ok('no feed numbers means no bid/ask lines', /if\(!on\)\{/.test(ba) && /removePriceLine/.test(ba));
+  ok('three labels on one axis pixel are avoided', /axisLabelVisible:!near\(_lastBid\)/.test(ba));
+  ok('a new series takes its old price lines with it', /_baLines=null;/.test(grab('rebuildMainSeries')));
+}
+
 section('the chart carries real trading tools');
 {
   ok('a tool rail sits on the chart', html.includes('id="tv-rail"') && /#tv-rail\{[^}]*position:absolute/.test(html));
@@ -759,7 +788,7 @@ section('the chart carries real trading tools');
   ok('a folded rail never leaves an unseen tool armed', /if\(off\) setTool\('cursor'\)/.test(grab('toggleRail')));
 
   const types = [...html.slice(html.indexOf('const CTYPE_LIST='), html.indexOf('let drawTool=')).matchAll(/\['(\w+)','/g)].map(m => m[1]);
-  ok('five chart types, heikin included', types.length === 5 && types.includes('heikin') && types.includes('line'), types.join(','));
+  ok('seven chart types, hollow and baseline included', types.length === 7 && ['heikin','line','hollow','baseline'].every(t => types.includes(t)), types.join(','));
 
   ok('drawings are stored per market', html.includes("'astra6_draw_'+currentSymbol"));
   ok('indicator choices stick across a refresh', html.includes("localStorage.setItem('astra6_ind'"));
