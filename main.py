@@ -3020,6 +3020,36 @@ def orderflow_video(request: Request):
         return _mp4_response(p, request)
     raise HTTPException(status_code=404, detail="video not found")
 
+@app.get("/manifest.json")
+def manifest():
+    """the installable app: name, icons and standalone display"""
+    p = Path("manifest.json")
+    if p.exists():
+        return FileResponse(p, media_type="application/manifest+json",
+                            headers={"Cache-Control": "public, max-age=3600"})
+    raise HTTPException(status_code=404, detail="manifest not found")
+
+@app.get("/sw.js")
+def service_worker():
+    """the offline shell. Served from the root so its scope covers the whole app,
+    and never cached hard: an old worker must be replaceable within the hour."""
+    p = Path("sw.js")
+    if p.exists():
+        return FileResponse(p, media_type="application/javascript",
+                            headers={"Cache-Control": "no-cache",
+                                     "Service-Worker-Allowed": "/"})
+    raise HTTPException(status_code=404, detail="worker not found")
+
+@app.get("/icon-{size}.png")
+def app_icon(size: str):
+    if not _re.fullmatch(r"\d{2,4}|maskable", size or ""):
+        raise HTTPException(status_code=404, detail="not found")
+    p = Path(f"icon-{size}.png")
+    if p.exists():
+        return FileResponse(p, media_type="image/png",
+                            headers={"Cache-Control": "public, max-age=604800"})
+    raise HTTPException(status_code=404, detail="icon not found")
+
 @app.get("/logo.png")
 def logo():
     p = Path("logo.png")

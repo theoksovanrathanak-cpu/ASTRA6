@@ -906,6 +906,34 @@ print('|'.join([rej['type'], rej.get('style') or '-', rejh['type'], base['type']
     const files = ['astra6-pl1.mp4','astra6-pl2.mp4','astra6-pl3.mp4','astra6-pl4.mp4','astra6-pl5.mp4','astra6-full.mp4'];
     return files.every(f => { const st = require('fs').statSync(path.join(root, f)); return st.size > 300000 && st.size < 12e6; });
   })());
+  // ---- session levels: real, labelled, and never invented ----
+  ok('the chart draws prior-day levels from the feed\'s own bars', /function buildSessionLevels\(bars\)/.test(html)
+     && /priorK/.test(html) && /pdh:prior\.hi,pdl:prior\.lo,pdc:prior\.close/.test(html));
+  ok('the overnight window is a stated UTC window, not a guess', /const SL_WIN=\[22,7\]/.test(html)
+     && /22:00/.test(html));
+  ok('a level the feed has no bars for is not drawn', /if\(px==null\) return;/.test(html)
+     && /onh:oN\?oHi:null/.test(html));
+  ok('the levels never borrow another market\'s numbers', /_slSym===currentSymbol/.test(html)
+     && /if\(_sym!==currentSymbol\|\|_ven!==currentVenue\)/.test(html));
+  ok('the prior day is named, so "prior" is never ambiguous', /dayLabel:new Date/.test(html) && /timeZone:'UTC'/.test(html));
+  ok('session levels can be turned off and stay off', /function toggleSessionLevels\(\)/.test(html)
+     && /astra6_slevels/.test(html) && /function slOn\(\)/.test(html));
+
+  // ---- installable + offline ----
+  ok('the app is installable', (() => {
+    const m = JSON.parse(require('fs').readFileSync(path.join(root,'manifest.json'),'utf8'));
+    return m.display === 'standalone' && m.icons.length >= 3
+      && m.icons.some(i => i.purpose === 'maskable') && /rel="manifest"/.test(html);
+  })());
+  ok('the shell is served from the root with a worker scope', /@app\.get\("\/sw\.js"\)/.test(require('fs').readFileSync(path.join(root,'main.py'),'utf8'))
+     && /Service-Worker-Allowed/.test(require('fs').readFileSync(path.join(root,'main.py'),'utf8')));
+  ok('the worker never caches a quote', (() => {
+    const sw = require('fs').readFileSync(path.join(root,'sw.js'),'utf8');
+    return /pathname\.startsWith\('\/api\/'\)/.test(sw) && /never caches/.test(sw) || /would be a lie/.test(sw);
+  })());
+  ok('offline keeps the last real chart and says how old it is', /id="offline-card"/.test(html)
+     && /Offline · last real data only/.test(html) && /last real quote:/.test(html) && /window\._lastRealAt/.test(html));
+  ok('offline is decided by real failures, not just the browser flag', /const dead=\(navigator\.onLine===false\)\|\|\(_netFails>=2\)/.test(html));
   ok('the clips answer byte ranges, so a phone can scrub them', (() => {
     const s = require('fs').readFileSync(path.join(root,'main.py'),'utf8');
     return /def _mp4_response\(p: Path, request: Request\)/.test(s) && /status_code=206/.test(s)

@@ -10,6 +10,12 @@
 <meta property="og:url" content="https://astra6render.com">
 <meta name="theme-color" content="#0b1220">
 <link rel="icon" href="/logo.png">
+<link rel="manifest" href="/manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ASTRA6">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
 <style>
 :root{
   --bg:#f6f7f9; --surface:#ffffff; --line:#e7e9ee; --line-soft:#f0f2f5;
@@ -403,6 +409,13 @@ body.intro-open{overflow:hidden}
 #tv-legend .lg-t{font-weight:800;color:var(--ink)}
 #tv-legend .lg-c.up{color:var(--up)} #tv-legend .lg-c.dn{color:var(--down)}
 #zone-layer{position:absolute;inset:1px;width:100%;height:100%;pointer-events:none;overflow:hidden;z-index:3}
+#offline-card{position:fixed;left:10px;right:10px;bottom:calc(76px + env(safe-area-inset-bottom));z-index:520;
+  padding:9px 11px;border-radius:12px;
+  background:rgba(24,16,8,.92);border:1px solid rgba(245,158,11,.5);color:#fde68a;
+  display:flex;flex-direction:column;gap:2px;pointer-events:none;backdrop-filter:blur(8px)}
+#offline-card[hidden]{display:none}
+#offline-card .oc-t{font-size:11.5px;font-weight:800}
+#offline-card .oc-s{font-size:10.5px;color:#fcd34d;opacity:.9}
 #vwap-layer{position:absolute;inset:1px;width:100%;height:100%;pointer-events:none;overflow:hidden;z-index:4}
 .zone-key{display:inline-flex;align-items:center;gap:5px}
 .zone-key i{width:9px;height:9px;border-radius:2px;display:inline-block}
@@ -1267,7 +1280,11 @@ body[data-view="home"] .wrap{position:relative;overflow:hidden}
 }
 .tool-panel::-webkit-scrollbar{display:none}
 .tool-panel[hidden]{display:none}
-.tool-panel .tp-h{font-size:8px;font-weight:900;letter-spacing:.12em;color:var(--muted);padding:2px 2px 0}
+.tool-panel .tp-note{font-size:11px;line-height:1.5;color:var(--muted,#8ea0bf);margin:2px 2px 0}
+.tp-note b{color:var(--ink,#e8eefc);font-weight:800;font-family:ui-monospace,monospace;font-size:11px}
+.sl-key{display:flex;align-items:center;gap:5px;margin-top:6px}
+.sl-key i{width:14px;height:3px;border-radius:2px;display:inline-block}
+.tp-h{font-size:8px;font-weight:900;letter-spacing:.12em;color:var(--muted);padding:2px 2px 0}
 .tool-panel .tp-note{font-size:9.5px;line-height:1.35;font-weight:600;color:var(--muted);padding:2px 3px}
 .tool-panel .tp-row{
   display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px;border-radius:9px;cursor:pointer;
@@ -1389,6 +1406,8 @@ body[data-view="home"] .home>*:nth-child(4){animation-delay:.18s}
 </head>
 <body data-view="home">
 <script>try{document.body.setAttribute("data-view","home");}catch(e){}</script>
+
+<div id="offline-card" hidden><b class="oc-t">Offline · showing the last real chart</b><span class="oc-s"></span></div>
 
 <div id="cc-fs" role="dialog" aria-modal="true" aria-label="Lesson player" hidden>
   <video id="cc-fs-video" playsinline preload="metadata" onclick="toggleLessonPlay()"></video>
@@ -1655,7 +1674,7 @@ body[data-view="home"] .home>*:nth-child(4){animation-delay:.18s}
       <div id="chart-stale" class="chart-stale" hidden></div>
       <div id="swap-note" class="swap-note" hidden></div>
       <div id="tv-legend"><span class="lg-t" id="lg-sym">XAUUSD</span><span id="lg-tf">M15</span><span id="lg-ohlc">—</span><span class="lg-note" id="lg-note"></span><span id="ind-legend" hidden></span></div>
-      <svg id="vwap-layer" aria-hidden="true"><g id="vw-bands"></g><g id="vw-guides"></g><g id="vw-marks"></g><g id="vw-labels"></g></svg>
+      <svg id="vwap-layer" aria-hidden="true"><g id="sl-lines"></g><g id="vw-bands"></g><g id="vw-guides"></g><g id="vw-marks"></g><g id="vw-labels"></g></svg>
       <svg id="zone-layer" aria-hidden="true"></svg>
       <svg id="draw-layer" aria-hidden="true"></svg>
       <div id="draw-hint"></div>
@@ -2089,6 +2108,67 @@ async function openNews(){
 }
 
 // ---------- trade journal: yours, kept on this device ----------
+// ---------- installable app + offline shell ----------
+// On a phone this adds itself to the home screen and opens instantly. When the feed is
+// gone it opens from the cached shell and keeps the LAST REAL chart on screen, clearly
+// marked with how old it is: a blank page or a made-up candle would both be worse.
+let _swReady=false,_wasOnline=navigator.onLine!==false;
+function registerOfflineShell(){
+  if(!('serviceWorker' in navigator)) return;
+  // a file:// or embedded preview has no worker scope; nothing to do there
+  if(location.protocol!=='https:'&&location.hostname!=='127.0.0.1'&&location.hostname!=='localhost') return;
+  navigator.serviceWorker.register('/sw.js',{scope:'/'}).then(function(r){
+    _swReady=true;
+    if(r.waiting) r.waiting.postMessage('skip-waiting');       // a fresh deploy never waits a reload
+  }).catch(function(){});
+}
+function _offlineCard(on){
+  const el=document.getElementById('offline-card');
+  if(!el) return;
+  if(!on){ el.hidden=true; return; }
+  const age=window._lastRealAt?Math.max(0,Math.round((Date.now()-window._lastRealAt)/60000)):null;
+  const t=el.querySelector('.oc-t'), sub=el.querySelector('.oc-s');
+  if(t) t.textContent='Offline · last real data only';
+  if(sub) sub.textContent=(age==null?'no quote received yet this session':
+      (age<1?'last real quote: less than a minute ago':('last real quote: '+age+' min ago')))
+      +' · nothing here is simulated';
+  el.hidden=false;
+}
+function watchNetwork(){
+  const set=function(on){
+    _offlineCard(!on);
+    document.body.classList.toggle('online',on);
+    if(!on){
+      // the chart is frozen on real data, so the staleness pill must say so
+      const el=document.getElementById('chart-stale');
+      if(el){ el.classList.add('closed'); el.hidden=false;
+        el.textContent='offline · showing the last real candles';
+        el.title='The feed is unreachable. These candles are the last real ones received, not new ones.'; }
+    }
+  };
+  addEventListener('online',function(){ _wasOnline=true; set(true); });
+  addEventListener('offline',function(){ _wasOnline=false; set(false); });
+  // The browser flag is not enough: Chrome keeps onLine=true on a link that is already
+  // dead, and a closed market answers 200s so it must not look offline. Two failed
+  // requests are a fact, so the card appears within a few seconds either way.
+  const check=function(){
+    // offline when the browser says so, or when two real requests have failed (the case
+    // the browser flag misses). Back online only when a request has actually succeeded.
+    const dead=(navigator.onLine===false)||(_netFails>=2);
+    if(dead===!_wasOnline) return;
+    _wasOnline=!dead; set(!dead);
+  };
+  setInterval(check,1500);
+  check();
+  // a closed market sends no ticks, so nothing would fail on its own: probe the real
+  // quote every few seconds and let the answer decide
+  setInterval(function(){
+    if(document.hidden) return;
+    if(window._lastRealAt && Date.now()-window._lastRealAt<20000) return;
+    if(_netFails>=2) return;
+    try{ fetchFastPrice(); }catch(e){}
+  },6000);
+}
 function jnLoad(){try{const a=JSON.parse(localStorage.getItem('astra6_journal')||'[]');return Array.isArray(a)?a:[];}catch(e){return [];}}
 function jnSave(a){try{localStorage.setItem('astra6_journal',JSON.stringify(a.slice(0,300)));}catch(e){}jnStats();}
 function jnR(t){
@@ -3026,6 +3106,20 @@ function renderChartMenu(){
   h+='</div><div class="tp-h">Drawings</div>';
   h+='<div class="tp-row'+(drawHidden?' on':'')+'" onclick="toggleDrawHidden()">Hide drawings<span class="tp-sw"></span></div>';
   h+='<div class="tp-row'+(drawLocked?' on':'')+'" onclick="toggleDrawLocked()">Lock drawings<span class="tp-sw"></span></div>';
+  h+='<div class="tp-h">Session levels</div>';
+  h+='<div class="tp-row'+(slOn()?' on':'')+'" onclick="toggleSessionLevels()">Prior day H/L/C + overnight<span class="tp-sw"></span></div>';
+  if(slOn()){
+    const d=_slData;
+    if(d){
+      const p=v=>v==null?'—':fmtPx(v).replace('$','');
+      h+='<div class="tp-note">'+(d.dayLabel||'prior day')+' (UTC) · <b>PDH '+p(d.pdh)+' · PDL '+p(d.pdl)+' · PDC '+p(d.pdc)+'</b></div>';
+      h+='<div class="tp-note">prior day range <b>'+p(d.range)+'</b>'+(d.pdc?' ('+((d.range/d.pdc)*100).toFixed(2)+'% of close)':'')+'</div>';
+      h+='<div class="tp-note">overnight '+d.win+' · '+(d.onN?('<b>'+p(d.onl)+'–'+p(d.onh)+'</b> · '+d.onN+' bars'):'no bars yet in this window')+'</div>';
+    } else {
+      h+='<div class="tp-note">reading the candles…</div>';
+    }
+    h+='<div class="tp-note sl-key"><i style="background:#f472b6"></i>PDH / PDL <i style="background:#94a3b8"></i>PDC <i style="background:#22d3ee"></i>overnight</div>';
+  }
   h+='<div class="tp-h">Actions</div><div class="tp-chips one">';
   h+='<button type="button" class="tp-chip" onclick="resetZoom()">Reset zoom</button>';
   h+='<button type="button" class="tp-chip" onclick="shotChart()">Screenshot</button>';
@@ -3445,6 +3539,7 @@ function chartToolsOnSymbol(){
   if(lastCandles.length)paintIndicators(lastCandles);
 }
 
+try{registerOfflineShell();watchNetwork();}catch(e){}
 function initChart(){try{const c=document.getElementById('oanda_chart');if(!c)return;if(typeof LightweightCharts==='undefined'){c.innerHTML='<div style="padding:20px;text-align:center">Chart lib loading...<br><span style="font-size:10px">Data works in Dashboard • Rebuilt</span></div>';const s=document.createElement('script');s.src='/static/vendor/lightweight-charts.js';s.onload=()=>{createChart();fetchChart(currentTF);};s.onerror=()=>{c.innerHTML='<div style="padding:20px;text-align:center">Chart CDN blocked in preview (normal)<br>Data works in Dashboard<br>Chart feed reconnecting • price above is LIVE</div>';};document.head.appendChild(s);return;}createChart();fetchChart(currentTF);}catch(e){console.log('initChart err',e);}}
 function createChart(){try{const c=document.getElementById('oanda_chart');if(!c||typeof LightweightCharts==='undefined')return;if(chart)return;c.innerHTML='';c.style.display='block';c.style.alignItems='stretch';c.style.justifyContent='flex-start';const _ch=c.clientHeight||420;const _p=chartPalette();
     const _opts=tvChartOptions();_opts.width=c.clientWidth;_opts.height=_ch;
@@ -3544,6 +3639,7 @@ const url=cfg.chart+_sep+`granularity=${tf}&count=${count}`+(cfg.venues?`&venue=
 const _key=currentSymbol+'|'+tf,_same=(window._chartKey===_key);window._chartKey=_key;
 let _vr=null;try{if(_same)_vr=chart.timeScale().getVisibleLogicalRange();}catch(e){}
 try{paintSeries(clean);
+  try{fetchSessionLevels(false);}catch(e){}
   try{const _cv=document.getElementById('oanda_chart');if(_cv)_cv.classList.remove('swapping');
       const _sn=document.getElementById('swap-note');if(_sn)_sn.hidden=true;}catch(e){}
   if(_vr) chart.timeScale().setVisibleLogicalRange(_vr);   // no jump every refresh
@@ -3563,7 +3659,7 @@ try{paintSeries(clean);
     requestAnimationFrame(_fit);
     setTimeout(_fit,120);
   }
-}catch(e){console.log('chart data err',e);}document.getElementById('chart-candle-count').textContent=`${clean.length} candles`;setTimeout(scheduleZoneDraw,60);if(window._strategy==='volume'&&typeof scheduleVolume==='function')scheduleVolume();updateLegend(null);setCandleAge(d);if(srcEl)srcEl.textContent=((marketOpenNow(currentSymbol)?'':'market closed · ')+(d.source||'REAL OHLCV')).replace('xaus.com /api/v1/chart XAU/USD (REAL OHLCV, spot-anchored)','XAUS spot · TradingView bar').replace('xaus.com /api/v1/chart XAU/USD (REAL spot OHLCV)','XAUS REAL spot').replace('yfinance GC=F (REAL futures OHLCV)','yfinance GC=F REAL');if(clean.length){const last=clean[clean.length-1];if(lastPrice===0){lastPrice=last.close;const p=document.getElementById('price');if(p&&p.textContent==='$--.--')p.textContent=fmtPx(last.close);}}let fb=document.getElementById('chart-price-fallback');if(fb&&lastPrice)fb.textContent=fmtPx(lastPrice);}else if(srcEl){srcEl.textContent=(!candleSeries?'chart library loading…':'feed reconnecting (no fake data)');setCandleAge(null);}}catch(e){console.log('chart fetch err',e);const s=document.getElementById('chart-source');if(s)s.textContent='feed reconnecting…';}}
+}catch(e){console.log('chart data err',e);}document.getElementById('chart-candle-count').textContent=`${clean.length} candles`;setTimeout(scheduleZoneDraw,60);if(window._strategy==='volume'&&typeof scheduleVolume==='function')scheduleVolume();updateLegend(null);setCandleAge(d);if(srcEl)srcEl.textContent=((marketOpenNow(currentSymbol)?'':'market closed · ')+(d.source||'REAL OHLCV')).replace('xaus.com /api/v1/chart XAU/USD (REAL OHLCV, spot-anchored)','XAUS spot · TradingView bar').replace('xaus.com /api/v1/chart XAU/USD (REAL spot OHLCV)','XAUS REAL spot').replace('yfinance GC=F (REAL futures OHLCV)','yfinance GC=F REAL');if(clean.length){const last=clean[clean.length-1];if(lastPrice===0){lastPrice=last.close;const p=document.getElementById('price');if(p&&p.textContent==='$--.--')p.textContent=fmtPx(last.close);}}let fb=document.getElementById('chart-price-fallback');if(fb&&lastPrice)fb.textContent=fmtPx(lastPrice);window._lastRealAt=window._lastRealAt||Date.now();}else if(srcEl){srcEl.textContent=(!candleSeries?'chart library loading…':'feed reconnecting (no fake data)');setCandleAge(null);}}catch(e){console.log('chart fetch err',e);const s=document.getElementById('chart-source');if(s)s.textContent='feed reconnecting…';}}
 
 // One path for applying a price to the page: the SSE stream and the polling
 // fallback both come through here, so behaviour can never drift between them.
@@ -3670,7 +3766,7 @@ function applyTick(d){
   setTabPrice(currentSymbol,newPrice);
   const sigPrice=document.getElementById('sig-price');
   if(sigPrice&&sigPrice.textContent==='$--')sigPrice.textContent=fmtPx(newPrice);
-  lastPrice=newPrice; priceUpdateCount++; _lastTickAt=Date.now(); _netFails=0;
+  lastPrice=newPrice; priceUpdateCount++; _lastTickAt=Date.now(); _netFails=0; window._lastRealAt=Date.now();
 
   const bid=(d.live_price?d.live_price.bid:d.bid);
   const ask=(d.live_price?d.live_price.ask:d.ask);
@@ -3874,6 +3970,7 @@ function setSymbol(sym){
   // blank the old market's candles at once: a switched chart must never show the previous
   // pair's price under the new pair's name while the feed is in flight
   lastCandles=[];lastPrice=0;window._zones=null;
+  try{_slData=null;_slSym='';const _g=document.getElementById('sl-lines');if(_g)_g.innerHTML='';}catch(e){}
   try{glideReset();}catch(e){}
   try{if(candleSeries)candleSeries.setData([]);}catch(e){}
   // dim the plot and label the swap so a market change reads as a transition, not a glitch
@@ -4126,7 +4223,7 @@ function drawVolume(){
       window._volDrawKey=sig; window._volForceDraw=false;
     }
   }catch(e){}
-  if(!on||!d||!d.vwap_series||d.vwap_series.length<2||!chart||!candleSeries||!box){clearVolumeLayer();return;}
+  if(!on||!d||!d.vwap_series||d.vwap_series.length<2||!chart||!candleSeries||!box){clearVolumeLayer();drawSessionLevels();return;}
   const gB=document.getElementById('vw-bands'), gM=document.getElementById('vw-marks'), gL=document.getElementById('vw-labels');
   if(!gB||!gM||!gL) return;
   const w=box.clientWidth,h=box.clientHeight;
@@ -4368,14 +4465,134 @@ function scheduleTickDraw(){
   _zTimer=setTimeout(function(){_zTimer=0;scheduleZoneDraw();},wait);
 }
 function zoneColor(side){return side==='demand'?(isDark()?'38,166,154':'16,185,129'):(isDark()?'239,83,80':'239,68,68');}
+// ---------- session levels: the context a rejection trade needs ----------
+// Prior-day high / low / close and the overnight range, all computed from the feed's own
+// bars. Nothing here is typed in by hand: the day is a UTC calendar day, "overnight" is
+// the 22:00-07:00 UTC window (named on the chart), and a level the feed has no bars for
+// is simply not drawn. If the app is offline the last real set is marked as old, never
+// re-timed.
+const SL_WIN=[22,7];                       // overnight window, UTC hours
+let _slData=null,_slAt=0,_slBusy=false,_slSym='';
+function slOn(){try{return localStorage.getItem('astra6_slevels')!=='0';}catch(e){return true;}}
+function toggleSessionLevels(){
+  const on=!slOn();
+  try{localStorage.setItem('astra6_slevels',on?'1':'0');}catch(e){}
+  if(on&&!_slData) fetchSessionLevels(true);
+  renderChartMenu(); drawSessionLevels();
+}
+function _slDayKey(t){const d=new Date(t*1000);return d.getUTCFullYear()*10000+(d.getUTCMonth()+1)*100+d.getUTCDate();}
+function _slUtcHour(t){return new Date(t*1000).getUTCHours();}
+function _slMidnight(key){                      // UTC midnight of a YYYYMMDD key, in seconds
+  const y=Math.floor(key/10000), m=Math.floor(key/100)%100, d=key%100;
+  return Math.floor(Date.UTC(y,m-1,d)/1000);
+}
+function buildSessionLevels(bars){
+  if(!bars||bars.length<10) return null;
+  const days={};
+  bars.forEach(function(b){
+    const k=_slDayKey(b.time);
+    const d=days[k]||(days[k]={hi:-Infinity,lo:Infinity,close:null,closeT:0,n:0});
+    if(b.high>d.hi)d.hi=b.high;
+    if(b.low<d.lo)d.lo=b.low;
+    if(b.time>=d.closeT){d.closeT=b.time;d.close=b.close;}
+    d.n++;
+  });
+  const keys=Object.keys(days).map(Number).sort(function(a,b){return a-b;});
+  if(!keys.length) return null;
+  // "prior day" is the last completed UTC day the feed has bars for: never today, which
+  // is still building. On a closed market the newest day in the data is the prior one.
+  const todayK=_slDayKey(Math.floor(Date.now()/1000));
+  let priorK=null;
+  for(let i=keys.length-1;i>=0;i--){ if(keys[i]<todayK){priorK=keys[i];break;} }
+  if(priorK==null) priorK=keys[keys.length-1];
+  const prior=days[priorK];
+  if(!prior||!isFinite(prior.hi)||!isFinite(prior.lo)) return null;
+  // overnight = the stated 22:00-07:00 UTC window that opened on the prior day
+  const ON_START=_slMidnight(priorK)+SL_WIN[0]*3600;
+  const ON_END=ON_START+(24-SL_WIN[0]+SL_WIN[1])*3600;
+  let oHi=-Infinity,oLo=Infinity,oN=0;
+  bars.forEach(function(b){
+    if(b.time>=ON_START&&b.time<=ON_END){
+      if(b.high>oHi)oHi=b.high;
+      if(b.low<oLo)oLo=b.low;
+      oN++;
+    }
+  });
+  const t=days[todayK];
+  return {pdh:prior.hi,pdl:prior.lo,pdc:prior.close,
+    onh:oN?oHi:null, onl:oN?oLo:null, onN:oN,
+    dayHi:(t&&isFinite(t.hi))?t.hi:null, dayLo:(t&&isFinite(t.lo))?t.lo:null, dayN:t?t.n:0,
+    range:prior.hi-prior.lo, at:Date.now(), day:priorK,
+    dayLabel:new Date(_slMidnight(priorK)*1000).toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short',timeZone:'UTC'}),
+    win:String(SL_WIN[0]).padStart(2,'0')+':00–'+String(SL_WIN[1]).padStart(2,'0')+':00 UTC'};
+}
+async function fetchSessionLevels(force){
+  if(_slBusy) return;
+  if(!force && _slData && _slSym===currentSymbol && Date.now()-_slAt<60000) return;
+  _slBusy=true;
+  const _sym=currentSymbol,_ven=currentVenue;
+  try{
+    const cfg=symConf();
+    // 200 half-hour bars covers ~4 days: enough for a full prior day plus tonight
+    const sep=cfg.chart.indexOf('?')>=0?'&':'?';
+    const r=await fetch(cfg.chart+sep+'granularity=M30&count=200'+(cfg.venues?'&venue='+encodeURIComponent(currentVenue):''));
+    const d=await r.json();
+    if(_sym!==currentSymbol||_ven!==currentVenue){_slBusy=false;return;}
+    if(d.status!=='ok'||!d.candles||!d.candles.length){_slBusy=false;return;}
+    const bars=d.candles.map(function(c){
+      let t=typeof c.time==='number'?Math.floor(c.time):Math.floor(new Date(c.time).getTime()/1000);
+      if(t>1e12)t=Math.floor(t/1000);
+      return {time:t,open:c.open,high:c.high,low:c.low,close:c.close};
+    }).filter(c=>c.time>0&&isFinite(c.high)&&isFinite(c.low)).sort((a,b)=>a.time-b.time);
+    const built=buildSessionLevels(bars);
+    if(built){_slData=built;_slAt=Date.now();_slSym=currentSymbol;}
+  }catch(e){}
+  _slBusy=false;
+  drawSessionLevels();
+  renderChartMenu();
+}
+function drawSessionLevels(){
+  const g=document.getElementById('sl-lines');
+  if(!g) return;
+  const box=document.getElementById('oanda_chart');
+  if(!slOn()||!_slData||!chart||!candleSeries||!box){ if(g.childNodes.length)g.innerHTML=''; return; }
+  const w=box.clientWidth,h=box.clientHeight;
+  let xR=w-58;
+  try{const pw=chart.timeScale().width();if(pw)xR=Math.min(xR,pw-3);}catch(e){}
+  const L=[['PDH',_slData.pdh,'#f472b6','5 3'],['PDL',_slData.pdl,'#f472b6','5 3'],
+           ['PDC',_slData.pdc,'#94a3b8','2 3'],['ONH',_slData.onh,'#22d3ee','1 4'],
+           ['ONL',_slData.onl,'#22d3ee','1 4']];
+  // the timeframe bar and the market chip live in the top ~66 px: a label there is
+  // unreadable, so it steps below its own line instead of sitting on the chrome
+  const TOP_CUT=66;
+  let out='';
+  L.forEach(function(it){
+    const name=it[0],px=it[1],col=it[2],dash=it[3];
+    if(px==null) return;
+    let y=null; try{y=candleSeries.priceToCoordinate(px);}catch(e){}
+    if(y==null||y<-6||y>h+6) return;
+    if(y<TOP_CUT&&y>h-18) return;
+    const w8=(name==='PDC')?1:1.2;
+    const lab=y<TOP_CUT?(y+9.5):(y-3.2);          // below the line when the top is crowded
+    out+='<line x1="0" y1="'+y.toFixed(1)+'" x2="'+xR.toFixed(1)+'" y2="'+y.toFixed(1)+'" stroke="'+col+'" stroke-width="'+w8+'" stroke-dasharray="'+dash+'" opacity=".8"/>'
+       + '<text x="'+(xR-4).toFixed(1)+'" y="'+lab.toFixed(1)+'" text-anchor="end" font-family="ui-monospace,monospace" font-size="8.4" font-weight="800" fill="'+col+'" paint-order="stroke" stroke="#0b1220" stroke-width="2.4" stroke-linejoin="round">'
+       + name+' '+fmtPx(px).replace('$','')+'</text>';
+  });
+  if(g.innerHTML!==out) g.innerHTML=out;
+}
+// keep the levels honest across markets, timeframes and reconnects
+try{setInterval(function(){ if(slOn()&&!document.hidden) fetchSessionLevels(false); },120000);}catch(e){}
+
 function drawZones(){
   const svg=document.getElementById('zone-layer'); if(!svg) return;
   if(window._strategy==='volume'){
     if(svg.innerHTML) svg.innerHTML='';
     drawVolume();
+    drawSessionLevels();
     return;
   }
   drawVolume();
+  drawSessionLevels();
   const Z=window._zones||{}, box=document.getElementById('oanda_chart');
   if(!chart||!candleSeries||!box){if(svg.innerHTML)svg.innerHTML='';return;}
   const targets=Z.zones||[], entries=Z.entries||[];
