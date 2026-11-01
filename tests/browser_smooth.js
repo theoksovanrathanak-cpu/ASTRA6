@@ -50,18 +50,40 @@ async function setPinThroughUi(page, pin = '1234') {
     }));
     ok('a saved PIN shows the lock, not the welcome', before.lock && !before.intro, before);
     await page.evaluate(() => { lkKey('1'); lkKey('2'); lkKey('3'); lkKey('4'); });
-    await sleep(2600);
+    await sleep(900);
+    // the 3D welcome greets an unlocked session, and it plays on top of a chart that is
+    // already being built underneath
+    const wel = await page.evaluate(() => {
+      const el = document.getElementById('intro');
+      const stage = el && el.querySelector('.intro-stage');
+      const cs = el && getComputedStyle(el);
+      return {
+        lock: !document.getElementById('lock').hidden,
+        intro: !!el && !el.classList.contains('gone'),
+        unlockMode: !!el && el.classList.contains('unlock-mode'),
+        hi: (document.getElementById('intro-hi') || {}).textContent || '',
+        tap: ((el || {}).querySelector ? (el.querySelector('.intro-tap span') || {}).textContent || '' : ''),
+        perspective: cs ? cs.perspective : '',
+        stage3d: stage ? getComputedStyle(stage).transformStyle : '',
+        view: document.body.getAttribute('data-view'),
+        chart: !!chart, candles: (lastCandles || []).length
+      };
+    });
+    ok('the PIN unlocks', !wel.lock, wel);
+    ok('unlocking plays the 3D welcome', wel.intro && wel.unlockMode, wel);
+    ok('the welcome is a real 3D scene', wel.perspective === '1100px' && wel.stage3d === 'preserve-3d', wel);
+    ok('it greets an unlocked session', /unlocked/i.test(wel.hi) && /welcome back/i.test(wel.tap), wel);
+    ok('the chart is built while the welcome plays', wel.view === 'chart' && wel.chart && wel.candles > 0, wel);
+    await sleep(3400);
     const after = await page.evaluate(() => ({
-      lock: !document.getElementById('lock').hidden,
-      view: document.body.getAttribute('data-view'),
       intro: !document.getElementById('intro').classList.contains('gone'),
+      view: document.body.getAttribute('data-view'),
       chart: !!chart,
       candles: (lastCandles || []).length,
       lastview: localStorage.getItem('astra6_lastview'),
       viewRaw: localStorage.getItem('astra6_view')
     }));
-    ok('the PIN unlocks', !after.lock, after);
-    ok('unlocking opens the chart, not the 3D welcome', after.view === 'chart' && !after.intro, after);
+    ok('the welcome closes itself into the chart', !after.intro && after.view === 'chart', after);
     ok('the chart is really built after unlock', after.chart && after.candles > 20, after);
     ok('the screen name is stored apart from the chart options',
       after.lastview === 'chart' && (after.viewRaw === null || /^\{/.test(after.viewRaw)), after);

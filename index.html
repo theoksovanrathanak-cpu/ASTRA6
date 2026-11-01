@@ -107,7 +107,25 @@ button,select{font-family:inherit}
   radial-gradient(60% 50% at 50% 45%,rgba(41,98,255,.22),transparent 70%),
   radial-gradient(40% 40% at 70% 70%,rgba(234,179,8,.10),transparent 70%)}
 .intro-stage{position:relative;text-align:center;transform-style:preserve-3d;
-  animation:introRoll 1.5s cubic-bezier(.2,.8,.25,1) both}
+  animation:introRoll 1.25s cubic-bezier(.16,.9,.24,1) both}
+/* depth floor: a perspective grid that only exists while the welcome is up */
+.intro-floor{position:absolute;left:50%;top:calc(100% + 4px);width:min(760px,150vw);height:340px;
+  transform:translateX(-50%) rotateX(76deg);transform-origin:top center;pointer-events:none;
+  background:
+    repeating-linear-gradient(90deg,rgba(96,165,250,.20) 0 1px,transparent 1px 46px),
+    repeating-linear-gradient(0deg,rgba(96,165,250,.13) 0 1px,transparent 1px 46px);
+  -webkit-mask-image:radial-gradient(60% 60% at 50% 0,#000,transparent 78%);
+  mask-image:radial-gradient(60% 60% at 50% 0,#000,transparent 78%);
+  opacity:0;animation:introFloor 1.1s ease .25s both}
+.intro-orb{position:absolute;left:50%;top:8px;width:280px;height:280px;margin-left:-140px;margin-top:-140px;
+  border-radius:50%;pointer-events:none;opacity:0;
+  background:radial-gradient(circle at 50% 40%,rgba(96,165,250,.35),rgba(41,98,255,.10) 55%,transparent 72%);
+  filter:blur(6px);animation:introOrb 1.6s ease .05s both}
+.intro-hi{margin-top:12px;font:800 10.5px/1 ui-sans-serif,system-ui,sans-serif;letter-spacing:.34em;
+  text-transform:uppercase;color:#8ea6cd;opacity:0;animation:introRise .6s ease .62s both}
+#intro.unlock-mode .intro-hi{color:#eab308}
+/* every piece of copy sits on its own layer in the scene */
+.intro-title,.intro-sub,.intro-hi,.intro-bar,.intro-tap{transform-style:preserve-3d}
 .intro-ring{position:absolute;left:50%;top:52px;z-index:0;width:210px;height:210px;margin-left:-105px;margin-top:-105px;
   border-radius:50%;transform-style:preserve-3d;
   background:conic-gradient(from 0deg,rgba(41,98,255,0),rgba(41,98,255,.55),rgba(234,179,8,.45),rgba(41,98,255,0));
@@ -152,7 +170,7 @@ button,select{font-family:inherit}
 body.intro-open .hd{z-index:210;background:transparent;border-bottom-color:transparent;backdrop-filter:none}
 body.intro-open .brand-name{color:#fff}
 body.intro-open .brand-sub{color:#7f92b3}
-body.intro-open .price-block{opacity:0;pointer-events:none;transition:opacity .3s ease}
+body.intro-open .price-block,body.intro-open .hd-quote{opacity:0;pointer-events:none;transition:opacity .3s ease}
 body.intro-open .burger{border-color:rgba(255,255,255,.22);background:rgba(255,255,255,.08)}
 body.intro-open .burger span{background:#fff}
 body.intro-open .burger{box-shadow:0 0 0 0 rgba(96,165,250,.55);animation:introPulse 1.9s ease-out 1.4s infinite}
@@ -164,21 +182,32 @@ body.intro-open{overflow:hidden}
   font:600 11px/1 ui-sans-serif,system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;cursor:pointer}
 .intro-skip:hover{background:rgba(255,255,255,.12);color:#fff}
 @keyframes introRoll{
-  0%{transform:rotateX(38deg) rotateY(-14deg) translateZ(-260px) scale(.82);filter:blur(6px);opacity:0}
-  45%{opacity:1}
-  100%{transform:rotateX(0) rotateY(0) translateZ(0) scale(1);filter:blur(0);opacity:1}
+  0%{transform:rotateX(30deg) rotateY(-16deg) translateZ(-320px) scale(.86);filter:blur(4px);opacity:0}
+  40%{opacity:1}
+  72%{transform:rotateX(-3.2deg) rotateY(1.6deg) translateZ(18px) scale(1.012);filter:blur(0)}
+  100%{transform:rotateX(0) rotateY(0) translateZ(0) scale(1);opacity:1}
+}
+@keyframes introFloor{
+  0%{opacity:0;transform:translateX(-50%) rotateX(84deg) translateZ(-90px)}
+  100%{opacity:.5;transform:translateX(-50%) rotateX(76deg) translateZ(0)}
+}
+@keyframes introOrb{
+  0%{opacity:0;transform:translateZ(-160px) scale(.6)}
+  100%{opacity:1;transform:translateZ(-40px) scale(1)}
 }
 @keyframes introPop{
   0%{transform:translateZ(-180px) scale(.55) rotateY(70deg) rotateX(-14deg);opacity:0}
   70%{opacity:1}
   100%{transform:translateZ(0) scale(1) rotateY(0) rotateX(0);opacity:1}
 }
-@keyframes introRise{0%{transform:translateY(14px);opacity:0}100%{transform:translateY(0);opacity:1}}
+@keyframes introRise{0%{transform:translate3d(0,16px,-70px);opacity:0}100%{transform:translate3d(0,0,0);opacity:1}}
 @keyframes introSweep{0%{transform:translateX(-120%)}100%{transform:translateX(330%)}}
 @media(prefers-reduced-motion:reduce){
-  .intro-stage,.intro-mark,.intro-title,.intro-sub,.intro-bar,.intro-bar i,
-  .intro-ring,.intro-shine{animation:none!important;opacity:1!important}
+  .intro-stage,.intro-mark,.intro-title,.intro-sub,.intro-hi,.intro-bar,.intro-bar i,
+  .intro-ring,.intro-shine,.intro-floor,.intro-orb{animation:none!important;opacity:1!important}
   .intro-ring{opacity:.35!important;transform:rotateX(64deg)}
+  .intro-floor{opacity:.35!important}
+  .intro-stage{transform:none!important}
   #intro{transition:opacity .2s ease}
 }
 .hd-clean{display:flex;align-items:center;justify-content:space-between;gap:14px}
@@ -1820,10 +1849,13 @@ body[data-view="chart"] .hd-quote{left:auto;right:9px;bottom:2px;text-align:righ
 
 <div id="intro" role="dialog" aria-label="Welcome to ASTRA6">
   <div class="intro-stage">
+    <div class="intro-floor" aria-hidden="true"></div>
+    <div class="intro-orb" aria-hidden="true"></div>
     <div class="intro-ring"></div>
     <div class="intro-mark"><span>A6</span><i class="intro-shine"></i></div>
     <div class="intro-title">WELCOME TO <b>ASTRA</b></div>
     <div class="intro-sub">gold · xauusd</div>
+    <div class="intro-hi" id="intro-hi">welcome back</div>
     <div class="intro-bar"><i></i></div>
     <div class="intro-tap">
       <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
@@ -2061,7 +2093,7 @@ body[data-view="chart"] .hd-quote{left:auto;right:9px;bottom:2px;text-align:righ
     <div class="card-hd">
       <div>
         <div class="card-title">Price chart</div>
-        <div class="card-note"><span id="chart-tf-label">M15</span> · live</div>
+        <div class="card-note"><span id="chart-tf-label">M1</span> · live</div>
       </div>
     </div>
     <div class="chart-shell">
@@ -2101,7 +2133,7 @@ body[data-view="chart"] .hd-quote{left:auto;right:9px;bottom:2px;text-align:righ
         <i></i><span>LIVE</span>
       </button>
       <div id="tf-float" role="group" aria-label="Chart timeframe">
-        <button class="tf-btn" data-tf="M1">M1</button><button class="tf-btn" data-tf="M5">M5</button><button class="tf-btn active" data-tf="M15">M15</button><button class="tf-btn" data-tf="M30">M30</button><button class="tf-btn" data-tf="H1">H1</button><button class="tf-btn" data-tf="H4">H4</button><button class="tf-btn" data-tf="D">D1</button><button class="tf-btn" data-tf="W">W1</button><button class="tf-btn tf-more" id="tf-more" onclick="togglePanel('tf-menu')" title="All timeframes" aria-label="All timeframes">⋯</button>
+        <button class="tf-btn active" data-tf="M1">M1</button><button class="tf-btn" data-tf="M5">M5</button><button class="tf-btn" data-tf="M15">M15</button><button class="tf-btn" data-tf="M30">M30</button><button class="tf-btn" data-tf="H1">H1</button><button class="tf-btn" data-tf="H4">H4</button><button class="tf-btn" data-tf="D">D1</button><button class="tf-btn" data-tf="W">W1</button><button class="tf-btn tf-more" id="tf-more" onclick="togglePanel('tf-menu')" title="All timeframes" aria-label="All timeframes">⋯</button>
       </div>
       <div id="chart-stale" class="chart-stale" hidden></div>
       <div id="swap-note" class="swap-note" hidden></div>
@@ -2150,7 +2182,7 @@ body[data-view="chart"] .hd-quote{left:auto;right:9px;bottom:2px;text-align:righ
       <button id="flow-ai" class="flow-ai" type="button" hidden onclick="openAIRead()" aria-label="Market read: what the numbers say" title="Market read">✦</button>
     </div>
     <div class="meta-row">
-      <span>ASTRA6 chart · <span id="chart-info-tf">M15</span> · <span id="chart-candle-count">--</span> · <span class="ok" id="chart-source">connecting</span></span>
+      <span>ASTRA6 chart · <span id="chart-info-tf">M1</span> · <span id="chart-candle-count">--</span> · <span class="ok" id="chart-source">connecting</span></span>
       <span class="zone-key"><i style="background:rgba(16,185,129,.35);border:1px solid #10b981"></i>buy zone
         <i style="background:rgba(239,68,68,.30);border:1px solid #ef4444;margin-left:8px"></i>sell zone</span>
       <span class="mono" id="chart-price-fallback">$--</span>
@@ -2224,7 +2256,7 @@ function aggMonths(bars){
 }
 function toTF(bars,tf){const e=TF_EXTRA[tfNorm(tf)];if(!e)return bars;return e[1]?aggBars(bars,e[1]):aggMonths(bars);}
 
-let chart=null,candleSeries=null,lastCandles=[],currentTF=localStorage.getItem('astra6_tf')||'M15',lastPrice=0,priceUpdateCount=0,soundOn=localStorage.getItem('astra6_sound')!=='0';
+let chart=null,candleSeries=null,lastCandles=[],currentTF=localStorage.getItem('astra6_tf')||'M1',lastPrice=0,priceUpdateCount=0,soundOn=localStorage.getItem('astra6_sound')!=='0';
 let THEME=localStorage.getItem('astra6_theme')||'dark';
 let currentVenue=localStorage.getItem('astra6_venue')||'OANDA:XAUUSD';
 let _unusedVenue=null;      // gold is the only venue-priced market now
@@ -2417,17 +2449,19 @@ function lkUnlock(){
   const el=document.getElementById('lock'); if(el)el.hidden=true;
   document.body.classList.remove('locked');
   try{sessionStorage.setItem(LK.sess,'1');}catch(e){}
-  // Unlocking takes you into the app, not back to the welcome screen. The 3D welcome is
-  // still one tap away in the menu (Replay welcome) — it never plays by itself.
+  // Unlocking opens the 3D welcome — a short, intentional greeting — and then drops into the
+  // chart by itself. The chart is built underneath while the welcome plays, so when it fades
+  // there is a live chart behind it, never a blank screen.
   setTimeout(function(){
     try{
-      const intro=document.getElementById('intro');
-      if(intro&&!intro.classList.contains('gone')&&typeof endIntro==='function')endIntro();
       if(typeof setView==='function') setView('chart');
+      if(document.getElementById('intro')) playIntro('unlock');
     }catch(e){}
   },40);
 }
 function lockNow(){
+  try{ if(typeof endIntro==='function') endIntro(); }catch(e){}
+  clearTimeout(window._introAutoT);
   if(typeof closeMenu==='function')closeMenu();
   if(typeof closeSheet==='function')closeSheet();
   try{sessionStorage.removeItem(LK.sess);}catch(e){}
@@ -2466,9 +2500,12 @@ function endIntro(){
 }
 // Plays on every fresh page load - clicking the site link should always open on it.
 // (It used to be gated to once per browser session, so a second visit showed nothing.)
-function playIntro(){
+function playIntro(mode){
   const el=document.getElementById('intro');
   if(!el)return;
+  // a locked device gets the lock pad, never a greeting on top of it
+  const lkEl=document.getElementById('lock');
+  if(document.body.classList.contains('locked')||(lkEl&&lkEl.hidden===false)) return;
   el.classList.remove('gone');
   el.style.display='';
   // restart the animations from the top
@@ -2478,11 +2515,63 @@ function playIntro(){
   if(mark){mark.style.animation='none';void mark.offsetWidth;mark.style.animation='';}
   clearTimeout(window._introTimer);
   document.body.classList.add('intro-open');
-  // no auto-dismiss: the welcome stays until you open the menu (or skip / tap the backdrop)
+  const after=!!(mode==='unlock');
+  window._introAfterUnlock=after;
+  el.classList.toggle('unlock-mode',after);
+  const hi=document.getElementById('intro-hi');
+  if(hi){ hi.style.display=after?'':'none'; if(after)hi.textContent='session unlocked'; }
+  try{ if(typeof introParallax==='function') introParallax(el,after); }catch(e){}
+  // the copy depends on why the welcome is up: an unlocked session is going into the chart,
+  // a first visit is going into the menu
+  const tapTxt=el.querySelector('.intro-tap span');
+  if(tapTxt)tapTxt.textContent=after?'welcome back — opening gold':'tap the menu to open';
   const skip=document.getElementById('intro-skip');
-  if(skip)skip.onclick=()=>{endIntro();openMenu();};
-  el.onclick=(e)=>{if(e.target===el)endIntro();};
+  if(skip){
+    skip.textContent=after?'Open chart':'Open menu';
+    skip.setAttribute('aria-label',after?'Open the chart':'Open the menu');
+    skip.onclick=()=>{endIntro(); try{ after?setView('chart'):openMenu(); }catch(e){}};
+  }
+  el.onclick=(e)=>{if(e.target===el){endIntro(); try{ if(after)setView('chart'); }catch(e){}}};
+  // the welcome is a greeting, not a gate: on unlock it slides away by itself
+  clearTimeout(window._introAutoT);
+  if(after) window._introAutoT=setTimeout(function(){
+    if(!el.classList.contains('gone')){ endIntro(); try{ setView('chart'); }catch(e){} }
+  },3400);
 }
+// A slow, pointer/tilt parallax so the welcome reads as a 3D scene rather than a flat card.
+// One transform per frame at most, stopped the moment the panel closes, never while the
+// user has asked for reduced motion.
+function introParallax(el,mobile){
+  try{
+    if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const stage=el.querySelector('.intro-stage'); if(!stage)return;
+    let raf=0, tx=0, ty=0, cx=0, cy=0, live=true;
+    const stop=()=>{live=false;cancelAnimationFrame(raf);};
+    const tick=()=>{
+      if(!live||el.classList.contains('gone')||el.style.display==='none'){stop();return;}
+      cx+=(tx-cx)*0.08; cy+=(ty-cy)*0.08;
+      // the phase-1 entrance animation owns the transform; only take over once it is done
+      if((performance.now()-_introT0)>1250)
+        stage.style.transform='rotateX('+(-cy*7).toFixed(2)+'deg) rotateY('+(cx*10).toFixed(2)+'deg) translateZ(0)';
+      raf=requestAnimationFrame(tick);
+    };
+    _introT0=performance.now();
+    el._parallaxStop=stop;
+    const pt=(x,y)=>{const r=el.getBoundingClientRect();
+      tx=(x-(r.left+r.width/2))/Math.max(1,r.width/2);
+      ty=(y-(r.top+r.height/2))/Math.max(1,r.height/2);};
+    el.onpointermove=(e)=>{pt(e.clientX,e.clientY);};
+    if(window.DeviceOrientationEvent&&mobile){
+      window.addEventListener('deviceorientation',function onOr(e){
+        if(!live){window.removeEventListener('deviceorientation',onOr);return;}
+        if(e.gamma==null||e.beta==null)return;
+        tx=Math.max(-1,Math.min(1,e.gamma/28)); ty=Math.max(-1,Math.min(1,(e.beta-45)/34));
+      },{passive:true});
+    }
+    cancelAnimationFrame(raf); raf=requestAnimationFrame(tick);
+  }catch(e){}
+}
+let _introT0=0;
 (function bootIntro(){
   const el=document.getElementById('intro');
   if(!el)return;
@@ -3968,6 +4057,7 @@ function drawShape(sh,X,Y,w,h){
   return '';
 }
 function drawOverlay(){
+  if(typeof _gestActive!=='undefined'&&_gestActive&&!window.__forcePaint) return;   // the transform carries it
   const svg=document.getElementById('draw-layer');
   if(!svg)return;
   if(_drawSym!==currentSymbol){_drawSym=currentSymbol;loadDrawings();}
@@ -4976,20 +5066,97 @@ function setChartType(t){
   rebuildMainSeries();renderChartMenu();scheduleZoneDraw();scheduleDraw();
 }
 
+// ---------- the overlays ride the candles ----------
+// The SVG layers (value area, SMC, drawings, VWAP) are drawn at pixel coordinates. If they
+// are repainted on a throttle they visibly trail the candles during a drag, which reads as
+// "the lines do not stick to the chart". So while a gesture is in flight they are moved by
+// a compositor transform that is exactly the same shift the candles made - one translate,
+// no DOM work - and only repainted when the bar spacing changes (a zoom) or when the finger
+// lifts. That keeps them glued on every frame and still costs almost nothing.
+let _mAnchor=null;
+const MOTION_LAYERS=['zone-layer','smc-layer','vwap-layer','draw-layer'];
+function layerShiftReset(){
+  MOTION_LAYERS.forEach(function(id){
+    const el=document.getElementById(id);
+    if(el&&el.style.transform)el.style.transform='';
+  });
+}
+function layerShift(dx,dy){
+  const t='translate3d('+(Math.round(dx*10)/10)+'px,'+(Math.round(dy*10)/10)+'px,0)';
+  MOTION_LAYERS.forEach(function(id){
+    const el=document.getElementById(id);
+    if(el)el.style.transform=t;
+  });
+}
+// called by every painter once it has really drawn: this is the state the pixels show
+function _mRange(){ try{ return chart?chart.timeScale().getVisibleLogicalRange():null; }catch(e){ return null; } }
+function _mAnchorPoint(){
+  // Anchor on what is in the middle of the pane, not on the last candle: a price at the
+  // edge (or off screen) has no usable coordinate once the window moves, and asking for
+  // one hands back an extrapolated number hundreds of pixels away.
+  if(!chart||!candleSeries||!lastCandles.length) return null;
+  const pr=plotRect(true)||{width:380,height:420};
+  const cy=Math.max(40,(pr.height||420)/2);
+  const r=_mRange(); if(!r) return null;
+  let price=null,x=null,y=null;
+  try{ price=candleSeries.coordinateToPrice(cy); }catch(e){}
+  if(price==null||!isFinite(price)){ price=lastCandles[lastCandles.length-1].close; }
+  const idx=Math.max(0,Math.min(lastCandles.length-1,Math.round((r.from+r.to)/2)));
+  const bar=lastCandles[idx];
+  try{ x=chart.timeScale().timeToCoordinate(bar.time); }catch(e){}
+  try{ y=candleSeries.priceToCoordinate(price); }catch(e){}
+  if(x==null||y==null) return null;
+  return {time:bar.time,price:price,x:x,y:y,span:r.to-r.from};
+}
+function motionAnchorSet(){ _mAnchor=_mAnchorPoint(); }
+function motionTrack(){
+  if(!_gestActive)return;
+  if(!_mAnchor){ _mAnchor=_mAnchorPoint(); return; }
+  const now=(window.performance&&performance.now)?performance.now():Date.now();
+  const r=_mRange(); if(!r)return;
+  // a zoom changes the spacing between bars, and a translation cannot express that
+  if(Math.abs((r.to-r.from)-_mAnchor.span)>0.8){
+    if(now-_gestPaintAt>90) motionRepaint();
+    return;
+  }
+  let x=null,y=null;
+  try{ x=chart.timeScale().timeToCoordinate(_mAnchor.time); }catch(e){}
+  try{ y=candleSeries.priceToCoordinate(_mAnchor.price); }catch(e){}
+  if(x==null||y==null)return;
+  const dx=x-_mAnchor.x, dy=y-_mAnchor.y;
+  if(Math.abs(dx)<0.15&&Math.abs(dy)<0.15) return;      // nothing moved this frame
+  // a vertical jump that big is the price scale rescaling, not the chart moving: repaint
+  if(Math.abs(dy)>220){ if(now-_gestPaintAt>90) motionRepaint(); return; }
+  layerShift(dx,dy);
+}
+
 // ---------- motion: one governor for every expensive layer ----------
 // Lightweight Charts already redraws candles on the GPU. What used to stutter on a
 // phone - worse inside an Instagram/Facebook WebView - was the SVG sitting on top:
 // the SMC boxes, the value-area bands and the drawings were rebuilt on every single
 // frame of a pan. They now share one gate: while a gesture is in flight they repaint
 // at ~11 fps, and the moment the finger lifts they snap to the exact final position.
-let _gestActive=false,_gestPaintAt=0,_gestEndTimer=0,_gestMoved=0;
+let _gestActive=false,_gestPaintAt=0,_gestEndTimer=0,_gestMoved=0,_mRaf=0;
 function motionMark(k){ if(window._motionDebug) window._motionDebug[k]=(window._motionDebug[k]||0)+1; }
 function motionGate(){
   if(window.__gateOff) return true;          // the A/B harness measures the cost of the gate itself
+  if(window.__forcePaint) return true;       // an explicit repaint (a zoom, or the end of a drag)
   if(!_gestActive){ motionMark('pass'); return true; }
-  const now=(window.performance&&performance.now)?performance.now():Date.now();
-  if(now-_gestPaintAt<88){ motionMark('skip'); return false; }
-  _gestPaintAt=now; motionMark('pass'); return true;
+  // mid-gesture a repaint would fight the transform that is keeping the layers glued to the
+  // candles: skip it, the translate is already in the right place on every frame
+  motionMark('skip'); return false;
+}
+// a forced repaint: reset the transform, redraw every layer in the current coordinates, and
+// take a new anchor from exactly what was drawn
+function motionRepaint(){
+  layerShiftReset();
+  window.__forcePaint=true;
+  try{ drawZones(); }catch(e){}
+  try{ paintSMC(); }catch(e){}
+  try{ drawOverlay(); }catch(e){}
+  window.__forcePaint=false;
+  motionAnchorSet();
+  _gestPaintAt=(window.performance&&performance.now)?performance.now():Date.now();
 }
 function motionBegin(){
   _gestMoved=0;
@@ -4997,16 +5164,25 @@ function motionBegin(){
   if(_gestActive){ clearTimeout(_gestEndTimer); return; }
   _gestActive=true; _gestPaintAt=0;
   document.documentElement.classList.add('is-panning');
+  // one translate per frame, for as long as the finger is down: the range-change event
+  // alone is not enough (the library publishes its new coordinates a frame later, so the
+  // shift read inside that event is always the previous frame's)
+  if(!_mRaf) _mRaf=requestAnimationFrame(motionLoop);
+}
+function motionLoop(){
+  _mRaf=0;
+  if(!_gestActive) return;
+  try{ motionTrack(); }catch(e){}
+  if(_gestActive) _mRaf=requestAnimationFrame(motionLoop);
 }
 function motionSettle(delay){
   clearTimeout(_gestEndTimer);
   _gestEndTimer=setTimeout(function(){
     _gestActive=false; _plotRect=null;
+    if(_mRaf){ try{cancelAnimationFrame(_mRaf);}catch(e){} _mRaf=0; }
     document.documentElement.classList.remove('is-panning');
     try{ if(window._legendPending){ const p=window._legendPending; window._legendPending=null; updateLegend(p[0],p[1]); } }catch(e){}
-    try{if(typeof paintSMC==='function')paintSMC();}catch(e){}
-    try{if(typeof drawZones==='function')drawZones();}catch(e){}
-    try{if(typeof drawOverlay==='function')drawOverlay();}catch(e){}
+    try{ motionRepaint(); }catch(e){}
   },delay==null?110:delay);
 }
 function motionEnd(){ motionSettle(110); }
@@ -5106,7 +5282,7 @@ function createChart(){try{const c=document.getElementById('oanda_chart');if(!c|
     const _opts=tvChartOptions();_opts.width=c.clientWidth;_opts.height=_ch;
     chart=LightweightCharts.createChart(c,_opts);
     candleSeries=chart.addCandlestickSeries({upColor:_p.bodyUp,downColor:_p.bodyDn,borderVisible:true,borderUpColor:_p.up,borderDownColor:_p.dn,wickUpColor:_p.wickUp,wickDownColor:_p.wickDn,priceLineWidth:1,lastValueVisible:true,lastValueColor:_p.text,priceLineStyle:2});
-    chart.subscribeCrosshairMove(param=>{let bar=null;try{bar=param.seriesData&&param.seriesData.get(candleSeries);}catch(e){}updateLegend(bar,param.time);});new ResizeObserver(()=>{if(chart){chart.applyOptions({width:c.clientWidth,height:c.clientHeight||420});scheduleZoneDraw();}}).observe(c);chart.timeScale().subscribeVisibleLogicalRangeChange(()=>{scheduleZoneDraw();try{scheduleDraw();}catch(e){}try{paintLivePill();}catch(e){}});try{if(typeof initChartTools==='function')initChartTools();}catch(e){console.log('tools err',e);}try{applyPriceScale();}catch(e){}console.log('chart created rebuilt');}catch(e){console.log('createChart err',e);}}
+    chart.subscribeCrosshairMove(param=>{let bar=null;try{bar=param.seriesData&&param.seriesData.get(candleSeries);}catch(e){}updateLegend(bar,param.time);});new ResizeObserver(()=>{if(chart){chart.applyOptions({width:c.clientWidth,height:c.clientHeight||420});scheduleZoneDraw();}}).observe(c);chart.timeScale().subscribeVisibleLogicalRangeChange(()=>{try{motionTrack();}catch(e){}scheduleZoneDraw();try{scheduleDraw();}catch(e){}try{paintLivePill();}catch(e){}});try{if(typeof initChartTools==='function')initChartTools();}catch(e){console.log('tools err',e);}try{applyPriceScale();}catch(e){}console.log('chart created rebuilt');}catch(e){console.log('createChart err',e);}}
 function setTimeframe(tf){
   setTimeout(function(){try{if(window._lay>1)mvRefresh();}catch(e){}},60);tf=tfNorm(tf);currentTF=tf;if(typeof closeMenu==='function')closeMenu();
   try{if(typeof closePanels==='function')closePanels();}catch(e){}
@@ -5282,6 +5458,15 @@ const _key=currentSymbol+'|'+tf,_same=(window._chartKey===_key);window._chartKey
 let _vr=null;try{if(_same)_vr=chart.timeScale().getVisibleLogicalRange();}catch(e){}
 try{setTimeout(function(){try{alertIndTick();}catch(e){}},900);
   paintSeries(clean);
+  // the feed's newest bar can sit one interval behind the clock. Keep the bar that is
+  // forming on screen instead of dropping back to the old one for thirty seconds.
+  try{
+    const k=liveBucket(), lc=lastCandles[lastCandles.length-1];
+    if(k!=null&&lc&&lc.time<k&&lastPrice&&liveRollOk(lc.time,k)){
+      const live={time:k,open:lastPrice,high:lastPrice,low:lastPrice,close:lastPrice,v:0};
+      lastCandles.push(live); updateSeries(live);
+    }
+  }catch(e){}
   try{fetchSessionLevels(false);}catch(e){}
   try{const _cv=document.getElementById('oanda_chart');if(_cv)_cv.classList.remove('swapping');
       const _sn=document.getElementById('swap-note');if(_sn)_sn.hidden=true;
@@ -5398,6 +5583,55 @@ function glideReset(){
   if(_gRaf){try{cancelAnimationFrame(_gRaf);}catch(e){}_gRaf=0;}
   _gTarget=null;_gShown=null;_gBar=null;_gSym=currentSymbol;
 }
+// ---- the live bar: the clock closes it, not the feed ----------------------
+// The feed hands over finished bars and refreshes the series every 30 s. Between two
+// refreshes every quote used to be written into the same last bar, so the newest candle
+// kept swelling inside an old bucket and the chart looked frozen until the next poll.
+// Every tick now checks the clock: once the minute (or the chosen interval) has turned,
+// the old bar is closed and a new one opens from the newest real quote — so the candle
+// that is forming is always the candle for the current time, and it completes on time.
+function barSecOf(tf){
+  tf=tfNorm(tf||currentTF);
+  const e=TF_EXTRA[tf];
+  if(e) return e[1]||0;                    // M1/M5/M15 folds, and MO (month) has no fixed length
+  return {M1:60,M5:300,M15:900,M30:1800,H1:3600,H4:14400,D:86400,W:604800}[tf]||0;
+}
+function liveBucket(){
+  const sec=barSecOf(currentTF);
+  if(!sec||sec>14400) return null;         // day/week/month bars come from the feed; no local guess
+  return Math.floor(Date.now()/1000/sec)*sec;
+}
+// A live bar may only be opened on a live tape. When the market is shut (or the feed has
+// gone quiet) the clock is days ahead of the newest real bar, and a bar built then would
+// be a flat line at an old price - an invented candle. Those are left to the feed.
+function liveRollOk(lcTime,k){
+  const sec=barSecOf(currentTF);
+  if(!sec||k==null||lcTime==null) return false;
+  if(!marketOpenNow(currentSymbol)) return false;
+  const seen=window._lastRealAt||0;
+  if(!seen||Date.now()-seen>120000) return false;
+  return lcTime>=k-sec*3;
+}
+function liveBarOpen(px){
+  if(!lastCandles.length||!candleSeries) return null;
+  const k=liveBucket();
+  if(k==null) return null;
+  const lc=lastCandles[lastCandles.length-1];
+  if(!lc||lc.time>=k) return null;         // the bar on screen is already this interval's
+  if(!liveRollOk(lc.time,k)) return null;
+  const p=(px!=null&&isFinite(px))?Number(px):(lastPrice||lc.close);
+  if(!p) return null;
+  // one bar for the interval that is running now. Minutes with no quote keep their gap:
+  // inventing a flat bar would be inventing a price.
+  const bar={time:k,open:p,high:p,low:p,close:p,v:0};
+  lastCandles.push(bar);
+  try{ if(chartType==='heikin') paintSeries(lastCandles); else updateSeries(bar); }catch(e){}
+  try{ glideReset(); glidePrice(p,k); }catch(e){}
+  try{ scheduleTickDraw(); }catch(e){}
+  try{ paintLivePill(); }catch(e){}
+  if(window._motionDebug) window._motionDebug.liveBars=(window._motionDebug.liveBars||0)+1;
+  return bar;
+}
 function applyTick(d){
   if(!d||d.status==='error') return false;
   const newPrice = (d.price!=null?d.price:d.mid);
@@ -5438,6 +5672,7 @@ function applyTick(d){
   const fb=document.getElementById('chart-price-fallback');
   if(fb)fb.textContent=fmtPx(newPrice);
   if(candleSeries&&lastCandles.length){
+    try{ liveBarOpen(newPrice); }catch(e){}
     const lc=lastCandles[lastCandles.length-1];
     lastCandles[lastCandles.length-1]={time:lc.time,open:lc.open,
       high:Math.max(lc.high,newPrice),low:Math.min(lc.low,newPrice),close:newPrice};
@@ -6400,7 +6635,8 @@ function scheduleZoneDraw(){
   if(typeof paintSMC==='function')paintSMC();
   if(_drawPending)return;
   _drawPending=true;
-  requestAnimationFrame(()=>{_drawPending=false;_zLastAt=performance.now();drawZones();});
+  requestAnimationFrame(()=>{_drawPending=false;_zLastAt=performance.now();drawZones();
+    try{if(!_gestActive)motionAnchorSet();}catch(e){}});
 }
 // A quote is not a reason to rebuild a hundred SVG rows. Ticks ask for a redraw at most
 // sixteen times a second, always with a trailing one so the last state is never lost;
@@ -8187,6 +8423,12 @@ function renderZoneStats(wr){
 }
 function initClicks(){
   document.querySelectorAll('[data-tf]').forEach(b=>{b.onclick=()=>setTimeframe(b.dataset.tf);b.ontouchend=(e)=>{e.preventDefault();setTimeframe(b.dataset.tf);};});
+  // one source of truth on boot: the strip, the card label and the info line all read currentTF
+  try{
+    document.querySelectorAll('[data-tf]').forEach(b=>b.classList.toggle('active',b.dataset.tf===currentTF));
+    const _l1=document.getElementById('chart-tf-label'); if(_l1)_l1.textContent=tfLabel(currentTF);
+    const _l2=document.getElementById('chart-info-tf'); if(_l2)_l2.textContent=tfLabel(currentTF);
+  }catch(e){}
   setStrategy();
   console.log('ASTRA6 rebuilt smooth - all clicks bound');
 }
