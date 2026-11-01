@@ -6751,8 +6751,9 @@ function paintMenuAlerts(){
   const syms=[];
   live.forEach(function(a){if(syms.indexOf(a.sym)<0)syms.push(a.sym);});
   const fired=all.filter(function(a){return a.fired;}).length;
-  el.textContent=live.length?('armed: '+syms.join(', ')+(fired?' · '+fired+' already fired':''))
-    :(all.length+' alert'+(all.length>1?'s':'')+' · all paused or fired');
+  if(live.length)el.textContent='armed: '+syms.join(', ')+(fired?' · '+fired+' already fired':'');
+  else if(fired)el.textContent=fired+' alert'+(fired>1?'s':'')+' fired — arm again for the next setup';
+  else el.textContent=all.length+' alert'+(all.length>1?'s':'')+' paused';
 }
 function alertKindLabel(a){
   if(a.kind==='rsi_above')return 'RSI(14) ABOVE '+a.price;
@@ -6862,7 +6863,8 @@ function alertRowHtml(a){
   else bits.push('armed');
   return '<div class="alt-row'+(a.on?'':' off')+'">'
     +'<div class="alt-main"><b>'+alertKindLabel(a)+'</b><span>'+(here?'this chart · ':'')+bits.join(' · ')+'</span></div>'
-    +'<button class="alt-btn'+(a.on?' on':'')+'" onclick="alertToggle(\''+a.id+'\')" aria-label="Pause or arm">'+(a.on?'ON':'OFF')+'</button>'
+    +'<button class="alt-btn'+((a.on&&!a.fired)?' on':'')+'" onclick="alertToggle(\''+a.id+'\')" aria-label="Pause, arm or re-arm">'
+      +(a.fired?'RE-ARM':(a.on?'ON':'OFF'))+'</button>'
     +(ALT_PRICE_KINDS.indexOf(a.kind)>=0?'<button class="alt-btn edit" onclick="alertEdit(\''+a.id+'\')" aria-label="Edit the level"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9a2.6 2.6 0 0 0-3.7-3.7L4 16z"/></svg></button>':'')
     +'<button class="alt-btn del" onclick="alertDel(\''+a.id+'\')" aria-label="Delete alert">✕</button></div>';
 }
