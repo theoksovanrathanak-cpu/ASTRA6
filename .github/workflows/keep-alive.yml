@@ -38,3 +38,5 @@ jobs:
             sleep 12
           done
           curl -s --max-time 40 -o /dev/null -w "home %{http_code} in %{time_total}s\n" "$URL/" || true
+          # a wake-up is also a rule check: if the instance had slept, this scans now
+          curl -s --max-time 60 -X POST -o /dev/null -w "push scan %{http_code}\n" "$URL/api/push/scan" || true

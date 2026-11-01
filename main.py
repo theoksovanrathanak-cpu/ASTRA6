@@ -90,7 +90,7 @@ def keep_alive_ping():
     if not urls:
         print("Keepalive skipped - no public URL to ping (not on Render?)")
         return
-    every = int(os.getenv("KEEPALIVE_SECONDS", "300"))   # 5 min < Render's 15 min idle window
+    every = int(os.getenv("KEEPALIVE_SECONDS", "240"))   # 4 min < Render's 15 min idle window
     time_module.sleep(20)
     print(f"Keepalive pinging {urls} every {every}s")
     import requests
@@ -101,6 +101,13 @@ def keep_alive_ping():
                 print(f"keepalive {url} {r.status_code}")
             except Exception as e:
                 print(f"keepalive {url} fail {e}")
+        # a wake-up is also the moment to check the trader's rules
+        try:
+            _pw = globals().get("PUSHWEB")
+            if _pw:
+                _pw.scan_once()
+        except Exception as e:
+            print(f"keepalive scan {e}")
         time_module.sleep(every)
 
 if os.getenv("KEEPALIVE", "0") == "1":

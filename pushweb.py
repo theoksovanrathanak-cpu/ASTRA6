@@ -27,7 +27,9 @@ BASE = os.path.dirname(os.path.abspath(__file__))
 SUBS_FILE = os.path.join(BASE, "push_subs.json")
 _LOCK = threading.Lock()
 AWAKE_SECONDS = 45.0          # the page pings this often while it is on screen
+STARTED = [time.time()]
 MAX_SUBS = 400
+LAST_SCAN = [0.0]          # when the rule engine last walked the subscribers
 
 # filled in by main.py at import time
 _quote_fn = None
@@ -67,9 +69,14 @@ def ready():
 
 
 def status():
+    age = (time.time() - LAST_SCAN[0]) if LAST_SCAN[0] else None
     return {"status": "ok", "ready": ready(), "publicKey": public_key(),
             "subscribers": len(subscribers()), "awakeSeconds": AWAKE_SECONDS,
-            "encoder": "webpush-aes128gcm"}
+            "encoder": "webpush-aes128gcm",
+            # the honest answer to "will it ring while my phone is in my pocket?"
+            "lastScanAge": (round(age, 1) if age is not None else None),
+            "watching": bool(LAST_SCAN[0] and age is not None and age < 120),
+            "scanEvery": 20, "uptime": round(time.time() - STARTED[0], 1)}
 
 
 # ------------------------------------------------------------------ storage
@@ -350,6 +357,7 @@ def scan_once(force=False):
     if not ready():
         return 0
     subs = subscribers()
+    LAST_SCAN[0] = time.time()      # proof of life, even with nothing armed
     if not subs:
         return 0
     now = time.time()

@@ -1429,6 +1429,10 @@ body.has-bnav{--bnav-h:52px}
 body.has-bnav .sheet-body{padding-bottom:calc(64px + env(safe-area-inset-bottom))}
 body.has-bnav .meta-row{padding-bottom:calc(var(--bnav-h) + env(safe-area-inset-bottom))}
 body.has-bnav #alert-toast,body.has-bnav #app-toast{bottom:calc(var(--bnav-h) + 14px)}
+.push-watch{font-size:9.5px;line-height:1.4;padding:5px 7px;border-radius:7px;margin:1px 0 3px;
+  color:var(--muted);background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08)}
+.push-watch.on{color:#86efac;background:rgba(34,197,94,.10);border-color:rgba(34,197,94,.32)}
+.push-watch.warn{color:#fcd34d;background:rgba(245,158,11,.10);border-color:rgba(245,158,11,.32)}
 .push-row{display:flex;align-items:center;gap:7px;padding:7px 8px;border-radius:9px;
   background:rgba(167,139,250,.10);border:1px solid rgba(167,139,250,.32)}
 .push-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
@@ -6600,11 +6604,53 @@ async function pushSync(){
       body:JSON.stringify({endpoint:_pushEp,rules:pushRules(),readCard:pushReadCard(),awake:document.visibilityState==='visible'})});
   }catch(e){}
 }
+// the page is going away (tab closed, phone locked, app switched):
+// tell the server so a rule that fires a second later still rings the phone
+function pushSleepBeacon(){
+  if(!_pushEp)return;
+  try{
+    const body=JSON.stringify({endpoint:_pushEp,rules:pushRules(),readCard:pushReadCard(),awake:false});
+    if(navigator.sendBeacon){navigator.sendBeacon('/api/push/sync',new Blob([body],{type:'application/json'}));return;}
+    fetch('/api/push/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:body,keepalive:true});
+  }catch(e){}
+}
+document.addEventListener('visibilitychange',function(){
+  if(document.visibilityState==='hidden'){pushSleepBeacon();}
+  else{pushSync();}
+});
+window.addEventListener('pagehide',pushSleepBeacon);
+
+// is the server actually watching? read it back instead of promising it
+async function pushWatcher(){
+  try{
+    const d=await (await fetch('/api/push/status',{cache:'no-store'})).json();
+    window._watch=d;
+    const el=document.getElementById('push-watch');
+    if(!el)return d;
+    if(d&&d.watching){
+      const age=Math.round(d.lastScanAge||0);
+      el.textContent='Watching now — the server checked your alerts '+(age<2?'moments':age+' s')+' ago.';
+      el.className='push-watch on';
+    }else if(d&&d.lastScanAge!=null){
+      el.textContent='The watcher is quiet — last check '+Math.round(d.lastScanAge/60)+' min ago. It wakes when the site is opened.';
+      el.className='push-watch warn';
+    }else{
+      el.textContent='The watcher has not reported yet.';
+      el.className='push-watch warn';
+    }
+    return d;
+  }catch(e){return null;}
+}
 function pushHeartbeat(){
   if(_pushTimer)clearInterval(_pushTimer);
   _pushTimer=setInterval(function(){
     if(document.visibilityState==='visible')pushSync();      // "I am here" - no double ring
   },15000);
+  clearInterval(window._watchTimer);
+  window._watchTimer=setInterval(function(){
+    const el=document.getElementById('push-watch');
+    if(el&&document.visibilityState==='visible')pushWatcher();
+  },30000);
 }
 async function pushTest(quiet){
   if(!_pushEp){if(!quiet)toast('Turn phone notifications on first');return;}
@@ -6641,9 +6687,12 @@ function pushBlockHtml(){
   if(!pushSupported())return '';
   const on=PUSH_ON;
   let h='<div class="tp-h">Phone notifications</div>';
-  h+='<div class="push-row"><div class="push-main"><b>'+(on?'ON':'OFF')+'</b><span>'+esc(pushStateText())+'</span></div>'
+  h+='<div class="push-row"><div class="push-main"><b>'+(on?'ON':'OFF')+'</b><span>'+
+    esc(on?'On — the card arrives with the app closed and the phone locked.':pushStateText())+'</span></div>'
     +'<button class="alt-btn'+(on?' on':'')+'" onclick="'+(on?'pushDisable()':'pushEnable()')+'">'+(on?'TURN OFF':'TURN ON')+'</button></div>';
   if(on){
+    h+='<div id="push-watch" class="push-watch">checking the watcher…</div>';
+    setTimeout(function(){try{pushWatcher();}catch(e){}},60);
     h+='<div class="tp-chips"><button class="tp-chip" onclick="pushTest()">Send a test card</button>'
       +'<button class="tp-chip'+(PUSH_READ?' on':'')+'" onclick="togglePushRead()">Market read card</button></div>';
     h+='<div class="tp-note">The read card is the same market read the app shows — a read, not a guarantee, and only when it changes.</div>';
