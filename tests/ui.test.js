@@ -221,7 +221,9 @@ section('view switching');
 {
   BTNS = ['chart', 'signal', 'all'].map(v => { const b = mkEl('b-' + v); b.dataset.view = v; return b; });
   setView('chart');
-  ok('chart only', document.body.attrs['data-view'] === 'chart' && localStorage.getItem('astra6_view') === 'chart');
+  ok('chart only', document.body.attrs['data-view'] === 'chart' && localStorage.getItem('astra6_lastview') === 'chart');
+  ok('the screen name never overwrites the chart options',
+     localStorage.getItem('astra6_view') === null || /^\{/.test(localStorage.getItem('astra6_view')));
   setView('signal');
   ok('a view that no longer exists falls back to the chart', document.body.attrs['data-view'] === 'chart');
   setView('all');

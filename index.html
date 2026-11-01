@@ -2,7 +2,23 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<script>
+/* In-app browsers (Instagram, Facebook, TikTok, Snapchat, Line, WeChat, GSA…) run the
+   page inside a WebView: no backdrop-filter GPU path, slower canvas compositing, and a
+   page-level scroll that fights the chart. Flag it before the first paint so the CSS
+   can drop the expensive effects instead of discovering it mid-gesture. */
+(function(){
+  var ua=navigator.userAgent||'';
+  var app=/FBAN|FBAV|FB_IAB|Instagram|Line\/|Snapchat|musical_ly|TikTok|Twitter|MicroMessenger|baiduboxapp|GSA\/|; wv\)|\bwv\b/i.test(ua);
+  var ios=/iPhone|iPad|iPod/i.test(ua)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+  var root=document.documentElement;
+  if(app)root.className+=' ua-app';
+  if(ios)root.className+=' ua-ios';
+  if(matchMedia('(prefers-reduced-motion: reduce)').matches)root.className+=' ua-nomotion';
+  window._APP_BROWSER=app;
+})();
+</script>
 <title>ASTRA6</title>
 <meta name="description" content="ASTRA6 — live metals and futures with order-flow volume, value area and daily VWAP. Free, no sign-in.">
 <meta property="og:title" content="ASTRA6">
@@ -346,7 +362,41 @@ body[data-view="chart"] .hd{position:sticky;top:0}
 .tf-btn.active{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(15,23,42,.10)}
 
 /* ---------- charts ---------- */
-#oanda_chart{width:100%;height:420px;border-radius:10px;background:#fbfcfd;border:1px solid var(--line-soft);overflow:hidden;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px}
+#oanda_chart{width:100%;height:420px;border-radius:10px;background:#fbfcfd;border:1px solid var(--line-soft);overflow:hidden;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px;
+  /* the chart owns the finger: no page scroll, no pull-to-refresh, no double-tap zoom fighting the pan */
+  touch-action:none;overscroll-behavior:contain;-webkit-user-select:none;user-select:none}
+#oanda_chart canvas{touch-action:none}
+.chart-shell{overscroll-behavior:contain}
+/* while a pan/pinch is in flight the heavy layers repaint at a fraction of the rate */
+html.is-panning #smc-layer,html.is-panning #zone-layer{will-change:transform;contain:layout paint}
+/* the cover that hides the old market while the new one loads — opaque, so no other
+   pair's price can be read under this pair's name (the rule that made us blank it) */
+.swap-cover{position:absolute;inset:0;z-index:8;display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+  background:#07070d;color:var(--ink);font-size:12px;letter-spacing:.04em;
+  opacity:0;transition:opacity .22s ease}
+.swap-cover.on{display:flex;opacity:1}
+.swap-cover.off{display:flex;opacity:0}
+.swap-sym{font:800 15px/1 ui-monospace,monospace;letter-spacing:.14em;color:#fff}
+.swap-sub{font-size:10.5px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+.swap-bar{position:relative;width:132px;height:2px;border-radius:2px;background:rgba(255,255,255,.12);overflow:hidden}
+.swap-bar i{position:absolute;top:0;left:-40%;width:40%;height:100%;border-radius:2px;
+  background:linear-gradient(90deg,#7c5cff,#22d3ee);animation:swapSweep .95s ease-in-out infinite}
+@keyframes swapSweep{0%{left:-40%}100%{left:100%}}
+
+/* ---- in-app browsers: keep the look, drop what a WebView cannot composite ---- */
+html.ua-app .hd,html.ua-app .menu,html.ua-app .sheet,html.ua-app .pop,html.ua-app .mkt-pop,
+html.ua-app .tfstrip,html.ua-app #chart-toolbar,html.ua-app #bnav,html.ua-app .flow-line,
+html.ua-app .legend,html.ua-app .ios-guide .ig-card,html.ua-app .bfly,html.ua-app .chart-menu{
+  -webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+html.ua-app .hd{background:#0b0b12}
+html.ua-app .menu{background:#0b0b12}
+html.ua-app .sheet{background:#0d0d15}
+html.ua-app .bubble,html.ua-app .card,html.ua-app .signal-card{box-shadow:none!important}
+html.ua-app #oanda_chart{transition:none}
+html.ua-app .intro-ring,html.ua-app .intro-shine,html.ua-app .intro-bar i{animation:none!important}
+html.ua-app #intro::before{opacity:.5}
+html.ua-app .live-pill,html.ua-app .mkt-float,html.ua-app .mkt-pop{box-shadow:none!important}
+html.ua-nomotion .swap-bar i{animation:none;left:20%}
 .chart-shell{position:relative}
 .flow-line{
   display:flex;flex-direction:column;gap:5px;width:100%;margin-top:8px;padding:8px 10px;border-radius:11px;
@@ -1984,6 +2034,11 @@ body[data-view="chart"] .hd-quote{left:auto;right:9px;bottom:2px;text-align:righ
     </div>
     <div class="chart-shell">
       <div id="oanda_chart">Loading chart…</div>
+      <div class="swap-cover" id="swap-cover" aria-hidden="true">
+        <div class="swap-sym" id="swap-sym">—</div>
+        <div class="swap-sub" id="swap-sub">loading</div>
+        <div class="swap-bar"><i></i></div>
+      </div>
       <div id="sub-panes" hidden></div>
       <button id="mkt-float" type="button" aria-haspopup="true" aria-expanded="false"
               onclick="toggleMarketPicker(event)">
@@ -2321,6 +2376,15 @@ function lkUnlock(){
   const el=document.getElementById('lock'); if(el)el.hidden=true;
   document.body.classList.remove('locked');
   try{sessionStorage.setItem(LK.sess,'1');}catch(e){}
+  // Unlocking takes you into the app, not back to the welcome screen. The 3D welcome is
+  // still one tap away in the menu (Replay welcome) — it never plays by itself.
+  setTimeout(function(){
+    try{
+      const intro=document.getElementById('intro');
+      if(intro&&!intro.classList.contains('gone')&&typeof endIntro==='function')endIntro();
+      if(typeof setView==='function') setView('chart');
+    }catch(e){}
+  },40);
 }
 function lockNow(){
   if(typeof closeMenu==='function')closeMenu();
@@ -2793,7 +2857,9 @@ window._view = 'home';   // nothing opens by itself: the chart is a menu choice
 function setView(v){
   if(v!=='home'&&v!=='chart')v='chart';            // the drawer only offers these two
   window._view=v;
-  localStorage.setItem('astra6_view',v);
+  // its own key: astra6_view holds the chart's JSON options, and writing 'home' into it
+  // used to wipe the price-scale preferences on every screen change
+  try{localStorage.setItem('astra6_lastview',v);}catch(e){}
   document.body.setAttribute('data-view',v);
   try{if(typeof paintBnav==='function')paintBnav();}catch(e){}
   document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
@@ -2925,6 +2991,29 @@ document.addEventListener('click',e=>{
 });
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeMarketPicker(); });
 
+// the cover that makes a pair switch read as a transition instead of a blank chart
+function swapCoverOn(sym){
+  const c=document.getElementById('swap-cover');
+  if(!c){return;}
+  const sn=document.getElementById('swap-sym'), sb=document.getElementById('swap-sub');
+  if(sn) sn.textContent=sym||currentSymbol;
+  if(sb) sb.textContent='loading '+(mkMeta(sym||currentSymbol).name||'market');
+  c.classList.remove('off'); c.classList.add('on'); c.setAttribute('aria-hidden','false');
+}
+function swapCoverOff(delay){
+  const c=document.getElementById('swap-cover');
+  if(!c||!c.classList.contains('on'))return;
+  clearTimeout(window._swapCoverTimer);
+  window._swapCoverTimer=setTimeout(function(){
+    c.classList.add('off'); c.classList.remove('on');
+    setTimeout(function(){
+      if(!c.classList.contains('on')) c.classList.remove('off');
+      // the overlays were held back while the cover was up: paint them once it is gone
+      try{if(typeof scheduleZoneDraw==='function')scheduleZoneDraw();}catch(e){}
+    },240);
+    c.setAttribute('aria-hidden','true');
+  },delay||0);
+}
 function openMarket(sym){
   setSymbol(sym);
   try{if(window._lay>1){window.mvSyms&&(window.mvSyms[0]=sym);const b=document.querySelector('.mv-cell[data-i="0"] .mv-sym');if(b)b.textContent=sym;mvLoadCell(0,sym);}}catch(e){}
@@ -4227,7 +4316,11 @@ function toggleDrawLocked(){drawLocked=!drawLocked;setTool(drawTool);renderChart
 // ---------- how the chart itself behaves: scale, bar width, live follow ----------
 // Every one of these is a real option on the chart engine and every one is remembered.
 const CHART_VIEW=Object.assign({auto:true,mode:0,invert:false,lock:false,bars:0,ba:true},
-  (function(){try{return JSON.parse(localStorage.getItem('astra6_view')||'{}');}catch(e){return {};}})());
+  (function(){try{
+    const raw=localStorage.getItem('astra6_view')||'{}';
+    if(raw==='home'||raw==='chart')return {};       // an old screen name, not chart options
+    const o=JSON.parse(raw); return (o&&typeof o==='object')?o:{};
+  }catch(e){return {};}})());
 window._logScale=(CHART_VIEW.mode===1);
 function saveView(){try{localStorage.setItem('astra6_view',JSON.stringify(CHART_VIEW));}catch(e){}}
 function applyPriceScale(){
@@ -4829,6 +4922,79 @@ function setChartType(t){
   rebuildMainSeries();renderChartMenu();scheduleZoneDraw();scheduleDraw();
 }
 
+// ---------- motion: one governor for every expensive layer ----------
+// Lightweight Charts already redraws candles on the GPU. What used to stutter on a
+// phone - worse inside an Instagram/Facebook WebView - was the SVG sitting on top:
+// the SMC boxes, the value-area bands and the drawings were rebuilt on every single
+// frame of a pan. They now share one gate: while a gesture is in flight they repaint
+// at ~11 fps, and the moment the finger lifts they snap to the exact final position.
+let _gestActive=false,_gestPaintAt=0,_gestEndTimer=0,_gestMoved=0;
+function motionMark(k){ if(window._motionDebug) window._motionDebug[k]=(window._motionDebug[k]||0)+1; }
+function motionGate(){
+  if(window.__gateOff) return true;          // the A/B harness measures the cost of the gate itself
+  if(!_gestActive){ motionMark('pass'); return true; }
+  const now=(window.performance&&performance.now)?performance.now():Date.now();
+  if(now-_gestPaintAt<88){ motionMark('skip'); return false; }
+  _gestPaintAt=now; motionMark('pass'); return true;
+}
+function motionBegin(){
+  _gestMoved=0;
+  if(_gestActive){ clearTimeout(_gestEndTimer); return; }
+  _gestActive=true; _gestPaintAt=0;
+  document.documentElement.classList.add('is-panning');
+}
+function motionSettle(delay){
+  clearTimeout(_gestEndTimer);
+  _gestEndTimer=setTimeout(function(){
+    _gestActive=false;
+    document.documentElement.classList.remove('is-panning');
+    try{if(typeof paintSMC==='function')paintSMC();}catch(e){}
+    try{if(typeof drawZones==='function')drawZones();}catch(e){}
+    try{if(typeof drawOverlay==='function')drawOverlay();}catch(e){}
+  },delay==null?110:delay);
+}
+function motionEnd(){ motionSettle(110); }
+function bindMotionGovernor(box){
+  if(!box||box._motionBound) return;
+  box._motionBound=true;
+  ['pointerdown','touchstart'].forEach(function(ev){
+    box.addEventListener(ev,function(e){ if(e.touches&&e.touches.length>1)motionBegin(); else motionBegin(); },{passive:true,capture:true});
+  });
+  ['pointerup','pointercancel','touchend','touchcancel'].forEach(function(ev){
+    box.addEventListener(ev,function(){ motionEnd(); },{passive:true,capture:true});
+  });
+  box.addEventListener('wheel',function(){ motionBegin(); motionSettle(180); },{passive:true,capture:true});
+  // a long-press or a drag that ends outside the plot still has to release the gate
+  window.addEventListener('blur',function(){ motionSettle(0); });
+}
+
+// ---------- getting back to the newest candle, with one hand ----------
+// A trader who panned into history used to have to find the small live pill. A double
+// tap anywhere on the plot now does it, and a single tap while already live does nothing,
+// so the gesture can never fire by accident during a drag.
+function bindDoubleTap(box){
+  if(!box||box._dblBound)return;
+  box._dblBound=true;
+  let lastTap=0,lastX=0,lastY=0;
+  const onTap=function(x,y){
+    const now=Date.now();
+    const near=Math.abs(x-lastX)<34&&Math.abs(y-lastY)<34;
+    if(now-lastTap<330&&near){
+      lastTap=0;
+      if(typeof drawTool!=='undefined'&&drawTool&&drawTool!=='cursor')return;   // drawing, not navigating
+      try{goLive();}catch(e){}
+      try{toast('Back to the newest candle');}catch(e){}
+      return;
+    }
+    lastTap=now;lastX=x;lastY=y;
+  };
+  box.addEventListener('touchend',function(e){
+    const t=e.changedTouches&&e.changedTouches[0]; if(!t)return;
+    onTap(t.clientX,t.clientY);
+  },{passive:true});
+  box.addEventListener('dblclick',function(e){e.preventDefault();try{goLive();}catch(err){}});
+}
+
 // ---------- wiring ----------
 function initChartTools(){
   renderRail();initRail();renderIndPanel();renderChartMenu();
@@ -4849,6 +5015,8 @@ function initChartTools(){
       shell.addEventListener(ev,function(){setTimeout(drawOverlay,30);},{passive:true});
     });
   }
+  try{bindMotionGovernor(document.getElementById('oanda_chart'));}catch(e){}
+  try{bindDoubleTap(document.getElementById('oanda_chart'));}catch(e){}
   document.addEventListener('click',function(e){
     const t=e.target;
     if(!t||!t.closest)return;
@@ -5032,7 +5200,8 @@ try{setTimeout(function(){try{alertIndTick();}catch(e){}},900);
   paintSeries(clean);
   try{fetchSessionLevels(false);}catch(e){}
   try{const _cv=document.getElementById('oanda_chart');if(_cv)_cv.classList.remove('swapping');
-      const _sn=document.getElementById('swap-note');if(_sn)_sn.hidden=true;}catch(e){}
+      const _sn=document.getElementById('swap-note');if(_sn)_sn.hidden=true;
+      clearTimeout(window._swapTimer);}catch(e){}
   if(_vr) chart.timeScale().setVisibleLogicalRange(_vr);   // no jump every refresh
   else{
     // A market the user just opened shows from its first bar to its last. The range is
@@ -5052,7 +5221,13 @@ try{setTimeout(function(){try{alertIndTick();}catch(e){}},900);
     requestAnimationFrame(_fit);
     setTimeout(_fit,120);
   }
-}catch(e){console.log('chart data err',e);}document.getElementById('chart-candle-count').textContent=`${clean.length} candles`;setTimeout(scheduleZoneDraw,60);if(window._strategy==='volume'&&typeof scheduleVolume==='function')scheduleVolume();updateLegend(null);setCandleAge(d);setTimeout(function(){try{paintLivePill();}catch(e){}},200);if(srcEl)srcEl.textContent=((marketOpenNow(currentSymbol)?'':'market closed · ')+(d.source||'REAL OHLCV')).replace('xaus.com /api/v1/chart XAU/USD (REAL OHLCV, spot-anchored)','XAUS spot · TradingView bar').replace('xaus.com /api/v1/chart XAU/USD (REAL spot OHLCV)','XAUS REAL spot').replace('yfinance GC=F (REAL futures OHLCV)','yfinance GC=F REAL');if(clean.length){const last=clean[clean.length-1];if(lastPrice===0){lastPrice=last.close;const p=document.getElementById('price');if(p&&p.textContent==='$--.--')p.textContent=fmtPx(last.close);}}let fb=document.getElementById('chart-price-fallback');if(fb&&lastPrice)fb.textContent=fmtPx(lastPrice);window._lastRealAt=window._lastRealAt||Date.now();}else if(srcEl){srcEl.textContent=(!candleSeries?'chart library loading…':'feed reconnecting (no fake data)');setCandleAge(null);}}catch(e){console.log('chart fetch err',e);const s=document.getElementById('chart-source');if(s)s.textContent='feed reconnecting…';}}
+  // one frame after the series is on screen, fade the cover out: the switch reads as a
+  // cross-fade into the new market, never as an empty chart
+  requestAnimationFrame(function(){try{swapCoverOff(40);}catch(e){}});
+}catch(e){console.log('chart data err',e);}document.getElementById('chart-candle-count').textContent=`${clean.length} candles`;setTimeout(scheduleZoneDraw,60);if(window._strategy==='volume'&&typeof scheduleVolume==='function')scheduleVolume();updateLegend(null);setCandleAge(d);setTimeout(function(){try{paintLivePill();}catch(e){}},200);if(srcEl)srcEl.textContent=((marketOpenNow(currentSymbol)?'':'market closed · ')+(d.source||'REAL OHLCV')).replace('xaus.com /api/v1/chart XAU/USD (REAL OHLCV, spot-anchored)','XAUS spot · TradingView bar').replace('xaus.com /api/v1/chart XAU/USD (REAL spot OHLCV)','XAUS REAL spot').replace('yfinance GC=F (REAL futures OHLCV)','yfinance GC=F REAL');if(clean.length){const last=clean[clean.length-1];if(lastPrice===0){lastPrice=last.close;const p=document.getElementById('price');if(p&&p.textContent==='$--.--')p.textContent=fmtPx(last.close);}}let fb=document.getElementById('chart-price-fallback');if(fb&&lastPrice)fb.textContent=fmtPx(lastPrice);window._lastRealAt=window._lastRealAt||Date.now();}else if(srcEl){srcEl.textContent=(!candleSeries?'chart library loading…':'feed reconnecting (no fake data)');setCandleAge(null);
+      // a reply with no candles must not leave the cover on: lift it, and drop the old
+      // market's series so nothing stale sits under the new symbol
+      try{clearTimeout(window._swapTimer);swapCoverOff(0);if(candleSeries&&window._chartKey&&window._chartKey!==(currentSymbol+'|'+tfNorm(currentTF)))candleSeries.setData([]);}catch(e){}}}catch(e){console.log('chart fetch err',e);const s=document.getElementById('chart-source');if(s)s.textContent='feed reconnecting…';}}
 
 // One path for applying a price to the page: the SSE stream and the polling
 // fallback both come through here, so behaviour can never drift between them.
@@ -5363,15 +5538,18 @@ function setSymbol(sym){
   if(!MKT[sym]) sym='XAUUSD';
   if(sym===currentSymbol) return;
   currentSymbol=sym;window._volume=null;window._volLineKey='';window._chartKey='';startPriceStream();setTimeout(fetchVolume,300);localStorage.setItem('astra6_symbol',sym);
-  // blank the old market's candles at once: a switched chart must never show the previous
-  // pair's price under the new pair's name while the feed is in flight
-  lastCandles=[];lastPrice=0;window._zones=null;
+  // A switched chart must never show the previous pair's price under the new pair's name -
+  // but blanking it made every switch flash to an empty grid. The plot is now covered by an
+  // opaque loader instead: the old candles stay underneath (so nothing flashes), the cover
+  // hides them completely (so nothing is misread), and the new series fades in once it lands.
+  lastPrice=0;window._zones=null;
+  try{swapCoverOn(sym);}catch(e){}
   try{_slData=null;_slSym='';const _g=document.getElementById('sl-lines');if(_g)_g.innerHTML='';}catch(e){}
   try{glideReset();}catch(e){}
-  try{if(candleSeries)candleSeries.setData([]);}catch(e){}
-  // dim the plot and label the swap so a market change reads as a transition, not a glitch
-  try{const _cv=document.getElementById('oanda_chart');if(_cv)_cv.classList.add('swapping');}catch(e){}
-  try{const _sn=document.getElementById('swap-note');if(_sn){_sn.textContent='loading '+sym+' · '+mkMeta(sym).name; _sn.hidden=false;}}catch(e){}
+  // the old series is deliberately left in place: it is behind the cover, and clearing it
+  // is what produced the black flash between two markets
+  try{const _cv=document.getElementById('oanda_chart');if(_cv)_cv.classList.remove('swapping');}catch(e){}
+  try{const _sn=document.getElementById('swap-note');if(_sn)_sn.hidden=true;}catch(e){}
   // the order flow, the CVD pane and the trade strip belong to the old market: clear them
   // with the candles so nothing from XAUUSD can be read while XAGUSD is loading
   try{const _fl=document.getElementById('flow-line');if(_fl){_fl.hidden=true;_fl.innerHTML='';}
@@ -5385,7 +5563,12 @@ function setSymbol(sym){
   window._swapTimer=setTimeout(function(){try{
     const c=document.getElementById('oanda_chart');if(c)c.classList.remove('swapping');
     const n=document.getElementById('swap-note');if(n)n.hidden=true;
-  }catch(e){}},5000);
+    // nothing arrived: lift the cover and drop the stale series rather than leave a
+    // loading screen on top of candles that belong to the previous market
+    try{swapCoverOff(0);}catch(e){}
+    try{if(candleSeries)candleSeries.setData([]);}catch(e){}
+    try{lastCandles=[];}catch(e){}
+  }catch(e){}},6000);
   try{document.getElementById('chart-candle-count').textContent='switching…';}catch(e){}
   try{const _o=document.getElementById('lg-ohlc');if(_o)_o.textContent='—';}catch(e){}
   try{document.getElementById('chart-source').textContent='loading '+sym+'…';}catch(e){}
@@ -5399,7 +5582,7 @@ function setSymbol(sym){
   closeMarketPicker();
   const _bs=document.getElementById('brand-sub'); if(_bs)_bs.textContent=m.name+' · '+m.group;
   const _hs=document.getElementById('hd-sym'); if(_hs)_hs.textContent=sym;
-  updateSymTabs();fetchOtherPrice();window._zones=null;drawZones();renderZoneAlerts();renderZoneStats(null);lastPrice=0;lastCandles=[];priceUpdateCount=0;
+  updateSymTabs();fetchOtherPrice();window._zones=null;drawZones();renderZoneAlerts();renderZoneStats(null);lastPrice=0;priceUpdateCount=0;
   document.getElementById('price').textContent='$--.--';
   document.getElementById('bidask').textContent='BID -- / ASK --';
   paintKnownPrice(sym);          // the number we already hold, painted immediately
@@ -5653,6 +5836,8 @@ function drawVolumeLevels(d){
 function drawVolume(){
   const svg=document.getElementById('vwap-layer'), box=document.getElementById('oanda_chart');
   if(!svg) return;
+  if(typeof motionMark==='function')motionMark('drawVolume');
+  if(typeof motionGate==='function'&&!motionGate())return;
   const d=window._volume, on=(window._strategy==='volume');
   // repainting identical bands and labels 3x a minute is what made the overlay shimmer
   try{
@@ -6054,6 +6239,11 @@ function smcDetect(bars){
 function paintSMC(){
   const svg=document.getElementById('smc-layer');
   if(!svg)return;
+  if(typeof motionMark==='function')motionMark('paintSMC');
+  const _sc=document.getElementById('swap-cover');
+  if(_sc&&_sc.classList.contains('on'))return;   // the plot is covered: nothing to align
+  if(typeof motionGate==='function'&&!motionGate())return;        // a pan does not need 60 full rebuilds a second
+  if(typeof motionMark==='function')motionMark('smcRebuild');
   if(!chart||!candleSeries||!lastCandles||lastCandles.length<40||!smcAny()){if(svg.innerHTML)svg.innerHTML='';return;}
   const key=currentSymbol+'|'+currentTF+'|'+lastCandles.length+'_'+lastCandles[lastCandles.length-1].time+'|'+
     Object.keys(SMC).filter(function(k){return SMC[k];}).join(',');
@@ -6259,6 +6449,11 @@ try{setInterval(function(){ if(slOn()&&!document.hidden) fetchSessionLevels(fals
 
 function drawZones(){
   const svg=document.getElementById('zone-layer'); if(!svg) return;
+  if(typeof motionMark==='function')motionMark('drawZones');
+  const _sc=document.getElementById('swap-cover');
+  if(_sc&&_sc.classList.contains('on')) return;   // covered: do not paint the old market's geometry
+  if(typeof motionGate==='function'&&!motionGate())return;
+  if(typeof motionMark==='function')motionMark('zoneRebuild');
   if(window._strategy==='volume'){
     if(svg.innerHTML) svg.innerHTML='';
     drawVolume();
