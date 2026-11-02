@@ -24,7 +24,13 @@ import threading
 import time
 
 BASE = os.path.dirname(os.path.abspath(__file__))
-SUBS_FILE = os.path.join(BASE, "push_subs.json")
+# The subscription list used to live beside the code, which on a hosted instance is wiped by
+# every deploy - so a phone that had asked to be told quietly stopped being told. It goes in
+# the data directory with the rest of the app's own records, and the old path is still read
+# once so an existing store is not lost.
+_DATA = os.getenv("ASTRA6_DATA") or "/tmp"
+SUBS_FILE = os.path.join(_DATA, "astra6_push_subs.json")
+_OLD_FILE = os.path.join(BASE, "push_subs.json")
 _LOCK = threading.Lock()
 AWAKE_SECONDS = 45.0          # the page pings this often while it is on screen
 READ_COOLDOWN = 5 * 60.0      # never two cards for the same symbol inside five minutes
@@ -83,12 +89,17 @@ def status():
 
 # ------------------------------------------------------------------ storage
 def _load():
-    try:
-        with open(SUBS_FILE, encoding="utf-8") as f:
-            d = json.load(f)
-            return d if isinstance(d, list) else []
-    except Exception:
-        return []
+    for path in (SUBS_FILE, _OLD_FILE):
+        try:
+            with open(path, encoding="utf-8") as f:
+                d = json.load(f)
+                rows = d if isinstance(d, list) else []
+            if path == _OLD_FILE and rows:
+                _save(rows)          # migrate it to the data directory once
+            return rows
+        except Exception:
+            continue
+    return []
 
 
 def _save(rows):

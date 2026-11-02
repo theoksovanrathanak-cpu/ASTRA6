@@ -8104,6 +8104,24 @@ async function pushEnable(){
     renderAlertsPanel();
   }
 }
+// A deploy can wipe the server's list of phones that asked to be told. The phone still
+// holds its own push handle, so it re-registers itself on open - silently, without asking
+// for permission again - instead of quietly going dark until the user notices.
+async function pushResubscribe(){
+  try{
+    if(typeof pushSupported!=='function'||!pushSupported())return;
+    try{if(localStorage.getItem('astra6_push')!=='1')return;}catch(e){return;}
+    if(!('Notification' in window)||Notification.permission!=='granted')return;
+    const reg=await navigator.serviceWorker.ready; _pushReg=reg;
+    const sub=await reg.pushManager.getSubscription();
+    if(!sub)return;                     // no handle: the user has to switch it on again
+    _pushEp=sub.endpoint; PUSH_ON=true; pushState='on';
+    await fetch('/api/push/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({subscription:sub,rules:pushRules(),readCard:pushReadCard(),ua:navigator.userAgent.slice(0,110)})});
+    pushHeartbeat();
+    if(document.getElementById('push-watch'))renderAlertsPanel();
+  }catch(e){}
+}
 async function pushDisable(){
   PUSH_ON=false;pushState='off';
   try{localStorage.setItem('astra6_push','0');}catch(e){}
@@ -9546,7 +9564,7 @@ function openFlowCard(){
     if(el&&el.scrollIntoView){ try{el.scrollIntoView({block:'center',behavior:'smooth'});}catch(e){} }
   },280);
 }
-document.addEventListener('DOMContentLoaded',function(){ try{migrateReadAlerts();}catch(e){} paintMobStrip(); startTape(); startSignalScanLoop(); });
+document.addEventListener('DOMContentLoaded',function(){ try{migrateReadAlerts();}catch(e){} try{pushResubscribe();}catch(e){} paintMobStrip(); startTape(); startSignalScanLoop(); });
 setTimeout(function(){ try{paintMobStrip();}catch(e){} try{startTape();}catch(e){} try{startSignalScanLoop();}catch(e){} },1200);
 </script>
 
