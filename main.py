@@ -507,11 +507,16 @@ _BOOK_LOCK = __import__("threading").Lock()
 _BOOK_KEEP = {"M1": 2400, "M5": 1200, "M15": 800, "M30": 480, "H1": 400, "H4": 240}
 
 
-def live_book_update(venue=None, ttl=2.0):
+_BOOK_STATE = {"last_ok": 0.0, "fails": 0, "err": None, "code": None, "polls": 0}
+
+
+def live_book_update(venue=None, ttl=15.0):
     """One scan request keeps the current bar of every intraday interval up to date."""
     now = time.time()
     if not _gold_open_now(now):
         _LIVE_BOOK_T["t"] = now          # gold is shut: nothing to sample, nothing to guess
+        return _LIVE_BOOK
+    if now < _LIVE_BOOK_T["t"]:          # a backoff window after a failed poll
         return _LIVE_BOOK
     if now - _LIVE_BOOK_T["t"] < ttl:
         return _LIVE_BOOK
@@ -530,9 +535,19 @@ def live_book_update(venue=None, ttl=2.0):
                       json={"symbols": {"tickers": [v], "query": {"types": []}}, "columns": cols},
                       timeout=5, headers={"User-Agent": "Mozilla/5.0"})
         _LIVE_BOOK_T["t"] = now
+        _BOOK_STATE["polls"] += 1
+        _BOOK_STATE["code"] = r.status_code
         if r.status_code != 200:
-            _LIVE_BOOK_T["t"] = now - ttl + 0.6        # try again in a moment
+            # the venue throttles a hammering IP. Back off instead of making it worse:
+            # 15 s, then 30 s, then 60 s. A slow book is better than a banned one.
+            _BOOK_STATE["fails"] += 1
+            wait = min(120, 15 * _BOOK_STATE["fails"])
+            _LIVE_BOOK_T["t"] = now + wait
+            _BOOK_STATE["err"] = "HTTP %s" % r.status_code
             return _LIVE_BOOK
+        _BOOK_STATE["fails"] = 0
+        _BOOK_STATE["err"] = None
+        _BOOK_STATE["last_ok"] = now
         rows = r.json().get("data") or []
         if not rows:
             return _LIVE_BOOK
@@ -550,20 +565,59 @@ def live_book_update(venue=None, ttl=2.0):
                 b = book.get(k)
                 if b is None:
                     book[k] = {"open": float(o), "high": float(h),
-                               "low": float(l), "close": float(c)}
+                               "low": float(l), "close": float(c), "tv": True}
                 else:
+                    # the venue knows the bar's real open; a tick we saw can only widen
+                    # its range and move its close forward
                     b["open"] = float(o)
-                    b["high"] = float(h)
-                    b["low"] = float(l)
+                    b["high"] = max(float(h), float(b.get("high", h)))
+                    b["low"] = min(float(l), float(b.get("low", l)))
                     b["close"] = float(c)
+                    b["tv"] = True
                 keep = _BOOK_KEEP.get(tf, 500)
                 if len(book) > keep:
                     for old in sorted(book)[: len(book) - int(keep * 0.8)]:
                         book.pop(old, None)
     except Exception as e:
-        _LIVE_BOOK_T["t"] = now
+        _BOOK_STATE["fails"] += 1
+        _LIVE_BOOK_T["t"] = now + min(120, 15 * _BOOK_STATE["fails"])
+        _BOOK_STATE["err"] = str(e)[:160]
         print("live book", e)
     return _LIVE_BOOK
+
+
+def _book_tick(price):
+    """Every real tick the app already reads also builds the current bar.
+
+    This is the book's own fallback and its fine detail: the venue scan gives a bar's
+    exact open, the ticker gives it every second in between. Both numbers are real
+    quotes - no volume is attached, because a quote has none.
+    """
+    try:
+        p = float(price)
+    except Exception:
+        return
+    if not p or p != p:
+        return
+    now = time.time()
+    with _BOOK_LOCK:
+        for tf in ("M1", "M5", "M15", "M30", "H1", "H4"):
+            sec = _TF_SEC.get(tf)
+            k = _forming_time(sec, now)
+            if k is None:
+                continue
+            book = _LIVE_BOOK.setdefault(tf, {})
+            b = book.get(k)
+            if b is None:
+                book[k] = {"open": p, "high": p, "low": p, "close": p, "tv": False}
+            else:
+                b["high"] = max(b["high"], p)
+                b["low"] = min(b["low"], p)
+                b["close"] = p
+            keep = _BOOK_KEEP.get(tf, 500)
+            if len(book) > keep:
+                for old in sorted(book)[: len(book) - int(keep * 0.8)]:
+                    book.pop(old, None)
 
 
 def live_book_snapshot(tf):
@@ -618,18 +672,27 @@ def _book_load():
 
 
 def _book_loop():
-    """Keep the book warm while the process is up; the app is useless without it."""
+    """Keep the book warm while the process is up.
+
+    The venue throttles (HTTP 429) anyone who hammers its scanner, so this asks five
+    times a minute - and always lands the last ask one second before the minute rolls,
+    which is what makes a closed bar carry the venue's final high/low/close instead of
+    a value frozen 15 seconds early.
+    """
     time.sleep(6)
     tick = 0
     while True:
         try:
             live_book_update()
             tick += 1
-            if tick % 8 == 0:
+            if tick % 3 == 0:
                 _book_save()
         except Exception as e:
             print("book loop", e)
-        time.sleep(2.0)
+        now = time.time()
+        nxt = (int(now) - int(now) % 60) + 59        # one second before the next minute
+        wait = max(4.0, min(15.0, nxt - now))
+        time.sleep(wait)
 
 
 def _tail_bars(tf, after_ts, limit=300):
@@ -647,7 +710,7 @@ def _tail_bars(tf, after_ts, limit=300):
         out.append({"time": t, "open": b["open"], "high": b["high"], "low": b["low"],
                     "close": b["close"], "volume": 0,
                     "complete": not (now_k is not None and t >= now_k),
-                    "src": "venue bar"})
+                    "src": "venue bar" if b.get("tv") else "quote bar"})
         t += sec
     return out
 
@@ -4677,6 +4740,19 @@ def _lock_market_open(sym):
     return _dt.datetime.now(_dt.timezone.utc).weekday() < 5
 
 
+@app.get("/api/book")
+def get_book():
+    """What the live bar book holds right now - and what the venue last answered."""
+    out = {"book": {tf: len(v) for tf, v in _LIVE_BOOK.items()},
+           "newest": {}, "state": dict(_BOOK_STATE),
+           "age_s": int(time.time() - _BOOK_STATE["last_ok"]) if _BOOK_STATE["last_ok"] else None,
+           "src": "scanner.tradingview.com current-bar OHLC (venue's own numbers)"}
+    for tf, v in _LIVE_BOOK.items():
+        if v:
+            out["newest"][tf] = int(max(v))
+    return out
+
+
 @app.get("/api/tape")
 def get_tape(symbol: str = "XAUUSD", venue: str = None, window: int = 300):
     """Live buyer vs seller, counted from the real quotes the app is already reading.
@@ -5328,10 +5404,15 @@ def fetch_live_tick(symbol):
         if fast:
             _LIVE_SRC[sym == "BTCUSD" and "btc" or "gold"] = fast.get("source")
             # every real quote the ticker sees is also a tick on the buyer/seller tape
+            # and on the current bar of every interval
             try:
                 import volume as _VOL
                 _VOL.tape_add(fast.get("price") or fast.get("mid"), fast.get("bid"),
                               fast.get("ask"), fast.get("timestamp"))
+            except Exception:
+                pass
+            try:
+                _book_tick(fast.get("price") or fast.get("mid"))
             except Exception:
                 pass
             return fast
