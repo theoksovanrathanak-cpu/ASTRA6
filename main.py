@@ -510,7 +510,7 @@ _BOOK_KEEP = {"M1": 2400, "M5": 1200, "M15": 800, "M30": 480, "H1": 400, "H4": 2
 _BOOK_STATE = {"last_ok": 0.0, "fails": 0, "err": None, "code": None, "polls": 0}
 
 
-def live_book_update(venue=None, ttl=15.0):
+def live_book_update(venue=None, ttl=20.0):
     """One scan request keeps the current bar of every intraday interval up to date."""
     now = time.time()
     if not _gold_open_now(now):
@@ -639,7 +639,8 @@ def _book_save():
         with _BOOK_LOCK:
             for tf, book in _LIVE_BOOK.items():
                 keep = sorted(book)[-300:]
-                out[tf] = {str(k): [book[k]["open"], book[k]["high"], book[k]["low"], book[k]["close"]]
+                out[tf] = {str(k): [book[k]["open"], book[k]["high"], book[k]["low"], book[k]["close"],
+                                    int(book[k].get("ticks") or 0), bool(book[k].get("tv"))]
                            for k in keep}
         tmp = _BOOK_FILE + ".tmp"
         with open(tmp, "w") as f:
@@ -663,10 +664,13 @@ def _book_load():
                 slot = _LIVE_BOOK.setdefault(tf, {})
                 for k, v in book.items():
                     try:
-                        o, h, l, c = [float(x) for x in v]
+                        o, h, l, c = [float(x) for x in v[:4]]
+                        ticks = int(v[4]) if len(v) > 4 and v[4] is not None else 0
+                        tv = bool(v[5]) if len(v) > 5 else False
                     except Exception:
                         continue
-                    slot[int(k)] = {"open": o, "high": h, "low": l, "close": c}
+                    slot[int(k)] = {"open": o, "high": h, "low": l, "close": c,
+                                    "ticks": ticks, "tv": tv}
         print("live book restored:", {k: len(v) for k, v in _LIVE_BOOK.items()})
     except Exception as e:
         print("book load skipped:", e)
@@ -728,14 +732,28 @@ def _tail_bars(tf, after_ts, limit=300):
     out = []
     t = int(after_ts) + sec
     now_k = _forming_time(sec)
-    while t in book and len(out) < limit:
-        b = book[t]
+    if now_k is None:
+        return out
+    miss = 0
+    while t <= max(now_k, max(book)) and len(out) < limit:
+        b = book.get(t)
+        if b is None:
+            # one missed collection is a hole in OUR record, not a hole in the market:
+            # the next bar is still stitched, so a single skip can never strand the chart
+            miss += 1
+            # a long blind stretch (server asleep, feed down) is never bridged: past an
+            # hour of missing bars the tail simply starts where our record starts
+            if miss * sec > 3600:
+                break
+            t += sec
+            continue
+        miss = 0
         # every bar before the one running now is closed: it is history, not a forming bar
         # the volume of a live bar is the number of real quotes that built it - the same
         # unit the bar feed reports (tick counts), counted, never scaled or invented
         out.append({"time": t, "open": b["open"], "high": b["high"], "low": b["low"],
                     "close": b["close"], "volume": int(b.get("ticks") or 0),
-                    "complete": not (now_k is not None and t >= now_k),
+                    "complete": bool(t < now_k),
                     "src": "venue bar" if b.get("tv") else "quote bar"})
         t += sec
     return out
@@ -746,6 +764,18 @@ def fetch_tv_bar(venue, tf, ttl=10):
     suffix = TV_BAR_RES.get(tf.upper())
     if not suffix or not venue or venue.upper() in ("XAUS", ""):
         return None
+    # the live book already holds this bar from the SAME scanner, so read it there. Two
+    # callers each asking every ten seconds was enough to get the venue to throttle us,
+    # and a throttled venue is exactly what made the newest candle look late.
+    try:
+        _g = tf.upper().replace("D1", "D")
+        _sec = _TF_SEC.get(_g)
+        _k = _forming_time(_sec) if _sec else None
+        _b = live_book_snapshot(_g).get(_k) if _k else None
+        if _b and _b.get("tv"):
+            return {"open": _b["open"], "high": _b["high"], "low": _b["low"], "close": _b["close"]}
+    except Exception:
+        pass
     key = f"{venue}|{suffix}"
     now = time.time()
     hit = _TV_BAR_CACHE.get(key)
@@ -918,6 +948,41 @@ _XAUS_CHART_CACHE = {}
 _last_candle_source = {}
 _TAIL_N = {}
 _LAST_GOOD = {}       # tf -> the last complete, real series (and when it was fetched)
+_LG_FILE = os.path.join(os.environ.get("ASTRA6_DATA", "/tmp"), "astra6_last_good.json")
+_LG_T = {"t": 0.0}
+
+
+def _lg_save(gk, candles):
+    """The last complete series is real data we already served. Writing it down means a
+    restart or a bad minute at the feed cannot turn the chart into a stub."""
+    try:
+        _LAST_GOOD[gk] = {"t": time.time(), "candles": [dict(c) for c in candles[-300:]]}
+        if time.time() - _LG_T["t"] < 45:
+            return
+        _LG_T["t"] = time.time()
+        import json as _j
+        out = {k: {"t": int(v["t"]), "candles": v["candles"]} for k, v in _LAST_GOOD.items()}
+        tmp = _LG_FILE + ".tmp"
+        with open(tmp, "w") as f:
+            _j.dump({"t": int(time.time()), "tf": out}, f)
+        os.replace(tmp, _LG_FILE)
+    except Exception as e:
+        print("last_good save", e)
+
+
+def _lg_load():
+    try:
+        import json as _j
+        with open(_LG_FILE) as f:
+            d = _j.load(f)
+        if time.time() - int(d.get("t") or 0) > 3 * 3600:
+            return
+        for k, v in (d.get("tf") or {}).items():
+            if k in _TF_SEC and v.get("candles"):
+                _LAST_GOOD[k] = {"t": float(v.get("t") or 0), "candles": v["candles"]}
+        print("last good series restored:", {k: len(v["candles"]) for k, v in _LAST_GOOD.items()})
+    except Exception as e:
+        print("last_good load skipped:", e)
 _XAUS_HIST_CACHE = {"time": 0, "points": []}
 
 def _xaus_chart_raw(range_="1d", interval="5m", ttl=20):
@@ -1080,7 +1145,8 @@ def _xaus_candles(granularity="M15", count=100):
                 candles = [{"time": r["t"], "open": r["o"], "high": r["h"], "low": r["l"], "close": r["c"], "volume": 0, "complete": True} for r in rows]
                 return candles[-count:] if candles else []
             return _agg_points(rows, 7 * 86400)[-count:]
-        cfg = {"M1": ("1d", "1m"), "M5": ("1d", "5m"), "M15": ("5d", "15m"),
+        # the 1-day window only carries a couple of hours of 5m bars - ask for five days
+        cfg = {"M1": ("1d", "1m"), "M5": ("5d", "5m"), "M15": ("5d", "15m"),
                "M30": ("5d", "30m"), "H1": ("1mo", "1h"), "H4": ("1mo", "1h")}
         rg, iv = cfg.get(g, ("5d", "15m"))
         pts = _xaus_chart_raw(rg, iv)
@@ -1262,11 +1328,14 @@ def fetch_candles(granularity="M15", count=100, venue=None):
                 src = src
     if candles and len(candles) < need:
         good = _LAST_GOOD.get(gk)
-        if good and (now - good["t"]) < 2700 and len(good["candles"]) > len(candles):
-            candles = [dict(c) for c in good["candles"]]
-            src = src + " · kept the last complete series"
+        if good and (now - good["t"]) < 3 * 3600 and len(good["candles"]) > len(candles):
+            kept = {int(c["time"]): dict(c) for c in good["candles"]}
+            for c in (candles or []):
+                kept[int(c["time"])] = dict(c)          # the fresh reply wins on a shared bar
+            candles = [kept[t] for t in sorted(kept)]
+            src = src + " · short reply, keeping our last complete real series too"
     elif candles:
-        _LAST_GOOD[gk] = {"t": now, "candles": [dict(c) for c in candles]}
+        _lg_save(gk, candles)
     if not candles:
         if hit:
             return hit["data"]
@@ -4882,6 +4951,57 @@ def get_tape(symbol: str = "XAUUSD", venue: str = None, window: int = 300):
         return {"status": "error", "error": str(e)}
 
 
+_SCAN_CACHE = {"t": 0.0, "d": None}
+
+
+@app.get("/api/signal/scan")
+def signal_scan(symbol: str = "XAUUSD", venue: str = None, tfs: str = "M1,M5,M15"):
+    """Is *any* timeframe printing a trade right now?
+
+    The chip used to answer that for the timeframe on screen only, so a reader on M1
+    saw "HOLD" all day while M15 had printed a sell ten minutes earlier. This runs the
+    same rule table on each timeframe the chart can show and reports them together -
+    nothing new is invented, it is the same read, looked at from three places.
+    """
+    now = time.time()
+    want = [t.strip().upper() for t in str(tfs or "").split(",") if t.strip()]
+    want = [t for t in (want or ["M1", "M5", "M15"]) if t in ("M1", "M5", "M15", "M30", "H1")]
+    key = f"{str(symbol).upper()}|{venue or ''}|{','.join(want)}"
+    hit = _SCAN_CACHE.get("d")
+    if hit and hit.get("key") == key and now - _SCAN_CACHE["t"] < 15:
+        return hit["d"]
+    out = {"status": "ok", "symbol": str(symbol).upper(), "at": int(now), "tfs": {}, "action": None}
+    for tf in want:
+        try:
+            d = get_volume(symbol=symbol, venue=venue, tf=tf, bars=200, since="0")
+        except Exception as e:
+            out["tfs"][tf] = {"type": "HOLD", "reason": f"feed error ({str(e)[:40]})"}
+            continue
+        if d.get("status") != "ok":
+            out["tfs"][tf] = {"type": "HOLD", "reason": d.get("note") or d.get("error") or "no data",
+                              "bars_used": d.get("bars_used")}
+            continue
+        sg = d.get("signal") or {}
+        typ = sg.get("type") or "HOLD"
+        age = max(0.0, (now - float(d.get("to") or now)) / 60.0)
+        out["tfs"][tf] = {"type": typ, "style": sg.get("style"), "reason": (sg.get("reason") or "")[:160],
+                          "entry": sg.get("entry"), "price": sg.get("price"),
+                          "va_low": (sg.get("value_area") or {}).get("low"),
+                          "va_high": (sg.get("value_area") or {}).get("high"),
+                          "age_min": round(age, 1), "bars_used": d.get("bars_used"),
+                          "last_trade": d.get("last_trade")}
+        if typ in ("BUY", "SELL"):
+            cand = {"tf": tf, "type": typ, "style": sg.get("style"), "entry": sg.get("entry"),
+                    "price": sg.get("price"), "age_min": round(age, 1)}
+            # a fresh print on a slower timeframe outranks a stale one on a fast one
+            best = out["action"]
+            if best is None or (cand["age_min"] - cand.get("tf_len", 0)) < (best["age_min"] - best.get("tf_len", 0)):
+                out["action"] = cand
+    _SCAN_CACHE["t"] = now
+    _SCAN_CACHE["d"] = {"key": key, "d": out}
+    return out
+
+
 @app.get("/api/volume")
 def get_volume(symbol: str = "XAUUSD", venue: str = None, rows: int = 48,
                min_pct: float = 10.0, tf: str = "M15", bars: int = 200,
@@ -5555,6 +5675,7 @@ def _ensure_ticker(symbol, venue=None):
 
 
 _book_load()          # after every helper it needs exists - a NameError here was silent
+_lg_load()            # ...and the last complete chart series comes back with it
 try:
     __import__("threading").Thread(target=_book_loop, daemon=True, name="live-bar-book").start()
 except Exception as _be:

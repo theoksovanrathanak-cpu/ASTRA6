@@ -268,9 +268,13 @@ tail = APP._tail_bars("M1", 1793589000 - 60)
 check("the tail starts on the bar after the last delayed one", tail and tail[0]["time"] == 1793589000, tail[:1])
 check("the tail is contiguous and stops at the newest real bar", len(tail) == 4, len(tail))
 APP._LIVE_BOOK["M1"].pop(1793589060, None)          # one minute the server never sampled
-check("a hole in the book ends the tail instead of inventing bars",
-      [b["time"] for b in APP._tail_bars("M1", 1793589000 - 60)] == [1793589000],
-      [b["time"] for b in APP._tail_bars("M1", 1793589000 - 60)])
+# a hole in OUR record is not a bar: the tail skips the minute it never sampled and
+# carries on with the real ones. Nothing is drawn for the missing minute, so the chart
+# shows an honest gap instead of a made-up candle or a chart that stops dead.
+_hole = APP._tail_bars("M1", 1793589000 - 60)
+check("a hole in the book is skipped, never filled and never ends the tail",
+      [b["time"] for b in _hole] == [1793589000, 1793589120, 1793589180],
+      [b["time"] for b in _hole])
 check("closed tail bars are history, not forming bars", all(b["complete"] is True for b in tail), tail)
 now_k = APP._forming_time(60)
 APP._LIVE_BOOK["M1"] = {now_k - 60: {"open": 1, "high": 1, "low": 1, "close": 1},
