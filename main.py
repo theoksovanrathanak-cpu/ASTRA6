@@ -1159,6 +1159,12 @@ def fetch_candles(granularity="M15", count=100, venue=None):
         except Exception as e:
             print(f"OANDA error {granularity}: {e}")
     fp = fetch_fast_price(venue)
+    try:
+        # the ticker is what turns real quotes into the newest bars' volume; a chart
+        # request on its own must keep it running, not just a price request
+        _ensure_ticker("XAUUSD")
+    except Exception:
+        pass
     candles = _xaus_candles(granularity, count)
     _gg = granularity.upper().replace("D1", "D").replace("W1", "W")
     src = "xaus.com /api/v1/history XAU/USD (REAL daily)" if _gg in ("D", "W") else "xaus.com /api/v1/chart XAU/USD (REAL spot OHLCV)"
