@@ -9342,9 +9342,11 @@ function paintFlowMeter(d){
     return;
   }
   const bp=Math.max(0,Math.min(100,Number(d.buy_pct||0)));
-  if(buy) buy.textContent='BUY '+Math.round(bp)+'%';
-  if(sell) sell.textContent='SELL '+Math.round(100-bp)+'%';
-  if(fill) fill.style.width=bp+'%';
+  // under a dozen quotes a percentage is noise dressed as a reading: show the counts
+  const enough=(n>=12)&&!d.warming;
+  if(buy) buy.textContent=enough?('BUY '+Math.round(bp)+'%'):('BUY '+(d.buy||0)+'q');
+  if(sell) sell.textContent=enough?('SELL '+(100-Math.round(bp))+'%'):('SELL '+(d.sell||0)+'q');
+  if(fill) fill.style.width=(enough?bp:(100*(d.buy||0)/Math.max(1,n)))+'%';
   if(nn){
     const age=(d.quote_age_s==null)?'':(d.quote_age_s<3?'live':d.quote_age_s+'s ago');
     nn.textContent=tapeLabel(d)+(age?' · '+age:'');
