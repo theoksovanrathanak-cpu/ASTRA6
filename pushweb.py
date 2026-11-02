@@ -27,6 +27,8 @@ BASE = os.path.dirname(os.path.abspath(__file__))
 SUBS_FILE = os.path.join(BASE, "push_subs.json")
 _LOCK = threading.Lock()
 AWAKE_SECONDS = 45.0          # the page pings this often while it is on screen
+READ_COOLDOWN = 5 * 60.0      # never two cards for the same symbol inside five minutes
+MAX_PER_HOUR = 6              # and never more than six cards an hour, whatever happens
 STARTED = [time.time()]
 MAX_SUBS = 400
 LAST_SCAN = [0.0]          # when the rule engine last walked the subscribers
@@ -99,9 +101,18 @@ def _save(rows):
         return False
 
 
+STALE_DAYS = 30
+
+
 def subscribers():
     with _LOCK:
-        return _load()
+        rows = _load()
+    # an endpoint that has not been seen for a month is a phone that moved on. Keeping it
+    # means one phone can receive the same card from three dead subscriptions at once,
+    # which is exactly how "one alert" turns into a burst.
+    now = time.time()
+    live = [r for r in rows if now - float(r.get("seen") or r.get("added") or 0) < STALE_DAYS * 86400]
+    return live
 
 
 def _endpoint_of(sub):
@@ -352,9 +363,22 @@ def read_cards(rec):
         if state.get(sym) == now:
             continue
         first = sym not in state
-        state[sym] = now
+        # A HOLD is not news. The whole point of the card is "there is a signal now";
+        # ringing the phone to say "nothing is happening" is the spam this used to be.
+        _side = str(now).upper().split("|")[0]
+        if _side not in ("BUY", "SELL"):
+            state[sym] = now              # remember it, but stay quiet
+            continue
         if first:
+            state[sym] = now
             continue                      # only a change is news, not the first sighting
+        stamp = rec.setdefault("readAt", {})
+        if time.time() - float(stamp.get(sym) or 0) < READ_COOLDOWN:
+            # blocked, so the change is NOT consumed: it rings when the window clears if
+            # that side is still on. Dropping it would silently lose a real signal.
+            continue
+        state[sym] = now
+        stamp[sym] = time.time()
         out.append(card(d.get("title") or (sym + " read"), d.get("body") or "",
                         sym, "read", "astra6-read-" + sym))
     return out
@@ -379,10 +403,16 @@ def scan_once(force=False):
                 events = eval_rules(rec) + read_cards(rec)
             if not events:
                 continue
+            hist = [t for t in (rec.get("sentAt") or []) if now - float(t) < 3600]
+            rec["sentAt"] = hist
             for ev in events:
+                if len(hist) >= MAX_PER_HOUR:
+                    print("push hourly cap reached, holding the rest")
+                    break
                 ok, _ = send_to(rec, ev)
                 if ok:
                     sent += 1
+                    hist.append(now)
             # the fired marks and last prices are part of the record
             with _LOCK:
                 rows = _load()
@@ -391,6 +421,8 @@ def scan_once(force=False):
                         r["fired"] = rec.get("fired") or {}
                         r["last"] = rec.get("last") or {}
                         r["readState"] = rec.get("readState") or {}
+                        r["readAt"] = rec.get("readAt") or {}
+                        r["sentAt"] = rec.get("sentAt") or []
                 _save(rows)
         except Exception as e:
             print("push scan", str(e)[:120])

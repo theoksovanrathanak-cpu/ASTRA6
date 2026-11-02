@@ -8216,8 +8216,8 @@ function pushBlockHtml(){
     h+='<div id="push-watch" class="push-watch">checking the watcher…</div>';
     setTimeout(function(){try{pushWatcher();}catch(e){}},60);
     h+='<div class="tp-chips"><button class="tp-chip" onclick="pushTest()">Send a test card</button>'
-      +'<button class="tp-chip'+(PUSH_READ?' on':'')+'" onclick="togglePushRead()">Market read card</button></div>';
-    h+='<div class="tp-note">The read card is the same market read the app shows — a read, not a guarantee, and only when it changes.</div>';
+      +'<button class="tp-chip'+(PUSH_READ?' on':'')+'" onclick="togglePushRead()">Signal cards</button></div>';
+    h+='<div class="tp-note">Signal cards ring twice per trade: once when a BUY or SELL prints, once when it hits TP1, TP2 or the stop. Never on a timer, never a repeat of a side that is still on, at most six an hour.</div>';
   }
   if(pushIsIOS()&&!pushStandalone()){
     h+='<div class="tp-chips"><button class="tp-chip" onclick="installFlow()">Add to Home Screen</button></div>';
@@ -8338,6 +8338,22 @@ function alertsLoad(){
 }
 function alertsSave(a){try{localStorage.setItem('astra6_alt_alerts',JSON.stringify(a.slice(-60)));}catch(e){}}
 function alertsFor(sym){return alertsLoad().filter(function(a){return a.sym===sym;});}
+// Older builds could leave a separate BUY watch and a separate SELL watch on the same
+// symbol, so one flip rang twice. Keep exactly one signal watch per market.
+function migrateReadAlerts(){
+  try{
+    const a=alertsLoad();
+    const seen={};const out=[];
+    a.forEach(function(x){
+      if(ALT_READ_KINDS.indexOf(x.kind)<0){out.push(x);return;}
+      if(seen[x.sym])return;
+      seen[x.sym]=1;
+      if(x.kind!=='signal')x.kind='signal';
+      out.push(x);
+    });
+    if(out.length!==a.length)alertsSave(out);
+  }catch(e){}
+}
 // price rules fire on a number; setup rules fire when the app's own cluster read turns
 const ALT_PRICE_KINDS=['above','below','cross'];
 // one rule, both sides: it rings with whatever the read says — SELL when it says SELL, BUY when it says BUY
@@ -8479,9 +8495,13 @@ async function alertReadTick(force){
       // a signal watch is not a one-shot: it keeps watching and rings again when the read
       // flips side (or after 15 minutes on the same side). A price alert still fires once.
       const isWatch=ALT_READ_KINDS.indexOf(a.kind)>=0;
-      const lastAt=Number(a.lastAt||0);
-      if(isWatch&&a.lastSide===typ&&Date.now()-lastAt<15*60*1000)return;
-      if(isWatch){a.lastSide=typ;a.lastAt=Date.now();a.hits=(a.hits||0)+1;a.last=Date.now();}
+      // ONE RING PER SIDE CHANGE. This used to ring again every fifteen minutes while the
+      // same side was still on, which is how a trading alert becomes a nuisance: nothing new
+      // had happened, the read had not moved. A flip is news; a repeat is not.
+      if(isWatch&&a.lastSide===typ)return;
+      // and a market that flips twice a minute is chop, not two trades
+      if(isWatch&&Date.now()-Number(a.lastRingAt||0)<6*60*1000)return;
+      if(isWatch){a.lastSide=typ;a.lastAt=Date.now();a.lastRingAt=Date.now();a.hits=(a.hits||0)+1;a.last=Date.now();}
       else {a.fired=Date.now();a.side=typ;}
       changed=true;
       alertToast(sym+' · '+typ+' signal — a read of the volume, not a guarantee',lastPrice);
@@ -9375,7 +9395,39 @@ function paintMobStrip(){
       // the second line answers the question the chip would otherwise leave open:
       // if it is not printing now, when did it last print, and where is the entry?
       let sub='waiting';
+      // the trade this timeframe already printed, and exactly where it stands: a reader who
+      // was told "BUY 3910.70" should not have to work out that 3910.10 is -0.3R
+      const _act=(function(){
+        try{
+          const a=(window._scan&&window._scan.active)||null;
+          const own=(window._volume&&window._volume.active)||null;
+          if(own&&own.status==='open')return own;
+          if(a&&a.status==='open')return a;
+          return own||a||null;
+        }catch(e){return null;}
+      })();
+      if(_act&&(_act.status==='open')){
+        side=_act.side;
+        sg.dataset.side=side;
+        if(tEl) tEl.textContent=side;
+        const rr=(_act.r_now>=0?'+':'')+Number(_act.r_now||0).toFixed(1)+'R';
+        const mins=Math.max(0,Math.round(Number(_act.age_min)||0));
+        sub=_act.tf+' · '+rr+' · '+(mins<1?'now':(mins<60?mins+'m':Math.round(mins/60)+'h'));
+        sg.title=side+' from '+_act.tf+' at '+fmtPx(_act.entry)+' · stop '+fmtPx(_act.sl)
+          +' ('+(Number(_act.dist_sl_r)||0).toFixed(1)+'R away) · tp1 '+fmtPx(_act.tp1)
+          +' ('+(Number(_act.dist_tp1_r)||0).toFixed(1)+'R away)';
+        if(sEl) sEl.textContent=sub;
+        st.querySelectorAll('.ms-tf[data-tf]').forEach(function(b){
+          b.classList.toggle('active',b.dataset.tf===tfNorm(currentTF));
+        });
+        const pair0=st.querySelector('.ms-pair');
+        if(pair0) pair0.lastChild.textContent=currentSymbol;
+        return;
+      }
       const _scan=scanLabel();
+      if(side==='HOLD'&&(_volume0Stale())){
+        sub='waiting pullback';
+      }
       if(side==='HOLD'&&_scan){
         // another timeframe is printing: say so, with its timeframe and how long ago
         side=_scan.type;
@@ -9411,6 +9463,11 @@ async function startSignalScan(){
     const d=await r.json();
     if(d&&d.status==='ok'){window._scan=d;try{paintMobStrip();}catch(e){}}
   }catch(e){}
+}
+function _volume0Stale(){
+  // a setup exists but price has run away from the level it belongs to - say so in two
+  // words here, the full reason is in the chip's tooltip
+  try{const s2=((window._volume||{}).signal)||{};return !!s2.stale_setup;}catch(e){return false;}
 }
 function scanLabel(){
   // the freshest real print across M1/M5/M15 - "HOLD" on the timeframe you happen to be
@@ -9489,7 +9546,7 @@ function openFlowCard(){
     if(el&&el.scrollIntoView){ try{el.scrollIntoView({block:'center',behavior:'smooth'});}catch(e){} }
   },280);
 }
-document.addEventListener('DOMContentLoaded',function(){ paintMobStrip(); startTape(); startSignalScanLoop(); });
+document.addEventListener('DOMContentLoaded',function(){ try{migrateReadAlerts();}catch(e){} paintMobStrip(); startTape(); startSignalScanLoop(); });
 setTimeout(function(){ try{paintMobStrip();}catch(e){} try{startTape();}catch(e){} try{startSignalScanLoop();}catch(e){} },1200);
 </script>
 

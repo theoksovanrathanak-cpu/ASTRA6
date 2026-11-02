@@ -4951,6 +4951,92 @@ def get_tape(symbol: str = "XAUUSD", venue: str = None, window: int = 300):
         return {"status": "error", "error": str(e)}
 
 
+_ACTIVE = {}          # (symbol, tf) -> the trade that is live right now, from its own print
+
+
+def _track_active(sym, tf, sig, price):
+    """Remember the trade a timeframe printed, so the page can show where it stands.
+
+    A reader who is told "BUY entry 3910.70 stop 3908.90" and then watches price at 3910.10
+    deserves to know that is -0.3R and not a mystery. Only bars that really traded update
+    it: the extremes come from this server's own live book, never from a guess.
+    """
+    try:
+        typ = (sig or {}).get("type")
+        if typ not in ("BUY", "SELL") or sig.get("verified") is False:
+            return None
+        key = (str(sym).upper(), str(tf).upper())
+        cur = _ACTIVE.get(key)
+        if cur and cur["side"] == typ and abs(float(cur["entry"]) - float(sig["entry"])) < 1e-9:
+            cur["last_seen"] = time.time()
+            return cur
+        _ACTIVE[key] = {"sym": key[0], "tf": key[1], "side": typ, "style": sig.get("style"),
+                        "entry": float(sig["entry"]), "sl": float(sig["sl"]),
+                        "tp1": float(sig["tp1"]), "tp2": float(sig["tp2"]),
+                        "risk": float(sig.get("risk") or abs(sig["entry"] - sig["sl"]) or 1e-9),
+                        "at": time.time(), "price_at": float(price or sig["entry"]),
+                        "status": "open", "resolved_at": None}
+        return _ACTIVE[key]
+    except Exception as e:
+        print("track active", e)
+        return None
+
+
+def _active_update(tr):
+    """Where this trade stands, measured on the bars that actually printed since it fired."""
+    try:
+        side = 1 if tr["side"] == "BUY" else -1
+        sec = _TF_SEC.get(tr["tf"]) or 60
+        book = live_book_snapshot(tr["tf"]) or {}
+        start = int(tr["at"] // sec * sec) - sec
+        bars = [(k, b) for k, b in book.items() if k >= start]
+        hi = max([b["high"] for _k, b in bars] + [tr["price_at"], tr["entry"]])
+        lo = min([b["low"] for _k, b in bars] + [tr["price_at"], tr["entry"]])
+        if tr.get("status") == "open":
+            hit = None
+            if side == 1:
+                if lo <= tr["sl"]:
+                    hit = "sl"
+                elif hi >= tr["tp2"]:
+                    hit = "tp2"
+                elif hi >= tr["tp1"]:
+                    hit = "tp1"
+            else:
+                if hi >= tr["sl"]:
+                    hit = "sl"
+                elif lo <= tr["tp2"]:
+                    hit = "tp2"
+                elif lo <= tr["tp1"]:
+                    hit = "tp1"
+            if hit:
+                tr["status"] = hit
+                tr["resolved_at"] = time.time()
+        px = None
+        try:
+            q = fetch_live_tick("XAUUSD")
+            px = (q or {}).get("mid") or (q or {}).get("price")
+        except Exception:
+            px = None
+        px = px or tr["price_at"]
+        r_now = round((px - tr["entry"]) * side / (tr["risk"] or 1e-9), 2)
+        tr.update({"price": round(float(px), 2), "r_now": r_now,
+                   "dist_sl_r": round(abs(px - tr["sl"]) / (tr["risk"] or 1e-9), 2),
+                   "dist_tp1_r": round(abs(tr["tp1"] - px) / (tr["risk"] or 1e-9), 2),
+                   "age_min": round((time.time() - tr["at"]) / 60.0, 1)})
+    except Exception as e:
+        print("active update", e)
+    return tr
+
+
+def active_trades(sym=None):
+    out = []
+    for key, tr in list(_ACTIVE.items()):
+        if sym and tr["sym"] != str(sym).upper():
+            continue
+        out.append(_active_update(tr))
+    return sorted(out, key=lambda t: -t["at"])
+
+
 _SCAN_CACHE = {"t": 0.0, "d": None}
 
 
@@ -4990,6 +5076,12 @@ def signal_scan(symbol: str = "XAUUSD", venue: str = None, tfs: str = "M1,M5,M15
                           "va_high": (sg.get("value_area") or {}).get("high"),
                           "age_min": round(age, 1), "bars_used": d.get("bars_used"),
                           "last_trade": d.get("last_trade")}
+        try:
+            _k3 = (str(symbol).upper(), tf)
+            if _k3 in _ACTIVE:
+                out["tfs"][tf]["active"] = _active_update(_ACTIVE[_k3])
+        except Exception:
+            pass
         if typ in ("BUY", "SELL"):
             cand = {"tf": tf, "type": typ, "style": sg.get("style"), "entry": sg.get("entry"),
                     "price": sg.get("price"), "age_min": round(age, 1)}
@@ -4997,9 +5089,29 @@ def signal_scan(symbol: str = "XAUUSD", venue: str = None, tfs: str = "M1,M5,M15
             best = out["action"]
             if best is None or (cand["age_min"] - cand.get("tf_len", 0)) < (best["age_min"] - best.get("tf_len", 0)):
                 out["action"] = cand
+    try:
+        live = [t for t in active_trades(symbol) if t.get("status") == "open"]
+        live.sort(key=lambda t: -t["at"])
+        out["active"] = live[0] if live else None
+    except Exception:
+        out["active"] = None
     _SCAN_CACHE["t"] = now
     _SCAN_CACHE["d"] = {"key": key, "d": out}
     return out
+
+
+@app.get("/api/signal/active")
+def signal_active(symbol: str = None):
+    """Every trade this server has seen print, with where it stands right now in R."""
+    try:
+        rows = active_trades(symbol)
+    except Exception as e:
+        return {"status": "error", "error": str(e)[:120]}
+    open_rows = [r for r in rows if r.get("status") == "open"]
+    return {"status": "ok", "count": len(rows), "open": len(open_rows),
+            "trades": [{k: v for k, v in r.items() if k != "_"} for r in rows[:8]],
+            "note": "entry, stop and targets come from the same cluster read the chart draws; "
+                    "R is measured against the bars this server watched print."}
 
 
 @app.get("/api/volume")
@@ -5079,9 +5191,19 @@ def get_volume(symbol: str = "XAUUSD", venue: str = None, rows: int = 48,
                            verify_quote=lock_q, tf_minutes=VOL.TF_MINUTES.get(tf_key, 15),
                            market_open=_lock_market_open(symbol), min_bars=40)
         try:
+            _track_active(str(symbol).upper(), tf_key, data.get("signal") or {},
+                          (data.get("signal") or {}).get("price"))
+        except Exception as _ta:
+            print("track", _ta)
+        try:
             data["tape"] = VOL.tape_read(300)
         except Exception:
             data["tape"] = None
+        try:
+            _k2 = (str(symbol).upper(), tf_key)
+            data["active"] = _active_update(_ACTIVE[_k2]) if _k2 in _ACTIVE else None
+        except Exception:
+            data["active"] = None
         data.update({"symbol": str(symbol).upper(), "source": src, "split": split_note,
                      "lock_quote": lock_q,
                      "tf": tf_key, "bars_used": len(raw),
@@ -5211,6 +5333,18 @@ def _push_read(sym):
     if not typ or price is None:
         return None
     money = lambda v: ("$" + format(float(v), ",.2f")) if v is not None else "—"
+    # a card is worth the phone's attention twice: when a trade prints, and when it is done
+    try:
+        _tr = _active_update(_ACTIVE[("XAUUSD", "M15")]) if ("XAUUSD", "M15") in _ACTIVE else None
+    except Exception:
+        _tr = None
+    if _tr and _tr.get("status") in ("tp1", "tp2", "sl") and _tr.get("sym") == str(sym).upper():
+        hit = {"tp1": "hit TP1", "tp2": "hit TP2", "sl": "stopped"}[_tr["status"]]
+        return {"state": "%s|%s" % (_tr["side"], _tr["status"]),
+                "title": "%s · %s %s" % (sym, _tr["side"], hit),
+                "body": ("entry %s · exit %s · %+.2fR · the trade is closed, no new signal"
+                         % (money(_tr["entry"]), money(_tr["price"]), float(_tr.get("r_now") or 0))),
+                "price": _tr.get("price"), "side": _tr["side"]}
     if typ in ("BUY", "SELL"):
         body = "entry %s · stop %s · TP1 %s · TP2 %s · %s cluster · read, not a guarantee" % (
             money(sig.get("entry") or price), money(sig.get("sl")),
@@ -5223,7 +5357,11 @@ def _push_read(sym):
             where = " · box %s–%s" % (money(box["bot"]), money(box["top"]))
         body = "price %s · no edge right now%s · read, not a guarantee" % (money(price), where)
         title = "%s · watching at %s" % (sym, money(price))
-    return {"state": "%s|%s" % (typ, money(price)), "title": title, "body": body}
+    # The state is the SIDE ONLY. It used to include the price, so every tick made it a
+    # "new" read and the phone rang every twenty seconds. A read that has not changed its
+    # side has not changed anything worth waking someone for.
+    return {"state": typ, "title": title, "body": body, "price": price,
+            "entry": sig.get("entry"), "side": typ}
 
 
 try:

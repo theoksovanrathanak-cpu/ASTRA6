@@ -137,17 +137,15 @@ def _money(v):
 
 
 def signal_key(sym, sig):
-    """One key per trade: symbol, side and the box the trade came from."""
+    """One key per trade, not per tick.
+
+    The key used to carry the exact entry price, so the same setup re-keyed itself every
+    time price moved a cent and the phone was messaged again about a trade it already
+    knew about. One key per side, per timeframe, per session day.
+    """
     if not sig or sig.get("type") not in ("BUY", "SELL"):
         return None
-    entry = sig.get("entry")
-    if entry is None:
-        entry = sig.get("price")
-    row = sig.get("row") or {}
-    box = ""
-    if row.get("bot") is not None and row.get("top") is not None:
-        box = "%s-%s" % (_money(row["bot"]), _money(row["top"]))
-    return "%s|%s|%s|%s" % (sym, sig.get("type"), _money(entry), box)
+    return "%s|%s|%s" % (sym, sig.get("type"), int(time.time() // 86400))
 
 
 def is_new(key):
