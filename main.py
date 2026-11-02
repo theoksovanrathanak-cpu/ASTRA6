@@ -4975,7 +4975,10 @@ def _track_active(sym, tf, sig, price):
                         "tp1": float(sig["tp1"]), "tp2": float(sig["tp2"]),
                         "risk": float(sig.get("risk") or abs(sig["entry"] - sig["sl"]) or 1e-9),
                         "at": time.time(), "price_at": float(price or sig["entry"]),
-                        "status": "open", "resolved_at": None}
+                        "status": "open", "resolved_at": None,
+                        "plan": sig.get("plan") or {},
+                        "time_stop_bars": int((sig.get("plan") or {}).get("time_stop_bars") or 15),
+                        "booked": 0.0, "stop_now": float(sig["sl"])}
         return _ACTIVE[key]
     except Exception as e:
         print("track active", e)
@@ -4983,45 +4986,88 @@ def _track_active(sym, tf, sig, price):
 
 
 def _active_update(tr):
-    """Where this trade stands, measured on the bars that actually printed since it fired."""
+    """Where this trade stands, measured on the bars that actually printed since it fired.
+
+    The plan is the one the signal carried: half off at TP1 with the stop moved to the
+    entry, the rest running to TP2, and a time stop if it has not resolved. R is measured
+    against the risk the trade was taken with, so a runner stopped at the entry reads 0.42R
+    rather than a loss - the half that was banked is not un-banked by the runner.
+    """
     try:
         side = 1 if tr["side"] == "BUY" else -1
         sec = _TF_SEC.get(tr["tf"]) or 60
         book = live_book_snapshot(tr["tf"]) or {}
         start = int(tr["at"] // sec * sec) - sec
-        bars = [(k, b) for k, b in book.items() if k >= start]
-        hi = max([b["high"] for _k, b in bars] + [tr["price_at"], tr["entry"]])
-        lo = min([b["low"] for _k, b in bars] + [tr["price_at"], tr["entry"]])
+        bars = [(k, b) for k, b in sorted(book.items()) if k >= start]
+        risk = tr["risk"] or 1e-9
+        r1 = (tr["tp1"] - tr["entry"]) * side / risk
+        r2 = (tr["tp2"] - tr["entry"]) * side / risk
+        booked = float(tr.get("booked") or 0.0)
+        stop_now = float(tr.get("stop_now") or tr["sl"])
+
         if tr.get("status") == "open":
-            hit = None
-            if side == 1:
-                if lo <= tr["sl"]:
-                    hit = "sl"
-                elif hi >= tr["tp2"]:
-                    hit = "tp2"
-                elif hi >= tr["tp1"]:
-                    hit = "tp1"
-            else:
-                if hi >= tr["sl"]:
-                    hit = "sl"
-                elif lo <= tr["tp2"]:
-                    hit = "tp2"
-                elif lo <= tr["tp1"]:
-                    hit = "tp1"
-            if hit:
-                tr["status"] = hit
-                tr["resolved_at"] = time.time()
+            for _k, b in bars:
+                if (b["low"] <= stop_now if side == 1 else b["high"] >= stop_now):
+                    tr["status"], tr["booked"], tr["stop_now"] = "sl", round(-1.0, 2), tr["sl"]
+                    tr["final_r"] = -1.0
+                    tr["resolved_at"] = time.time()
+                    break
+                if (b["high"] >= tr["tp1"] if side == 1 else b["low"] <= tr["tp1"]):
+                    # half out here, the rest risk-free
+                    tr["status"] = "tp1"
+                    tr["booked"] = round(0.5 * r1, 2)
+                    tr["stop_now"] = tr["entry"]
+                    tr["hit_tp1_at"] = _k
+                    booked = tr["booked"]
+                    stop_now = tr["entry"]
+                    break
+
+        if tr.get("status") == "tp1":
+            for _k, b in bars:
+                if _k <= (tr.get("hit_tp1_at") or 0):
+                    continue
+                if (b["low"] <= tr["entry"] if side == 1 else b["high"] >= tr["entry"]):
+                    tr["status"] = "be"
+                    tr["final_r"] = round(booked, 2)        # the runner cost nothing
+                    tr["resolved_at"] = time.time()
+                    break
+                if (b["high"] >= tr["tp2"] if side == 1 else b["low"] <= tr["tp2"]):
+                    tr["status"] = "tp2"
+                    tr["final_r"] = round(booked + 0.5 * r2, 2)
+                    tr["resolved_at"] = time.time()
+                    break
+
+        # a trade that has not resolved in 15 bars went wrong somewhere - 90% of the trades
+        # measured resolve inside 12. Cut it at the market instead of hoping.
+        bars_open = int(max(0, (time.time() - tr["at"]) // sec))
+        if tr.get("status") in ("open", "tp1") and bars_open >= int(tr.get("time_stop_bars") or 15):
+            tr["status"] = "time"
+            tr["resolved_at"] = time.time()
+
         px = None
         try:
             q = fetch_live_tick("XAUUSD")
             px = (q or {}).get("mid") or (q or {}).get("price")
         except Exception:
             px = None
-        px = px or tr["price_at"]
-        r_now = round((px - tr["entry"]) * side / (tr["risk"] or 1e-9), 2)
-        tr.update({"price": round(float(px), 2), "r_now": r_now,
-                   "dist_sl_r": round(abs(px - tr["sl"]) / (tr["risk"] or 1e-9), 2),
-                   "dist_tp1_r": round(abs(tr["tp1"] - px) / (tr["risk"] or 1e-9), 2),
+        px = px or tr.get("price") or tr["price_at"]
+        live_r = (px - tr["entry"]) * side / risk
+        left = 0.5 if tr.get("status") in ("tp1", "be", "tp2", "time") else 1.0
+        if tr.get("status") in ("sl", "be", "tp2"):
+            r_now = tr.get("final_r", round(booked + left * live_r, 2))   # a closed book stays closed
+        elif tr.get("status") == "time":
+            r_now = round(booked + left * live_r, 2)
+            tr["final_r"] = r_now
+        else:
+            r_now = round(booked + left * live_r, 2)
+        tr.update({"price": round(float(px), 2),
+                   "r_now": r_now,
+                   "dist_sl_r": round(abs(px - stop_now) / risk, 2),
+                   "dist_tp1_r": round(abs(tr["tp1"] - px) / risk, 2),
+                   "bars_open": bars_open,
+                   "stop_now": round(float(stop_now), 2),
+                   "booked": round(booked, 2),
+                   "risk_free": bool(tr.get("status") in ("tp1", "be", "tp2", "time")),
                    "age_min": round((time.time() - tr["at"]) / 60.0, 1)})
     except Exception as e:
         print("active update", e)

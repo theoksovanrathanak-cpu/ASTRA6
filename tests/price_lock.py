@@ -121,6 +121,12 @@ a_ok = VOL.analyse(c, verify_quote={"price": c[-1]["close"]}, tf_minutes=15, mar
 check("analyse() attaches a verify block", isinstance(a_ok.get("verify"), dict) and "checks" in (a_ok.get("verify") or {}))
 check("analyse() keeps a good tape tradable", a_ok["verify"]["ok"] is True)
 
+# These two blocks test the PRICE LOCK and the closed-market rule, so the structure gate is
+# pinned to agree with the fixture's own side - otherwise the read would stop at the gate
+# and never reach the lock, and the lock would look untested.
+_side = 1 if (sig_raw or {}).get("type") == "BUY" else -1
+_real_htf = VOL.htf_structure
+VOL.htf_structure = lambda *a, **k: _side
 a_bad = VOL.analyse(c, verify_quote={"price": c[-1]["close"] * 1.08}, tf_minutes=15, market_open=True, min_bars=40)
 check("analyse() with a wrong quote is blocked", a_bad["verify"]["ok"] is False)
 check("a blocked read is forced to HOLD", (a_bad.get("signal") or {}).get("type") == "HOLD", (a_bad.get("signal") or {}).get("type"))
@@ -137,6 +143,7 @@ check("closed market adds the session check", locked_closed)
 check("closed market never prints BUY or SELL", not has_trade, (a_closed.get("signal") or {}).get("type"))
 check("closed market still reads the tape (HOLD with a reason)",
       (a_closed.get("signal") or {}).get("type") == "HOLD" and bool((a_closed.get("signal") or {}).get("reason")))
+VOL.htf_structure = _real_htf
 
 # 16. same tape, market open -> the lock itself does not veto a valid setup
 a_open = VOL.analyse(c, verify_quote={"price": c[-1]["close"]}, tf_minutes=15, market_open=True, min_bars=40)
@@ -235,12 +242,39 @@ for i, (o, h, l, c, b, sl_) in enumerate([(3899.0, 3899.6, 3895.4, 3898.9, 260.0
     rej.append({"time": t_rej + (18 + i) * 900, "open": o, "high": h, "low": l, "close": c,
                 "volume": b + sl_, "buy": b, "sell": sl_})
 a_rej = VOL.analyse(rej, tf_minutes=15, market_open=True, min_bars=10)
-check("a VAL rejection inside the session profile prints a BUY",
-      a_rej.get("signal", {}).get("type") == "BUY", a_rej.get("signal", {}).get("reason"))
+# The same fixture, once as chop and once inside a rising higher timeframe. The rule table
+# itself is unchanged - what changed is that a setup against the timeframe above is not
+# taken any more. Both branches are asserted so neither can regress silently.
+check("a VAL rejection with no higher-timeframe agreement is refused, and says why",
+      a_rej.get("signal", {}).get("type") == "HOLD"
+      and a_rej.get("signal", {}).get("htf_block") is not None,
+      a_rej.get("signal", {}).get("reason"))
+# the rule table itself, handed a higher timeframe that agrees with the bounce
+_rv = VOL.clusters(rej, 48, 10.0)
+_rvw, _ = VOL.daily_vwap(rej)
+_ratr = VOL.atr_series(rej, 14)[-1]
+_s_up = VOL.signal(rej, _rvw, _rv[0], _rv[1], _ratr, 10.0, VOL.vwap_series(rej),
+                   va=VOL.value_area(_rv[0], _rv[1]), htf_dir=1)
+check("the same VAL rejection inside a rising higher timeframe prints a BUY",
+      _s_up.get("type") == "BUY", _s_up.get("reason"))
 check("that BUY carries the level, a stop and two targets in order",
-      (a_rej.get("signal", {}).get("sl") or 0) < (a_rej.get("signal", {}).get("entry") or 0)
-      < (a_rej.get("signal", {}).get("tp1") or 0) < (a_rej.get("signal", {}).get("tp2") or 0),
-      {k: a_rej.get("signal", {}).get(k) for k in ("entry", "sl", "tp1", "tp2")})
+      (_s_up.get("sl") or 0) < (_s_up.get("entry") or 0)
+      < (_s_up.get("tp1") or 0) < (_s_up.get("tp2") or 0),
+      {k: _s_up.get(k) for k in ("entry", "sl", "tp1", "tp2")})
+check("the plan travels with the trade: half at TP1, stop to entry, time stop",
+      (_s_up.get("plan") or {}).get("partial_pct") == 50
+      and (_s_up.get("plan") or {}).get("be_after") == "tp1"
+      and (_s_up.get("plan") or {}).get("time_stop_bars", 0) > 0,
+      _s_up.get("plan"))
+_stairs = [{"time": 1793000000 + i * 900, "open": 3900 + i * 2.0, "high": 3901 + i * 2.0,
+            "low": 3899 + i * 2.0, "close": 3900.5 + i * 2.0, "volume": 100.0}
+           for i in range(40)]
+_down = [{"time": b["time"], "open": 4000 - i * 2.0, "high": 4001 - i * 2.0,
+          "low": 3999 - i * 2.0, "close": 4000 - i * 2.0 + 0.5, "volume": 100.0}
+         for i, b in enumerate(_stairs)]
+check("the structure gate reads a rising market as up and a falling one as down",
+      VOL.htf_structure(_stairs, 15) == 1 and VOL.htf_structure(_down, 15) == -1,
+      (VOL.htf_structure(_stairs, 15), VOL.htf_structure(_down, 15)))
 check("the read reports which bars its profile came from",
       (a_rej.get("signal", {}).get("profile") or {}).get("bars", 0) > 5,
       a_rej.get("signal", {}).get("profile"))
