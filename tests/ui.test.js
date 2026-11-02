@@ -1108,5 +1108,31 @@ print('|'.join([rej['type'], rej.get('style') or '-', rejh['type'], base['type']
      !/EURUSD:|GBPUSD:|USDJPY:/.test(html.slice(html.indexOf('const MKT={'), html.indexOf('const MKT_GROUPS'))));
   ok('no pop-up alert card exists any more', !html.includes('id="alert-float"'));
 }
+// ---------------- round 8: one phone tool strip, a live buyer/seller meter --------
+{
+  const strip = (html.match(/<div id="mob-strip"[\s\S]*?<\/div>/) || [''])[0];
+  ok('the phone strip carries chart views and indicators',
+     /onclick="togglePanel\('chart-menu'\)"/.test(strip) && /onclick="togglePanel\('ind-panel'\)"/.test(strip));
+  ok('the phone strip carries every timeframe', ['M1','M5','M15','M30','H1','H4','D'].every(t => strip.includes('data-tf="' + t + '"')));
+  ok('the phone strip names the market', /ms-pair/.test(strip) && /XAUUSD/.test(strip));
+  ok('the phone strip shows the live signal', /id="ms-sig"/.test(strip) && /openFlowCard\(\)/.test(strip));
+  ok('the strip is painted from the live read, not from a guess',
+     /function paintMobStrip\(\)/.test(html) && /window\._volume/.test(grab('paintMobStrip')));
+  ok('the strip is phone only', /@media\(max-width:820px\)\{[\s\S]{0,400}body\.has-bnav\[data-view="chart"\] #mob-strip\{/.test(html.replace(/\n/g, '')));
+  ok('the scattered phone timeframes and market chip move into the strip',
+     /body\[data-view="chart"\] #tf-float,\s*\n\s*body\[data-view="chart"\] #mkt-float/.test(html));
+  ok('the chart gives the strip its own height instead of hiding candles',
+     /--mobstrip-h/.test(grab('syncChrome'))
+     && /body\.has-bnav\[data-view="chart"\] \.wrap\{\s*\n?\s*height:calc\(var\(--app-h\) - var\(--hd-h\) - var\(--bnav-h\) - var\(--mobstrip-h\)\)/.test(html));
+  const meter = (html.match(/<button id="flow-meter"[\s\S]*?<\/button>/) || [''])[0];
+  ok('the chart carries a buyers vs sellers meter', /fm-buy/.test(meter) && /fm-sell/.test(meter) && /fm-fill/.test(meter));
+  ok('the meter is fed by the real quote tape', /\/api\/tape/.test(html) && /function tapeTick\(\)/.test(html));
+  ok('the meter is labelled as counts of quotes, never contracts',
+     /counts of real quotes, not contracts/.test(fs.readFileSync(path.join(root, 'volume.py'), 'utf8'))
+     && /quotes/.test(grab('paintFlowMeter')) && /warming/.test(grab('tapeLabel')));
+  ok('a dead tape is shown as dead, not as steady buying', /no quotes yet/.test(grab('paintFlowMeter')));
+  ok('tapping the meter opens the full read', /function openFlowCard\(\)/.test(html) && /flow-line/.test(grab('openFlowCard')));
+  ok('the meter never invents its numbers', !/Math\.random/.test(grab('paintFlowMeter')) && !/Math\.random/.test(grab('tapeTick')));
+}
 console.log(`\n${fail ? '\x1b[31m' : '\x1b[32m'}${pass} passed, ${fail} failed\x1b[0m`);
 process.exit(fail ? 1 : 0);

@@ -1913,7 +1913,77 @@ body[data-view="chart"] .hd-quote{left:auto;right:9px;bottom:2px;text-align:righ
   body[data-view="chart"] .hd-quote{font-size:8.6px;left:82px;right:8px}
   body[data-view="chart"] #mkt-float{top:40px}
 }
+/* ============ phone tool strip (phone only) ============
+   One row under the chart carries everything the trading views need: chart
+   type, indicators, every timeframe and the pair. Desktop keeps its floating
+   timeframes and market chip exactly as they were. */
+:root{--mobstrip-h:0px}
+#mob-strip{display:none}
+#flow-meter{position:absolute;left:8px;bottom:8px;z-index:26;display:none;align-items:center;gap:6px;
+  padding:4px 8px;border-radius:9px;cursor:pointer;font:inherit;
+  background:#0b0b12;border:1px solid rgba(255,255,255,.14);
+  -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+  box-shadow:0 8px 18px -14px rgba(0,0,0,.9)}
+#flow-meter.on{display:inline-flex}
+#flow-meter .fm-k{font:800 8px/1 ui-monospace,monospace;letter-spacing:.08em;color:var(--muted);text-transform:uppercase}
+#flow-meter .fm-b,#flow-meter .fm-s{font:800 10px/1 ui-monospace,monospace}
+#flow-meter .fm-b{color:#12b981}
+#flow-meter .fm-s{color:#f4525f}
+#flow-meter .fm-bar{position:relative;width:46px;height:6px;border-radius:99px;overflow:hidden;
+  background:rgba(244,82,95,.45);border:1px solid rgba(255,255,255,.08)}
+#flow-meter .fm-bar i{position:absolute;left:0;top:0;bottom:0;width:50%;border-radius:99px;
+  background:linear-gradient(90deg,#0f9d6f,#12b981);transition:width .35s ease}
+#flow-meter .fm-n{font:700 8px/1 ui-monospace,monospace;color:var(--muted)}
+#flow-meter.warm{opacity:.55}
+#flow-meter[hidden]{display:none}
+@media(max-width:820px){
+  body.has-bnav[data-view="chart"] #mob-strip{
+    display:flex;position:fixed;left:0;right:0;bottom:var(--bnav-h);
+    height:46px;z-index:9290;align-items:center;gap:4px;padding:0 7px;
+    background:rgba(10,10,16,.98);border-top:1px solid rgba(255,255,255,.09);
+    -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
+    overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;
+    scrollbar-width:none;
+  }
+  #mob-strip::-webkit-scrollbar{display:none}
+  #mob-strip .ms-sig{flex:0 0 auto;height:30px;min-width:52px;padding:0 8px;border-radius:9px;
+    font:inherit;font-size:10.5px;font-weight:900;letter-spacing:.04em;cursor:pointer;
+    color:var(--muted);background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1)}
+  #mob-strip .ms-sig[data-side="BUY"]{color:#eafff6;background:linear-gradient(140deg,#0f9d6f,#12b981);
+    border-color:transparent;box-shadow:0 8px 18px -12px #12b981}
+  #mob-strip .ms-sig[data-side="SELL"]{color:#fff0f1;background:linear-gradient(140deg,#d43645,#f4525f);
+    border-color:transparent;box-shadow:0 8px 18px -12px #f4525f}
+  #mob-strip .ms-btn,#mob-strip .ms-tf,#mob-strip .ms-pair{
+    flex:0 0 auto;display:inline-flex;align-items:center;gap:4px;height:30px;padding:0 9px;
+    border-radius:9px;font:inherit;font-size:10.5px;font-weight:800;letter-spacing:.02em;
+    color:var(--ink);background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.09);
+    cursor:pointer}
+  #mob-strip .ms-btn svg{width:13px;height:13px;opacity:.85}
+  #mob-strip .ms-btn:active,#mob-strip .ms-tf:active{transform:scale(.96)}
+  #mob-strip .ms-tf{min-width:31px;justify-content:center;padding:0 6px;font-size:10px;
+    color:var(--muted);font-family:ui-monospace,monospace}
+  #mob-strip .ms-tf.active{color:#fff;background-image:linear-gradient(140deg,var(--a-violet,#7c5cff),#6d5cf0);
+    border-color:transparent;box-shadow:0 6px 14px -10px rgba(124,92,255,.95)}
+  #mob-strip .ms-sep{flex:0 0 auto;width:1px;height:18px;margin:0 1px;background:rgba(255,255,255,.1)}
+  #mob-strip .ms-pair{color:#f6c453;border-color:rgba(246,196,83,.34);background:#15121b;
+    font-family:ui-monospace,monospace;cursor:default;position:sticky;right:0;
+    box-shadow:-14px 0 16px -10px rgba(10,10,16,.98);border-left:1px solid rgba(246,196,83,.28)}
+  #mob-strip .ms-pair i{width:5px;height:5px;border-radius:99px;background:#f6c453;box-shadow:0 0 6px #f6c453}
+  #mob-strip .ms-grow{flex:1 1 auto;min-width:4px}
+  /* the scattered phone entries move into the strip; desktop keeps them */
+  body[data-view="chart"] #tf-float,
+  body[data-view="chart"] #mkt-float,
+  body[data-view="chart"] #ctb-type{display:none}
+  body.has-bnav[data-view="chart"] .wrap{
+    height:calc(var(--app-h) - var(--hd-h) - var(--bnav-h) - var(--mobstrip-h))}
+  body.has-bnav[data-view="chart"] #flow-meter{left:7px;bottom:7px}
+}
+@media(max-width:820px){
+  body.chart-full #mob-strip{display:none}
+}
+
 </style>
+
 <!-- The chart engine is 156 KB. It used to sit in the middle of the document, so nothing
      on the page could paint until it had been fetched and parsed. It is deferred now: the
      shell paints immediately, and initChart() has always known how to pull it in on demand
@@ -2276,6 +2346,13 @@ body[data-view="chart"] .hd-quote{left:auto;right:9px;bottom:2px;text-align:righ
       <div id="tf-float" role="group" aria-label="Chart timeframe">
         <button class="tf-btn active" data-tf="M1">M1</button><button class="tf-btn" data-tf="M5">M5</button><button class="tf-btn" data-tf="M15">M15</button><button class="tf-btn" data-tf="M30">M30</button><button class="tf-btn" data-tf="H1">H1</button><button class="tf-btn" data-tf="H4">H4</button><button class="tf-btn" data-tf="D">D1</button><button class="tf-btn" data-tf="W">W1</button><button class="tf-btn tf-more" id="tf-more" onclick="togglePanel('tf-menu')" title="All timeframes" aria-label="All timeframes">⋯</button>
       </div>
+      <!-- live buyers vs sellers, built from the real quotes the app is reading -->
+      <button id="flow-meter" type="button" onclick="openFlowCard()" aria-label="Live buyers and sellers" title="Live buyer vs seller flow">
+        <span class="fm-b" id="fm-buy">--</span>
+        <span class="fm-bar" aria-hidden="true"><i id="fm-fill"></i></span>
+        <span class="fm-s" id="fm-sell">--</span>
+        <span class="fm-n" id="fm-n"></span>
+      </button>
       <div id="chart-stale" class="chart-stale" hidden></div>
       <div id="swap-note" class="swap-note" hidden></div>
       <div id="tv-legend"><span class="lg-t" id="lg-sym">XAUUSD</span><span id="lg-tf">M15</span><span id="lg-ohlc">—</span><span class="lg-note" id="lg-note"></span><span id="lg-chg"></span><span id="ind-legend" hidden></span></div>
@@ -2302,6 +2379,29 @@ body[data-view="chart"] .hd-quote{left:auto;right:9px;bottom:2px;text-align:righ
       <!-- the phone nav lives outside the chart shell: contain:layout would otherwise
            make it position itself against the plot instead of the device -->
 
+    </div>
+    <!-- PHONE ONLY: every chart tool in one row under the chart. Desktop never sees it. -->
+    <div id="mob-strip" role="toolbar" aria-label="Chart tools">
+      <button type="button" class="ms-sig" id="ms-sig" onclick="openFlowCard()" aria-label="Current signal" title="The live order-flow signal">HOLD</button>
+      <button type="button" class="ms-btn" onclick="togglePanel('chart-menu')" aria-label="Chart views">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M4 18l5-6 4 3 7-9"/><path d="M4 4v16h16"/></svg>
+        <span>Views</span>
+      </button>
+      <button type="button" class="ms-btn" onclick="togglePanel('ind-panel')" aria-label="Indicators">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M4 16l3-5 3 3 4-7 3 5 3-3"/><path d="M4 20h16"/></svg>
+        <span>Ind</span>
+      </button>
+      <span class="ms-sep" aria-hidden="true"></span>
+      <button type="button" class="ms-tf" data-tf="M1">M1</button>
+      <button type="button" class="ms-tf" data-tf="M5">M5</button>
+      <button type="button" class="ms-tf" data-tf="M15">M15</button>
+      <button type="button" class="ms-tf" data-tf="M30">M30</button>
+      <button type="button" class="ms-tf" data-tf="H1">H1</button>
+      <button type="button" class="ms-tf" data-tf="H4">H4</button>
+      <button type="button" class="ms-tf" data-tf="D">D1</button>
+      <button type="button" class="ms-tf" onclick="togglePanel('tf-menu')" aria-label="All timeframes">⋯</button>
+      <span class="ms-grow" aria-hidden="true"></span>
+      <span class="ms-pair" role="note" aria-label="Market: gold, XAUUSD"><i aria-hidden="true"></i>XAUUSD</span>
     </div>
     <div class="meta-row">
       <span>ASTRA6 chart · <span id="chart-info-tf">M1</span> · <span id="chart-candle-count">--</span> · <span class="ok" id="chart-source">connecting</span></span>
@@ -3333,6 +3433,12 @@ function syncChrome(){
   const bn=document.getElementById('bnav');
   const bh=bn&&!bn.hidden?Math.round(bn.getBoundingClientRect().height):0;
   if(root.style.setProperty) root.style.setProperty('--bnav-h',(bh>0?bh:52)+'px');
+  // the phone tool strip sits between the chart and that nav, so the chart must give it
+  // its own height instead of hiding its last candles under it
+  const ms=document.getElementById('mob-strip');
+  let mh=0;
+  try{ if(ms&&getComputedStyle(ms).display!=='none') mh=Math.round(ms.getBoundingClientRect().height); }catch(e){}
+  if(root.style.setProperty) root.style.setProperty('--mobstrip-h',(mh>0?mh:0)+'px');
 }
 function relayoutChart(){
   try{
@@ -5497,7 +5603,7 @@ function paintPane(kind,bars,closes){
 // ---------- chart types ----------
 function paintSeries(bars){
   if(!candleSeries||!bars)return;
-  lastCandles=bars;
+  lastCandles=bars; window.lastCandles=bars;
   try{
     if(chartType==='line'||chartType==='area'||chartType==='baseline'){
       candleSeries.setData(bars.map(function(b){return {time:b.time,value:b.close};}));
@@ -5817,6 +5923,7 @@ function setTimeframe(tf){
   setTimeout(function(){try{if(window._lay>1)mvRefresh();}catch(e){}},60);tf=tfNorm(tf);currentTF=tf;if(typeof closeMenu==='function')closeMenu();
   try{if(typeof closePanels==='function')closePanels();}catch(e){}
   updateLegend(null);localStorage.setItem('astra6_tf',tf);document.querySelectorAll('[data-tf]').forEach(b=>b.classList.toggle('active',b.dataset.tf===tf));
+  try{paintMobStrip();}catch(e){}
   const more=document.getElementById('tf-more');
   if(more){const inStrip=['M1','M5','M15','M30','H1','H4','D','W'].indexOf(tf)>=0;more.textContent=inStrip?'⋯':tfLabel(tf);more.classList.toggle('on',!inStrip);}document.getElementById('chart-tf-label').textContent=tf;document.getElementById('chart-info-tf').textContent=tf;window._volume=null;window._volSigKey=null;if(window._strategy==='volume')setTimeout(fetchVolume,120);scheduleZoneDraw();fetchChart(tf);}
 
@@ -5826,6 +5933,7 @@ function updateSymTabs(){
   if(_bsel) _bsel.textContent=mkMeta(currentSymbol).name+' · '+mkMeta(currentSymbol).group;
   const chartTitle=document.querySelector('.card-title');
   if(chartTitle&&/Price chart/i.test(chartTitle.textContent))chartTitle.textContent='Price chart · '+currentSymbol;
+  try{paintMobStrip();}catch(e){}
 }
 function setTabPrice(sym,price){if(!price)return;['px-','home-px-'].forEach(pre=>{const el=document.getElementById(''+pre+sym);if(el)el.textContent=fmtPx(price);});}
 async function fetchOtherPrice(){ await fetchBoard(); }
@@ -6601,6 +6709,7 @@ function renderVolumeSignal(d){
     d.reads&&d.reads.length?d.reads[d.reads.length-1].type:'']);
   paintFlowLine(d);
   try{paintWatchBtn();}catch(e){}
+  try{paintMobStrip();}catch(e){}
   if(window._volSigKey===sig) return;   // nothing changed — leave the card alone
   window._volSigKey=sig;
   const s=d.signal||{}, poc=d.poc||{}, rows=(d.rows||[]);
@@ -9188,6 +9297,88 @@ setInterval(()=>{fetch('/health').catch(()=>{});},240000);
 setInterval(paintEventLive,20000);
 setInterval(()=>{if(chart)fetchChart(currentTF);},30000);
 console.log('ASTRA6 REBUILT SMOOTH - First upgrade clean + All data + All in one + No lag + Smooth + Free access + Market stays + Working');
+
+/* ================= phone tool strip + live buyer/seller meter =================
+   The strip is one row under the chart on a phone: chart views, indicators, every
+   timeframe and the pair. It writes to the same state the rest of the app reads
+   (setTimeframe / togglePanel), so nothing is duplicated - it is the same tool,
+   in one place. The meter counts real quotes: a quote at/above the ask is a buyer,
+   at/below the bid a seller (up/down-tick when the venue gives no book). It is
+   labelled as counts of quotes, never as contracts. */
+function paintMobStrip(){
+  try{
+    const st=document.getElementById('mob-strip'); if(!st) return;
+    const sg=document.getElementById('ms-sig');
+    if(sg){
+      const d=window._volume||{}, s2=(d.signal||{}), lk=(d.verify||{}).ok!==false;
+      let side=(s2.type==='BUY'||s2.type==='SELL')?s2.type:'HOLD';
+      if(!lk&&side!=='HOLD') side='HOLD';
+      if(side==='HOLD'&&s2.type&&s2.type!=='HOLD'&&!lk) side='LOCK';
+      sg.dataset.side=(side==='LOCK')?'HOLD':side;
+      sg.textContent=(side==='LOCK')?'LOCKED':side;
+      sg.title=lk?((s2.reason||'')||'No edge right now'):('Price lock: '+(((d.verify||{}).blocked_by||[])[0]||'not proven'));
+    }
+    st.querySelectorAll('.ms-tf[data-tf]').forEach(function(b){
+      b.classList.toggle('active',b.dataset.tf===tfNorm(currentTF));
+    });
+    const pair=st.querySelector('.ms-pair');
+    if(pair) pair.lastChild.textContent=currentSymbol;
+  }catch(e){}
+}
+function tapeLabel(d){
+  if(!d||!d.samples) return '';
+  return (d.window_s>=60?Math.round(d.window_s/60)+'m':'')+(d.warming?' · warming':' · '+d.samples+'q');
+}
+function paintFlowMeter(d){
+  const el=document.getElementById('flow-meter'); if(!el) return;
+  el.classList.add('on');
+  const n=(d&&d.samples)||0;
+  el.classList.toggle('warm',n<20);
+  const buy=document.getElementById('fm-buy'), sell=document.getElementById('fm-sell'),
+        fill=document.getElementById('fm-fill'), nn=document.getElementById('fm-n');
+  if(!n){
+    if(buy) buy.textContent='BUY --'; if(sell) sell.textContent='SELL --';
+    if(fill) fill.style.width='50%'; if(nn) nn.textContent='no quotes yet';
+    return;
+  }
+  const bp=Math.max(0,Math.min(100,Number(d.buy_pct||0)));
+  if(buy) buy.textContent='BUY '+Math.round(bp)+'%';
+  if(sell) sell.textContent='SELL '+Math.round(100-bp)+'%';
+  if(fill) fill.style.width=bp+'%';
+  if(nn){
+    const age=(d.quote_age_s==null)?'':(d.quote_age_s<3?'live':d.quote_age_s+'s ago');
+    nn.textContent=tapeLabel(d)+(age?' · '+age:'');
+  }
+}
+let _tapeTimer=null,_tapeBusy=false,_tapeData=null;
+function tapeTick(){
+  if(_tapeBusy) return;
+  if(document.hidden) return;
+  if(document.body.getAttribute('data-view')!=='chart') return;
+  _tapeBusy=true;
+  fetch('/api/tape?symbol='+encodeURIComponent(currentSymbol)+'&window=300',{cache:'no-store'})
+    .then(function(r){return r.json();})
+    .then(function(d){ if(d&&d.status==='ok'){ _tapeData=d; paintFlowMeter(d);} })
+    .catch(function(){})
+    .then(function(){ _tapeBusy=false; });
+}
+function startTape(){
+  tapeTick();
+  if(_tapeTimer) return;
+  _tapeTimer=setInterval(tapeTick,4000);
+}
+function openFlowCard(){
+  try{ closePanels(); }catch(e){}
+  try{ openMenu(); }catch(e){}
+  setTimeout(function(){
+    const el=document.getElementById('flow-line');
+    if(el&&el.scrollIntoView){ try{el.scrollIntoView({block:'center',behavior:'smooth'});}catch(e){} }
+  },280);
+}
+document.addEventListener('DOMContentLoaded',function(){ paintMobStrip(); startTape(); });
+setTimeout(function(){ try{paintMobStrip();}catch(e){} try{startTape();}catch(e){} },1200);
 </script>
+
+
 </body>
 </html>

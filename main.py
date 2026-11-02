@@ -494,6 +494,164 @@ def fetch_xaus_spot():
 TV_BAR_RES = {"M1": "1", "M5": "5", "M15": "15", "M30": "30", "H1": "60", "H4": "240"}
 _TV_BAR_CACHE = {}
 
+# ---- the live bar book -------------------------------------------------------
+# The free historical feeds post intraday bars ~10 minutes late (that is what a "late
+# candle" actually was). The venue feed, on the other hand, publishes the bar that is
+# open RIGHT NOW - its true open, high, low and close. This keeps those bars as they
+# close, so the chart can carry real, current candles instead of waiting for the
+# delayed series to catch up. No volume: the venue bar has none, and a volume is never
+# invented to fill the gap.
+_LIVE_BOOK = {}
+_LIVE_BOOK_T = {"t": 0.0}
+_BOOK_LOCK = __import__("threading").Lock()
+_BOOK_KEEP = {"M1": 2400, "M5": 1200, "M15": 800, "M30": 480, "H1": 400, "H4": 240}
+
+
+def live_book_update(venue=None, ttl=2.0):
+    """One scan request keeps the current bar of every intraday interval up to date."""
+    now = time.time()
+    if not _gold_open_now(now):
+        _LIVE_BOOK_T["t"] = now          # gold is shut: nothing to sample, nothing to guess
+        return _LIVE_BOOK
+    if now - _LIVE_BOOK_T["t"] < ttl:
+        return _LIVE_BOOK
+    v = (venue or _PRICE_VENUE["name"]) or ""
+    if not v or v.strip().upper() in ("XAUS", "XAUS.COM", "SPOT", "AUTO"):
+        return _LIVE_BOOK
+    tfs = [tf for tf in ("M1", "M5", "M15", "M30", "H1", "H4") if TV_BAR_RES.get(tf)]
+    cols = []
+    for tf in tfs:
+        sfx = TV_BAR_RES[tf]
+        cols += [f"open|{sfx}", f"high|{sfx}", f"low|{sfx}", f"close|{sfx}"]
+    try:
+        import requests as _req
+        kind = "crypto" if ("BTC" in v.upper() or "ETH" in v.upper()) else "cfd"
+        r = _req.post(f"https://scanner.tradingview.com/{kind}/scan",
+                      json={"symbols": {"tickers": [v], "query": {"types": []}}, "columns": cols},
+                      timeout=5, headers={"User-Agent": "Mozilla/5.0"})
+        _LIVE_BOOK_T["t"] = now
+        if r.status_code != 200:
+            _LIVE_BOOK_T["t"] = now - ttl + 0.6        # try again in a moment
+            return _LIVE_BOOK
+        rows = r.json().get("data") or []
+        if not rows:
+            return _LIVE_BOOK
+        d = rows[0]["d"]
+        for i, tf in enumerate(tfs):
+            o, h, l, c = d[i * 4:i * 4 + 4]
+            if None in (o, h, l, c):
+                continue
+            sec = _TF_SEC.get(tf)
+            k = _forming_time(sec)
+            if k is None:
+                continue
+            with _BOOK_LOCK:
+                book = _LIVE_BOOK.setdefault(tf, {})
+                b = book.get(k)
+                if b is None:
+                    book[k] = {"open": float(o), "high": float(h),
+                               "low": float(l), "close": float(c)}
+                else:
+                    b["open"] = float(o)
+                    b["high"] = float(h)
+                    b["low"] = float(l)
+                    b["close"] = float(c)
+                keep = _BOOK_KEEP.get(tf, 500)
+                if len(book) > keep:
+                    for old in sorted(book)[: len(book) - int(keep * 0.8)]:
+                        book.pop(old, None)
+    except Exception as e:
+        _LIVE_BOOK_T["t"] = now
+        print("live book", e)
+    return _LIVE_BOOK
+
+
+def live_book_snapshot(tf):
+    """{bucket: bar} copy for one interval (safe to hand to the chart builder)."""
+    with _BOOK_LOCK:
+        return dict(_LIVE_BOOK.get(str(tf).upper(), {}))
+
+
+_BOOK_FILE = os.path.join(os.getenv("ASTRA6_DATA", "/tmp"), "astra6_live_bars.json")
+
+
+def _book_save():
+    """A sleeping server should not come back blind: the bars it already collected are
+    real, so they are written out and reloaded. Nothing is invented if the file is gone."""
+    try:
+        import json as _j
+        out = {}
+        with _BOOK_LOCK:
+            for tf, book in _LIVE_BOOK.items():
+                keep = sorted(book)[-300:]
+                out[tf] = {str(k): [book[k]["open"], book[k]["high"], book[k]["low"], book[k]["close"]]
+                           for k in keep}
+        tmp = _BOOK_FILE + ".tmp"
+        with open(tmp, "w") as f:
+            _j.dump({"t": int(time.time()), "book": out}, f)
+        os.replace(tmp, _BOOK_FILE)
+    except Exception as e:
+        print("book save", e)
+
+
+def _book_load():
+    try:
+        import json as _j
+        with open(_BOOK_FILE) as f:
+            d = _j.load(f)
+        if int(time.time()) - int(d.get("t") or 0) > 6 * 3600:
+            return
+        with _BOOK_LOCK:
+            for tf, book in (d.get("book") or {}).items():
+                if tf not in _TF_SEC:
+                    continue
+                slot = _LIVE_BOOK.setdefault(tf, {})
+                for k, v in book.items():
+                    try:
+                        o, h, l, c = [float(x) for x in v]
+                    except Exception:
+                        continue
+                    slot[int(k)] = {"open": o, "high": h, "low": l, "close": c}
+        print("live book restored:", {k: len(v) for k, v in _LIVE_BOOK.items()})
+    except Exception as e:
+        print("book load skipped:", e)
+
+
+def _book_loop():
+    """Keep the book warm while the process is up; the app is useless without it."""
+    time.sleep(6)
+    tick = 0
+    while True:
+        try:
+            live_book_update()
+            tick += 1
+            if tick % 8 == 0:
+                _book_save()
+        except Exception as e:
+            print("book loop", e)
+        time.sleep(2.0)
+
+
+def _tail_bars(tf, after_ts, limit=300):
+    """The contiguous run of live venue bars that starts right after `after_ts`."""
+    sec = _TF_SEC.get(str(tf).upper())
+    book = live_book_snapshot(tf)
+    if not sec or not book or after_ts is None:
+        return []
+    out = []
+    t = int(after_ts) + sec
+    now_k = _forming_time(sec)
+    while t in book and len(out) < limit:
+        b = book[t]
+        # every bar before the one running now is closed: it is history, not a forming bar
+        out.append({"time": t, "open": b["open"], "high": b["high"], "low": b["low"],
+                    "close": b["close"], "volume": 0,
+                    "complete": not (now_k is not None and t >= now_k),
+                    "src": "venue bar"})
+        t += sec
+    return out
+
+
 def fetch_tv_bar(venue, tf, ttl=10):
     """Exact current-bar OHLC from the TradingView venue feed (open|N, high|N, low|N, close|N)."""
     suffix = TV_BAR_RES.get(tf.upper())
@@ -650,9 +808,26 @@ def fetch_fast_price(venue=None):
         print("❌ No real XAUUSD source available - returning None (no fabrication)")
         return None
 
+# Every real quote the app reads also feeds the live buyer/seller tape, so the flow
+# read on screen is built from the same prices the header prints - nothing else.
+_fast_price_raw = fetch_fast_price
+
+
+def fetch_fast_price(venue=None):
+    d = _fast_price_raw(venue)
+    try:
+        if d and d.get("mid"):
+            import volume as _VOL
+            _VOL.tape_add(d.get("mid"), d.get("bid"), d.get("ask"), d.get("timestamp"))
+    except Exception:
+        pass
+    return d
+
+
 # ==== REAL CANDLES: XAUS OHLCV (same spot instrument as header price) -> yfinance GC=F -> honest none ====
 _XAUS_CHART_CACHE = {}
 _last_candle_source = {}
+_TAIL_N = {}
 _XAUS_HIST_CACHE = {"time": 0, "points": []}
 
 def _xaus_chart_raw(range_="1d", interval="5m", ttl=20):
@@ -717,6 +892,80 @@ def _agg_points(rows, bucket_seconds):
         out.append(cur)
     return out
 
+_TF_SEC = {"M1": 60, "M5": 300, "M15": 900, "M30": 1800, "H1": 3600, "H4": 14400,
+           "D": 86400, "W": 604800}
+
+
+def _tf_key(granularity):
+    return str(granularity or "M15").upper().replace("D1", "D").replace("W1", "W")
+
+
+def _align_bars(rows, sec):
+    """Snap every feed point onto the bar it belongs to.
+
+    The spot feed publishes intra-bar ticks with their raw timestamp (03:08:22, O=H=L=C,
+    volume 0). Treated as a bar they became an extra, all-equal "candle" that showed up
+    late and looked simulated. A tick is not a bar: it is folded into the bar of its own
+    interval (lasting high/low, newest close, volume untouched). Nothing is invented and
+    no closed bar is rewritten.
+    """
+    if not sec or not rows:
+        return rows
+    book = {}
+    for r in rows:
+        try:
+            t = int(r["t"])
+        except Exception:
+            continue
+        k = t - (t % sec)
+        cur = book.get(k)
+        if cur is None:
+            book[k] = {"t": k, "o": float(r["o"]), "h": float(r["h"]),
+                       "l": float(r["l"]), "c": float(r["c"]), "v": int(r.get("v") or 0)}
+        else:
+            cur["h"] = max(cur["h"], float(r["h"]))
+            cur["l"] = min(cur["l"], float(r["l"]))
+            cur["c"] = float(r["c"])
+            cur["v"] += int(r.get("v") or 0)
+    return [book[k] for k in sorted(book)]
+
+
+def _forming_time(sec, now=None):
+    """Start time of the bar that is open right now (None for day/week/month)."""
+    if not sec or sec > 14400:
+        return None
+    t = int(now or time.time())
+    return t - (t % sec)
+
+
+def _mark_forming(candles, sec):
+    """The newest bar is the one still being built - flag it instead of calling it closed."""
+    if not candles or not sec:
+        return candles
+    k = _forming_time(sec)
+    if k is None:
+        return candles
+    last = candles[-1]
+    if int(last["time"]) == int(k):
+        last = dict(last)
+        last["complete"] = False
+        candles[-1] = last
+    return candles
+
+
+def _gold_open_now(now=None):
+    """Spot gold: Sunday 22:00 UTC -> Friday 21:00 UTC."""
+    g = time.gmtime(int(now or time.time()))
+    wd, hr = g.tm_wday, g.tm_hour
+    if wd == 5:
+        return False
+    if wd == 4 and hr >= 21:
+        return False
+    if wd == 6 and hr < 22:
+        return False
+    return True
+
+
 def _xaus_candles(granularity="M15", count=100):
     """REAL candles built from xaus.com first-party XAU/USD spot series."""
     g = granularity.upper().replace("D1", "D").replace("W1", "W")
@@ -747,10 +996,13 @@ def _xaus_candles(granularity="M15", count=100):
         pts = _xaus_chart_raw(rg, iv)
         rows = [{"t": int(p["t"]), "o": float(p["o"]), "h": float(p["h"]), "l": float(p["l"]), "c": float(p["c"]), "v": int(p.get("v") or 0)}
                 for p in pts if p.get("c")]
+        # every point snapped to its own interval: a raw tick can never become a candle
+        rows = _align_bars(rows, _TF_SEC.get(g))
         if g == "H4":
             candles = _agg_points(rows, 4 * 3600)
         else:
             candles = [{"time": r["t"], "open": r["o"], "high": r["h"], "low": r["l"], "close": r["c"], "volume": r["v"], "complete": True} for r in rows]
+        candles = _mark_forming(candles, _TF_SEC.get(g))
         return candles[-count:] if candles else []
     except Exception as e:
         print("xaus candles err", e)
@@ -782,19 +1034,34 @@ def _yf_candles(granularity="M15", count=100):
         print("yf candles err", e)
         return []
 
-def _stitch_live(candles, live_mid):
-    """Trim future/holiday gaps and pin the newest candle to the REAL live spot price."""
+def _stitch_live(candles, live_mid, granularity="M15"):
+    """Trim future/holiday gaps and pin the FORMING bar to the real live spot price.
+
+    Only the bar for the interval that is running right now may move: once an interval
+    has closed its OHLCV is history and a late quote must not rewrite it (that is what
+    made an old candle change its shape minutes after it had printed).
+    """
     if not candles:
         return candles, None
     candles = [c for c in candles if c["time"] > 0]
     candles.sort(key=lambda c: c["time"])
-    if live_mid:
+    sec = _TF_SEC.get(_tf_key(granularity))
+    k = _forming_time(sec)
+    if live_mid and k is not None and candles:
         last = dict(candles[-1])
-        if abs(live_mid - last["close"]) > 0.01:
-            last["close"] = live_mid
-            last["high"] = max(last["high"], live_mid)
-            last["low"] = min(last["low"], live_mid)
-            candles[-1] = last
+        lt = int(last["time"])
+        if lt == k:
+            if abs(live_mid - last["close"]) > 0.005:
+                last["close"] = live_mid
+                last["high"] = max(last["high"], live_mid)
+                last["low"] = min(last["low"], live_mid)
+                last["complete"] = False
+                candles[-1] = last
+        elif lt < k and (k - lt) <= 3 * sec and _gold_open_now():
+            # the feed is a bar behind: the running bar is opened from the real quote,
+            # never from a guess (market shut or a dead feed keeps the honest gap)
+            candles.append({"time": k, "open": live_mid, "high": live_mid, "low": live_mid,
+                            "close": live_mid, "volume": 0, "complete": False})
     return candles, candles[-1]["close"] if candles else None
 
 def fetch_candles(granularity="M15", count=100, venue=None):
@@ -840,8 +1107,18 @@ def fetch_candles(granularity="M15", count=100, venue=None):
     # live basis so candles sit exactly on the venue's spot price, then overwrite the forming
     # bar with the venue's own OHLC from TradingView. Nothing invented - both numbers are real.
     live_mid = fp["mid"] if fp else None
+    gkey = _tf_key(granularity)
+    # The historical series is futures-based and the live price is spot, so the series is
+    # shifted onto spot. Measure that shift where BOTH feeds describe the same bar - the
+    # newest one - instead of against a bar that is already ten minutes old, which used to
+    # bake ten minutes of price movement into the whole chart.
+    snap = live_book_snapshot(gkey)
+    join_px = None
+    if candles:
+        _jb = snap.get(int(candles[-1]["time"]))
+        join_px = _jb["close"] if _jb else None
     if live_mid and candles:
-        basis = live_mid - candles[-1]["close"]
+        basis = (join_px if join_px else live_mid) - candles[-1]["close"]
         if abs(basis) > 0.005:
             for c in candles:
                 c["open"] = round(c["open"] + basis, 2)
@@ -849,14 +1126,30 @@ def fetch_candles(granularity="M15", count=100, venue=None):
                 c["low"] = round(c["low"] + basis, 2)
                 c["close"] = round(c["close"] + basis, 2)
             src = src.replace("(REAL spot OHLCV)", "(REAL OHLCV, spot-anchored)").replace("(REAL daily)", "(REAL daily, spot-anchored)")
-    candles, _ = _stitch_live(candles, live_mid)
+    # the bars the delayed series has not published yet: real venue bars, taken from the
+    # live book, appended only when they run contiguous from its last bar (no holes)
+    _tail = _tail_bars(gkey, candles[-1]["time"] if candles else None)
+    if _tail:
+        candles = candles + _tail
+        src = src + " · newest bars live from the venue"
+    _TAIL_N[gkey] = len(_tail)
+    candles, _ = _stitch_live(candles, live_mid, granularity)
     venue = (fp or {}).get("venue") or _PRICE_VENUE["name"]
     tvbar = fetch_tv_bar(venue, granularity.upper().replace("D1", "D").replace("W1", "W"))
     if tvbar and candles:
+        sec = _TF_SEC.get(_tf_key(granularity))
+        k = _forming_time(sec)
         last = dict(candles[-1])
-        last.update({"open": tvbar["open"], "high": tvbar["high"], "low": tvbar["low"], "close": tvbar["close"]})
-        candles[-1] = last
-        src = src + f" · live bar: {venue}"
+        # the venue bar may refine the FORMING candle only - its high/low extreme and its
+        # newest close. The open stays the interval's real open and the feed's volume is
+        # kept: the live bar is never allowed to blank a number the tape already reported.
+        if k is not None and int(last["time"]) == int(k):
+            last["high"] = max(last["high"], float(tvbar["high"]))
+            last["low"] = min(last["low"], float(tvbar["low"]))
+            last["close"] = float(tvbar["close"])
+            last["complete"] = False
+            candles[-1] = last
+            src = src + f" · live bar: {venue}"
     result = (candles, fp)
     _candle_cache[key] = {"time": now, "data": result, "source": src}
     _last_candle_source[granularity.upper().replace("D1", "D").replace("W1", "W")] = src
@@ -4384,6 +4677,30 @@ def _lock_market_open(sym):
     return _dt.datetime.now(_dt.timezone.utc).weekday() < 5
 
 
+@app.get("/api/tape")
+def get_tape(symbol: str = "XAUUSD", venue: str = None, window: int = 300):
+    """Live buyer vs seller, counted from the real quotes the app is already reading.
+
+    Cheap on purpose: the flow panel polls this while it is on screen. It reports the
+    sample count and the age of the last quote, so a quiet or dead tape is visible
+    instead of being drawn as steady buying.
+    """
+    import volume as VOL
+    try:
+        if str(symbol).upper() in ("XAUUSD", "XAUS"):
+            try:
+                _ensure_ticker("XAUUSD", venue)
+            except Exception:
+                pass
+        t = VOL.tape_read(window)
+        t.update({"status": "ok", "symbol": str(symbol).upper(),
+                  "quote_age_s": int(time.time() - t["last"]) if t.get("last") else None,
+                  "real": True})
+        return t
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+
 @app.get("/api/volume")
 def get_volume(symbol: str = "XAUUSD", venue: str = None, rows: int = 48,
                min_pct: float = 10.0, tf: str = "M15", bars: int = 200,
@@ -4460,6 +4777,10 @@ def get_volume(symbol: str = "XAUUSD", venue: str = None, rows: int = 48,
         data = VOL.analyse(raw, rows=max(12, min(120, rows)), min_pct=max(0.0, min(100.0, min_pct)),
                            verify_quote=lock_q, tf_minutes=VOL.TF_MINUTES.get(tf_key, 15),
                            market_open=_lock_market_open(symbol), min_bars=40)
+        try:
+            data["tape"] = VOL.tape_read(300)
+        except Exception:
+            data["tape"] = None
         data.update({"symbol": str(symbol).upper(), "source": src, "split": split_note,
                      "lock_quote": lock_q,
                      "tf": tf_key, "bars_used": len(raw),
@@ -5006,6 +5327,13 @@ def fetch_live_tick(symbol):
         fast = _btc_tick() if sym == "BTCUSD" else _swiss_gold()
         if fast:
             _LIVE_SRC[sym == "BTCUSD" and "btc" or "gold"] = fast.get("source")
+            # every real quote the ticker sees is also a tick on the buyer/seller tape
+            try:
+                import volume as _VOL
+                _VOL.tape_add(fast.get("price") or fast.get("mid"), fast.get("bid"),
+                              fast.get("ask"), fast.get("timestamp"))
+            except Exception:
+                pass
             return fast
     except Exception as e:
         print("live tick err", sym, e)
@@ -5038,6 +5366,13 @@ def _ensure_ticker(symbol, venue=None):
             _TICK_STARTED.add(key)
             threading.Thread(target=_ticker_loop, args=(key,), daemon=True).start()
     return key
+
+
+_book_load()          # after every helper it needs exists - a NameError here was silent
+try:
+    __import__("threading").Thread(target=_book_loop, daemon=True, name="live-bar-book").start()
+except Exception as _be:
+    print("book thread:", _be)
 
 
 def _stream_payload(symbol, data):
@@ -5207,6 +5542,12 @@ def history(granularity: str = "M15", count: int = 100, venue: str = None, email
         "count": len(candles),
         "from": candles[0]['time'],
         "to": candles[-1]['time'],
+        "requested": count,
+        "forming": (candles[-1].get("complete") is False),
+        "live_tail": int(_TAIL_N.get(_tf_key(granularity), 0) or 0),
+        "bar_delay_min": round(max(0.0, time.time() - float(candles[-1]["time"])) / 60.0, 1),
+        "note": (f"the free feed publishes {len(candles)} {granularity} bars - {count} were asked for"
+                 if len(candles) < count else None),
         "latest_price": closes[-1],
         "candles": candles,
         "source": src,

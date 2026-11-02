@@ -168,6 +168,138 @@ closed_fresh = [x for x in a_closed["verify"]["checks"] if x["id"] == "fresh"]
 check("a closed market's freshness reads as its own case",
       closed_fresh and "closed" in (closed_fresh[0].get("label") or "").lower(), closed_fresh)
 
+# ================= round 8: the value area is measured on the running session =========
+# A profile that spans the weekend gap is not a profile: Friday's range and Sunday's
+# range are two different auctions, and mixing them pushes the value area so wide that
+# price is permanently "inside value" - which is exactly how the strategy printed
+# nothing at all on the 15 minute chart.
+def gap_tape(tf=900, before=140, after=21, gap_h=49):
+    now = int(time.time())
+    now -= now % tf
+    out = []
+    # the closed Friday session, then a real weekend hole, then the running Sunday/Monday one
+    t0 = now - (after - 1) * tf - gap_h * 3600 - before * tf
+    px = 4030.0
+    for i in range(before):
+        o = px
+        c = o + (0.6 if i % 2 == 0 else -0.6)
+        out.append({"time": t0 + i * tf, "open": round(o, 2), "high": round(max(o, c) + 1.5, 2),
+                    "low": round(min(o, c) - 1.5, 2), "close": round(c, 2),
+                    "volume": 400.0 + i, "buy": 200.0 + i, "sell": 200.0})
+        px = c
+    t1 = now - (after - 1) * tf
+    px = 3898.0
+    for i in range(after):
+        o = px
+        c = o + (2.0 if i % 3 else -1.0)
+        out.append({"time": t1 + i * tf, "open": round(o, 2), "high": round(max(o, c) + 2.0, 2),
+                    "low": round(min(o, c) - 2.0, 2), "close": round(c, 2),
+                    "volume": 120.0 + i, "buy": 60.0 + i, "sell": 60.0})
+        px = c
+    return out
+
+
+gt = gap_tape()
+all_va = VOL.value_area(*VOL.clusters(gt)[:2])
+prof = VOL.profile_window(gt, 15)
+sess_va = VOL.value_area(*VOL.clusters(prof)[:2])
+check("the profile window stops at the weekend gap", len(prof) < len(gt) and prof[-1]["time"] == gt[-1]["time"], len(prof))
+check("the session window starts after the hole", prof[0]["time"] > gt[0]["time"], prof[0]["time"] - gt[0]["time"])
+check("a gap-spanning value area is anchored far away from the live price",
+      all_va and not (all_va["low"] <= gt[-1]["close"] <= all_va["high"]), all_va)
+check("the session value area is measured inside the session's own range",
+      sess_va and sess_va["low"] >= min(b["low"] for b in prof) - 1e-6
+      and sess_va["high"] <= max(b["high"] for b in prof) + 1e-6, sess_va)
+check("the session value area is a real, tradable range",
+      sess_va and 0 < (sess_va["high"] - sess_va["low"]) < 3 * 40, sess_va)
+check("the session profile never contains a bar from before the gap", len(prof) <= 24, len(prof))
+
+# And the read on a session like that must actually be able to PRINT: a bar that dips
+# through the value low and closes back inside with buyers on it is the classic VAL
+# rejection - the setup the old gap-wide area made impossible, because price never
+# reached an edge of it.
+rej = []
+t_rej = int(time.time()) - 21 * 900
+t_rej -= t_rej % 900
+px = 3900.0
+for i in range(18):
+    o = px
+    c = o + (0.45 if i % 2 == 0 else -0.45)
+    rej.append({"time": t_rej + i * 900, "open": round(o, 2), "high": round(max(o, c) + 0.9, 2),
+                "low": round(min(o, c) - 0.9, 2), "close": round(c, 2),
+                "volume": 150.0, "buy": 80.0, "sell": 70.0})
+    px = c
+for i, (o, h, l, c, b, sl_) in enumerate([(3899.0, 3899.6, 3895.4, 3898.9, 260.0, 90.0),
+                                         (3898.9, 3899.4, 3895.6, 3899.2, 250.0, 80.0),
+                                         (3899.2, 3900.4, 3896.0, 3900.1, 300.0, 70.0)]):
+    rej.append({"time": t_rej + (18 + i) * 900, "open": o, "high": h, "low": l, "close": c,
+                "volume": b + sl_, "buy": b, "sell": sl_})
+a_rej = VOL.analyse(rej, tf_minutes=15, market_open=True, min_bars=10)
+check("a VAL rejection inside the session profile prints a BUY",
+      a_rej.get("signal", {}).get("type") == "BUY", a_rej.get("signal", {}).get("reason"))
+check("that BUY carries the level, a stop and two targets in order",
+      (a_rej.get("signal", {}).get("sl") or 0) < (a_rej.get("signal", {}).get("entry") or 0)
+      < (a_rej.get("signal", {}).get("tp1") or 0) < (a_rej.get("signal", {}).get("tp2") or 0),
+      {k: a_rej.get("signal", {}).get(k) for k in ("entry", "sl", "tp1", "tp2")})
+check("the read reports which bars its profile came from",
+      (a_rej.get("signal", {}).get("profile") or {}).get("bars", 0) > 5,
+      a_rej.get("signal", {}).get("profile"))
+
+# ================= round 8: a tick is not a candle ====================================
+import main as APP  # noqa: E402
+
+rows = [{"t": 1793588820, "o": 3912.4, "h": 3912.9, "l": 3911.5, "c": 3912.2, "v": 82},
+        {"t": 1793588880, "o": 3911.8, "h": 3912.8, "l": 3911.0, "c": 3912.1, "v": 0},
+        {"t": 1793588902, "o": 3912.8, "h": 3912.8, "l": 3912.8, "c": 3912.8, "v": 0}]  # a raw tick
+aligned = APP._align_bars(rows, 60)
+check("a raw tick does not become its own candle", len(aligned) == 2, [r["t"] % 60 for r in aligned])
+check("every aligned bar lands on the interval", all(r["t"] % 60 == 0 for r in aligned), [r["t"] for r in aligned])
+check("the tick still counts as the newest price of its bar",
+      aligned[-1]["c"] == 3912.8 and aligned[-1]["h"] >= 3912.8, aligned[-1])
+check("folding a tick never blanks volume the feed reported", aligned[-1]["v"] == 0 and aligned[0]["v"] == 82, aligned)
+check("a misaligned timestamp can never reach the chart twice",
+      len({r["t"] for r in aligned}) == len(aligned))
+
+# ================= round 8: the live tail comes only from real venue bars =============
+book = {1793589000 + 60 * i: {"open": 3900.0, "high": 3901.0, "low": 3899.0, "close": 3900.5}
+        for i in range(4)}
+APP._LIVE_BOOK["M1"] = book
+tail = APP._tail_bars("M1", 1793589000 - 60)
+check("the tail starts on the bar after the last delayed one", tail and tail[0]["time"] == 1793589000, tail[:1])
+check("the tail is contiguous and stops at the newest real bar", len(tail) == 4, len(tail))
+APP._LIVE_BOOK["M1"].pop(1793589060, None)          # one minute the server never sampled
+check("a hole in the book ends the tail instead of inventing bars",
+      [b["time"] for b in APP._tail_bars("M1", 1793589000 - 60)] == [1793589000],
+      [b["time"] for b in APP._tail_bars("M1", 1793589000 - 60)])
+check("closed tail bars are history, not forming bars", all(b["complete"] is True for b in tail), tail)
+now_k = APP._forming_time(60)
+APP._LIVE_BOOK["M1"] = {now_k - 60: {"open": 1, "high": 1, "low": 1, "close": 1},
+                        now_k: {"open": 2, "high": 2, "low": 2, "close": 2}}
+_now_tail = APP._tail_bars("M1", now_k - 120)
+check("the bar running right now is the only forming one",
+      len(_now_tail) == 2 and _now_tail[-1]["complete"] is False and _now_tail[0]["complete"] is True,
+      [(b["time"], b["complete"]) for b in _now_tail])
+APP._LIVE_BOOK.pop("M1", None)
+
+# ================= round 8: buyers vs sellers from real quotes ========================
+VOL._TAPE.clear()
+VOL._TAPE_LAST.update({"price": None, "side": 1})
+t0 = time.time() - 60
+VOL.tape_add(3900.0, bid=3899.8, ask=3900.2, ts=t0)        # mid, between bid and ask
+VOL.tape_add(3900.2, bid=3900.0, ask=3900.2, ts=t0 + 1)    # at the ask -> buyer
+VOL.tape_add(3900.0, bid=3900.0, ask=3900.2, ts=t0 + 2)    # at the bid -> seller
+VOL.tape_add(3901.0, ts=t0 + 3)                            # no book, up tick -> buyer
+VOL.tape_add(3900.5, ts=t0 + 4)                            # down tick -> seller
+VOL.tape_add(3900.5, ts=t0 + 5)                            # repeat: no information
+tp = VOL.tape_read(300)
+check("a quote at the ask counts as a buyer and at the bid as a seller",
+      tp["buy"] >= 2 and tp["sell"] >= 2, tp)
+check("a repeated quote is not counted as flow", tp["samples"] == 4, tp["samples"])
+check("the tape reports its sample count and window", tp["samples"] > 0 and tp["window_s"] == 300, tp)
+check("the tape never claims contracts it does not have", tp["unit"] == "quotes" and tp["estimated"] is True, tp)
+check("the tape says how it was classified", "bid/ask" in tp["method"], tp["method"])
+VOL._TAPE.clear()
+
 print()
 print("%d passed, %d failed" % (len(PASS), len(FAIL)))
 if FAIL:

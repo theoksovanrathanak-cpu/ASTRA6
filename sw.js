@@ -6,7 +6,7 @@
  * from cache and marks itself offline; every number on it is still the last real one,
  * and the existing staleness pill says how old it is.
  */
-const VERSION = 'astra6-v2';
+const VERSION = 'astra6-v3';
 const SHELL = [
   '/',
   '/manifest.json',

@@ -63,6 +63,88 @@ TF_BINANCE = {"M1": "1m", "M5": "5m", "M15": "15m", "M30": "30m", "H1": "1h", "H
 TF_COINBASE = {"M1": 60, "M5": 300, "M15": 900, "M30": 1800, "H1": 3600, "H4": 21600, "D": 86400}
 
 
+# ---------------- live buyer / seller tape ----------------
+# Spot gold quotes carry no aggressor flag, so the tape classifies each REAL quote the
+# standard way: at/above the ask = a buyer lifting the offer, at/below the bid = a seller
+# hitting the bid; with no book, an up-tick counts as a buy and a down-tick as a sell.
+# It counts quotes, not contracts - the API and the UI both say so.
+import collections as _collections
+_TAPE = _collections.deque(maxlen=8000)
+_TAPE_LAST = {"price": None, "side": 1}
+
+
+def tape_add(price, bid=None, ask=None, ts=None):
+    """Feed one real quote into the live tape. Never called with an invented price."""
+    import time as _t
+    try:
+        p = float(price)
+    except Exception:
+        return False
+    if not p or p != p or p <= 0:
+        return False
+    t = float(ts or _t.time())
+    side = None
+    try:
+        b, a = float(bid or 0), float(ask or 0)
+    except Exception:
+        b = a = 0.0
+    if a > b > 0:
+        if p >= a:
+            side = 1
+        elif p <= b:
+            side = -1
+    if side is None:
+        # no book: a rise is a buyer, a fall is a seller, and a repeat carries no
+        # new information at all - it is skipped instead of being counted as either
+        prev = _TAPE_LAST.get("price")
+        if prev is None:
+            _TAPE_LAST["price"] = p
+            return False
+        if p > prev:
+            side = 1
+        elif p < prev:
+            side = -1
+        else:
+            return False
+    if _TAPE and t - _TAPE[-1][0] < 1.0 and abs(p - _TAPE[-1][1]) < 1e-9:
+        return False
+    _TAPE_LAST["price"] = p
+    _TAPE_LAST["side"] = side
+    _TAPE.append((t, p, side))
+    return True
+
+
+def tape_read(window_s=300, now=None):
+    """Buyer vs seller over the last `window_s`, counted from real quotes."""
+    import time as _t
+    now = float(now or _t.time())
+    w = int(max(30, min(3600, int(window_s or 300))))
+    cut = now - w
+    rows = [x for x in _TAPE if x[0] >= cut]
+    buys = sum(1 for x in rows if x[2] > 0)
+    sells = sum(1 for x in rows if x[2] < 0)
+    n = buys + sells
+    prices = [x[1] for x in rows]
+    return {
+        "window_s": w,
+        "samples": n,
+        "buy": buys,
+        "sell": sells,
+        "buy_pct": round(100.0 * buys / n, 1) if n else None,
+        "last_side": ("buy" if _TAPE_LAST["side"] > 0 else "sell") if _TAPE_LAST["price"] else None,
+        "last_price": _TAPE_LAST["price"],
+        "first": int(rows[0][0]) if rows else None,
+        "last": int(rows[-1][0]) if rows else None,
+        "hi": round(max(prices), 2) if prices else None,
+        "lo": round(min(prices), 2) if prices else None,
+        "method": "quote ticks - bid/ask rule (tick rule when the venue gives no book)",
+        "unit": "quotes",
+        "estimated": True,
+        "note": "counts of real quotes, not contracts",
+        "warming": n < 20,
+    }
+
+
 def normalise_tf(tf):
     """Accept M15 / 15m / D1 / W1 / 1h and give back one of our keys."""
     raw = str(tf or "M15").strip()
@@ -178,6 +260,37 @@ def _row_size(candles, rows=48):
     # a step of 0 -> a 1e-8 step -> hundreds of millions of bins -> the worker was killed.
     # Cap the book at ~4000 bins whatever the instrument does.
     return max(step, span / 4000.0, 1e-9)
+
+
+def profile_window(candles, tf_minutes=15, max_bars=None):
+    """The bars that make up the CURRENT trading session's volume profile.
+
+    A profile built across a weekend gap is not a profile: Friday's range and
+    Sunday's range are two different auctions, and mixing them pushes the value
+    area so wide that price is always "inside value" and the strategy can never
+    print. This walks back from the newest bar and stops at the first real hole
+    in the tape (a break longer than three intervals, e.g. the daily close, the
+    weekend, a feed outage), then caps the window at roughly one day of bars.
+
+    Nothing here changes a single price - it only decides which real bars the
+    profile is measured on.
+    """
+    if not candles:
+        return []
+    tf = int(tf_minutes or 15)
+    s = max(60, tf * 60)
+    if max_bars is None:
+        max_bars = max(24, min(240, int((24 * 60) / max(tf, 1))))
+    out = list(candles[-max_bars:])
+    if len(out) < 2:
+        return out
+    start = 0
+    for i in range(len(out) - 1, 0, -1):
+        gap = int(out[i]["time"]) - int(out[i - 1]["time"])
+        if gap > 3 * s:
+            start = i
+            break
+    return out[start:]
 
 
 def clusters(candles, rows=48, min_pct=10.0):
@@ -652,7 +765,7 @@ def _atr_of(win, n=14):
     return sum(trs[-n:]) / len(trs[-n:]) if trs else None
 
 
-def reads_history(candles, n=16, rows=48, min_pct=10.0, window=150):
+def reads_history(candles, n=16, rows=48, min_pct=10.0, window=150, tf_minutes=15):
     """The same rule table, replayed on the last `n` bars.
 
     It is not a backtest and claims nothing about money: it answers one question a
@@ -673,7 +786,7 @@ def reads_history(candles, n=16, rows=48, min_pct=10.0, window=150):
             continue
         try:
             vwap, _used = daily_vwap(win)
-            cl, poc, _step = clusters(win, rows, min_pct)
+            cl, poc, _step = clusters(profile_window(win, tf_minutes), rows, min_pct)
             a = _atr_of(win)
             va = value_area(cl, poc)
             sg = signal(win, vwap, cl, poc, a, min_pct, vwap_series(win), va=va)
@@ -691,7 +804,10 @@ def analyse(candles, rows=48, min_pct=10.0, bias_from="5m", verify_quote=None,
     if not candles:
         return {"status": "error", "error": "no candles"}
     vwap, used = daily_vwap(candles)
-    cl, poc, step = clusters(candles, rows, min_pct)
+    # the profile is measured on the running session only (see profile_window);
+    # ATR and the flow window still read the longer tape, which is what they are for
+    prof = profile_window(candles, tf_minutes)
+    cl, poc, step = clusters(prof, rows, min_pct)
     n = len(candles)
     trs = []
     for i in range(1, n):
@@ -700,6 +816,10 @@ def analyse(candles, rows=48, min_pct=10.0, bias_from="5m", verify_quote=None,
     atr = sum(trs[-14:]) / len(trs[-14:]) if trs else None
     va = value_area(cl, poc)
     sig = signal(candles, vwap, cl, poc, atr, min_pct, vwap_series(candles), va=va)
+    sig["profile"] = {"scope": "session", "bars": len(prof),
+                      "from": int(prof[0]["time"]) if prof else None,
+                      "to": int(prof[-1]["time"]) if prof else None,
+                      "tf_minutes": int(tf_minutes or 15)}
 
     # ---- PRICE LOCK: nothing is allowed to trade on a price we cannot prove ----
     ver = verify(candles, atr=atr, va=va, quote=verify_quote, tf_minutes=tf_minutes,
