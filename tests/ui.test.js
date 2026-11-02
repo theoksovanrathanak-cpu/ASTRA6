@@ -1088,6 +1088,12 @@ print('|'.join([rej['type'], rej.get('style') or '-', rejh['type'], base['type']
   ok('the strategy readout sits in the menu', /id="flow-line" class="flow-line menu-flow"/.test(html)
      && /function paintFlowLine/.test(html)
      && html.indexOf('id="flow-line"') > html.indexOf('id="menu"'));
+  ok('the strategy card proves it is working, not just what it says now',
+     /function readsStrip\(/.test(html) && /function toggleSignalWatch\(/.test(html)
+     && /id="flow-watch"/.test(html) && /function phoneAlertState\(/.test(html)
+     && /last trade/.test(html));
+  ok('a signal watch keeps watching, and arms itself on the first run',
+     /astra6_watch_default/.test(html) && /a\.lastSide/.test(html) && /keeps watching/.test(html));
   ok('the trade boxes have presets and switches of their own',
      /function zonePresets\(\)\{/.test(html) && /function setZoneStyle\(/.test(html)
      && /onclick="setZoneStyle\(\{preset:'clean'\}\)"/.test(html)

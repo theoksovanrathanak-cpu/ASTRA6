@@ -34,7 +34,10 @@ const OTHERS = ['XAGUSD', 'XPTUSD', 'XPDUSD', 'ES', 'NQ', 'CL', 'BTCUSD', 'ETHUS
     keys: Object.keys(MKT),
     groups: MKT_GROUPS,
     watch: JSON.parse(localStorage.getItem('astra6_watch') || '[]'),
-    alerts: (JSON.parse(localStorage.getItem('astra6_alt_alerts') || '[]') || []).map(a => a.sym),
+    // the app now arms its own signal watch on first run, so this counts the price alert
+    // planted above and ignores the built-in watch
+    alerts: (JSON.parse(localStorage.getItem('astra6_alt_alerts') || '[]') || [])
+      .filter(a => a.kind !== 'signal').map(a => a.sym),
     pickerIsLabel: !document.querySelector('#mkt-float button') && !document.getElementById('mkt-float').onclick
   }));
   ok('the app opens on gold, even with bitcoin saved', boot.sym === 'XAUUSD' && boot.saved === 'XAUUSD', boot);

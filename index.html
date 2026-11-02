@@ -498,7 +498,29 @@ html.ua-nomotion .swap-bar i{animation:none;left:20%}
 .menu-flow b.hold{background:color-mix(in srgb,var(--line) 60%,transparent);border:1px solid var(--line)}
 .menu-flow .of-lock{flex:0 0 auto;max-width:100%;align-self:flex-start;text-transform:none;font-weight:800}
 /* the numbers already sit under the card in the menu (CVD · Δ · levels): one owner */
-.menu-flow .of-row:nth-of-type(2){display:none}
+.menu-flow .flow-nums{display:none}   /* the menu already prints these numbers above */
+.menu-flow .flow-reads{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;margin-top:1px}
+.menu-flow .rd-bars{display:inline-flex;align-items:center;gap:2px;flex:0 0 auto}
+.menu-flow .rd{display:inline-block;width:4px;height:11px;border-radius:2px;background:#5b6675}
+.menu-flow .rd.b{background:#12b981}
+.menu-flow .rd.s{background:#f4525f}
+.menu-flow .rd-t{font:700 9.5px/1.35 ui-monospace,monospace;color:var(--muted)}
+.menu-flow .rd-t b.buy{color:#12b981}
+.menu-flow .rd-t b.sell{color:#f4525f}
+.menu-flow .rd-c{font:700 8.5px/1.35 ui-monospace,monospace;color:color-mix(in srgb,var(--muted) 80%,transparent)}
+.menu-flow .flow-phone{margin-top:1px}
+.menu-flow .ph{font:600 9px/1.4 ui-monospace,monospace;color:color-mix(in srgb,var(--muted) 92%,transparent)}
+.menu-flow .ph b{font-weight:800}
+.menu-flow .ph b.on{color:#12b981}
+.menu-flow .ph b.off{color:#f4525f}
+.menu-flow button.ph{font:inherit;text-align:left;padding:4px 7px;border-radius:7px;cursor:pointer;
+  color:var(--ink-2);background:color-mix(in srgb,#12b981 12%,var(--surface));
+  border:1px solid rgba(18,185,129,.42)}
+.menu-btns .chip.watch{position:relative}
+.menu-btns .chip.watch.on{border-color:rgba(18,185,129,.55);color:#12b981;
+  background:color-mix(in srgb,#12b981 14%,var(--surface))}
+.menu-btns .chip.watch.on::before{content:"";width:6px;height:6px;border-radius:50%;background:#12b981;
+  box-shadow:0 0 0 3px rgba(18,185,129,.18);margin-right:2px}
 .mz-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
 .mz-row .chip{height:30px;font-size:11px}
 .mz-row .chip.on{background-image:linear-gradient(140deg,var(--a-violet),#6d5cf0);color:#fff;border-color:transparent}
@@ -2042,6 +2064,7 @@ body[data-view="chart"] .hd-quote{left:auto;right:9px;bottom:2px;text-align:righ
     <div id="flow-line" class="flow-line menu-flow" role="status" aria-live="polite" hidden></div>
     <div class="menu-hint" id="of-menu-mini" style="font-family:ui-monospace,monospace">reading the volume…</div>
     <div class="menu-btns">
+      <button class="chip watch" id="flow-watch" onclick="toggleSignalWatch()" aria-pressed="false">Watch BUY / SELL</button>
       <button class="chip" onclick="closeMenu();openOrderFlow()">Full ladder</button>
       <button class="chip" onclick="closeMenu();openAIRead()">Market read ✦</button>
     </div>
@@ -3380,6 +3403,21 @@ try{ initZoomGuard(); }catch(e){}
 // the gold reading starts on its own, on the same 5-minute grid as the server - opening the
 // menu later shows the reading that is already current instead of fetching a fresh one
 setTimeout(function(){ try{ loadGoldFundamentals(); }catch(e){} }, 1600);
+// Nobody should have to hunt for the switch that tells them a trade printed. The first
+// time this build runs, the signal watch arms itself — in the app, no permission prompt.
+// It is one tap in Alerts (or the strategy card) to turn off.
+setTimeout(function(){
+  try{
+    if(localStorage.getItem('astra6_watch_default')) return;
+    localStorage.setItem('astra6_watch_default','1');
+    if(!signalWatchOf(currentSymbol)){
+      const keep=alertsLoad().filter(function(a){return !(a.sym===currentSymbol&&ALT_READ_KINDS.indexOf(a.kind)>=0);});
+      alertsSave(keep); alertAdd('signal',0,'',currentSymbol);
+      try{paintWatchBtn();}catch(e){}
+      try{paintMenuAlerts();}catch(e){}
+    }
+  }catch(e){}
+}, 2600);
 
 // ---- hamburger menu ----
 function toggleMenu(){
@@ -6490,7 +6528,11 @@ function lockState(d){
   if(v){
     out.checks=(v.checks||[]).slice();
     out.ok=v.ok!==false;
+    // the server says why in `fail`; older payloads only carry the label
+    const fails=(out.checks||[]).filter(function(c){return c&&c.ok===false;})
+      .map(function(c){return c.fail||c.label||'';}).filter(Boolean);
     out.blocked=(v.blocked_by||[]).slice();
+    if(fails.length) out.blocked=fails;
     out.warn=(v.warned||[]).slice();
   }
   const px=Number(d&&d.signal&&(d.signal.price||d.price))||0;
@@ -6552,8 +6594,13 @@ function renderVolumeSignal(d){
   const L=lockState(d);
   const sig=JSON.stringify([L.ok?1:0,L.blocked.join('|'),d.signal&&d.signal.type,d.signal&&d.signal.price,d.signal&&d.signal.entry,
     d.signal&&d.signal.sl,d.signal&&d.signal.tp1,d.signal&&d.signal.tp2,d.vwap,
-    d.poc&&d.poc.bot,d.poc&&d.poc.top,currentSymbol]);
+    d.poc&&d.poc.bot,d.poc&&d.poc.top,currentSymbol,
+    // the reads replay and the last trade only change when a bar closes: hashing them here
+    // would rebuild the card on every tick for nothing
+    (d.reads&&d.reads.length)||0,(d.last_trade&&d.last_trade.time)||0,
+    d.reads&&d.reads.length?d.reads[d.reads.length-1].type:'']);
   paintFlowLine(d);
+  try{paintWatchBtn();}catch(e){}
   if(window._volSigKey===sig) return;   // nothing changed — leave the card alone
   window._volSigKey=sig;
   const s=d.signal||{}, poc=d.poc||{}, rows=(d.rows||[]);
@@ -8210,7 +8257,10 @@ function paintMenuAlerts(){
   const fired=all.filter(function(a){return a.fired;}).length;
   const lastFired=all.filter(function(a){return a.fired;}).slice(-1)[0];
   let txt;
-  if(live.length)txt='armed: '+syms.join(', ')+(fired?' · last: '+(lastFired&&lastFired.side?lastFired.side:'fired'):'');
+  const watch=all.find(function(a){return a.on&&ALT_READ_KINDS.indexOf(a.kind)>=0;});
+  if(watch&&live.length)
+    txt='watching '+watch.sym+(watch.lastSide?(' · last '+watch.lastSide+' '+ago(watch.lastAt||watch.last)):'')+(fired?(' · '+fired+' price alert'+(fired>1?'s':'')+' fired'):'');
+  else if(live.length)txt='armed: '+syms.join(', ')+(fired?' · last: '+(lastFired&&lastFired.side?lastFired.side:'fired'):'');
   else if(fired)txt=fired+' alert'+(fired>1?'s':'')+' fired — arm again for the next setup';
   else txt=all.length+' alert'+(all.length>1?'s':'')+' paused';
   // whether a locked phone will actually hear it matters as much as what is armed
@@ -8262,8 +8312,13 @@ async function alertReadTick(force){
       if(a.kind==='read_buy')want='BUY';
       else if(a.kind==='read_sell')want='SELL';
       if(typ!==want)return;
-      a.fired=Date.now();
-      a.side=typ;
+      // a signal watch is not a one-shot: it keeps watching and rings again when the read
+      // flips side (or after 15 minutes on the same side). A price alert still fires once.
+      const isWatch=ALT_READ_KINDS.indexOf(a.kind)>=0;
+      const lastAt=Number(a.lastAt||0);
+      if(isWatch&&a.lastSide===typ&&Date.now()-lastAt<15*60*1000)return;
+      if(isWatch){a.lastSide=typ;a.lastAt=Date.now();a.hits=(a.hits||0)+1;a.last=Date.now();}
+      else {a.fired=Date.now();a.side=typ;}
       changed=true;
       alertToast(sym+' · '+typ+' signal — a read of the volume, not a guarantee',lastPrice);
       try{if(soundOn&&typeof beep==='function')beep(880,.12);}catch(e){}
@@ -8329,13 +8384,16 @@ function alertRowHtml(a){
   const bits=[];
   if(!here)bits.push('<b class="alt-sym">'+a.sym+'</b>');
   if(a.note)bits.push(esc(a.note));
-  if(a.fired)bits.push((a.side?('<b class="alt-side '+(a.side==='BUY'?'up':'down')+'">'+a.side+'</b> · '):'')+'fired '+ago(a.fired));
+  const isWatch=ALT_READ_KINDS.indexOf(a.kind)>=0;
+  if(isWatch&&a.on&&a.lastSide)
+    bits.push('<b class="alt-side '+(a.lastSide==='BUY'?'up':'down')+'">'+a.lastSide+'</b> rang '+ago(a.lastAt||a.last)+' · '+(a.hits||1)+' so far');
+  else if(a.fired)bits.push((a.side?('<b class="alt-side '+(a.side==='BUY'?'up':'down')+'">'+a.side+'</b> · '):'')+'fired '+ago(a.fired));
   else if(!a.on)bits.push('paused');
-  else bits.push('armed');
+  else bits.push(isWatch?'watching for the next BUY or SELL':'armed');
   return '<div class="alt-row'+(a.on?'':' off')+'">'
     +'<div class="alt-main"><b>'+alertKindLabel(a)+'</b><span>'+(here?'this chart · ':'')+bits.join(' · ')+'</span></div>'
-    +'<button class="alt-btn'+((a.on&&!a.fired)?' on':'')+'" onclick="alertToggle(\''+a.id+'\')" aria-label="Pause, arm or re-arm">'
-      +(a.fired?'RE-ARM':(a.on?'ON':'OFF'))+'</button>'
+    +'<button class="alt-btn'+(((a.on&&!a.fired)||(a.on&&isWatch))?' on':'')+'" onclick="alertToggle(\''+a.id+'\')" aria-label="Pause, arm or re-arm">'
+      +((a.fired&&!isWatch)?'RE-ARM':(a.on?'ON':'OFF'))+'</button>'
     +(ALT_PRICE_KINDS.indexOf(a.kind)>=0?'<button class="alt-btn edit" onclick="alertEdit(\''+a.id+'\')" aria-label="Edit the level"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9a2.6 2.6 0 0 0-3.7-3.7L4 16z"/></svg></button>':'')
     +'<button class="alt-btn del" onclick="alertDel(\''+a.id+'\')" aria-label="Delete alert">✕</button></div>';
 }
@@ -8436,6 +8494,67 @@ function renderZoneAlerts(){
   paintAlertCard(list);
 }
 
+// is it working, or is it waiting? Sixteen reads of the last four hours, the trade that
+// printed (if any), and one tap to be told about the next one.
+function signalWatchOf(sym){
+  const s=sym||currentSymbol;
+  return alertsLoad().find(function(a){return a.sym===s&&a.on&&ALT_READ_KINDS.indexOf(a.kind)>=0;})||null;
+}
+function toggleSignalWatch(){
+  const sym=currentSymbol, w=signalWatchOf(sym);
+  if(w){
+    alertsSave(alertsLoad().filter(function(a){return a!==w;}));
+    toast('Signal alerts off for '+sym);
+  }else{
+    const keep=alertsLoad().filter(function(a){return !(a.sym===sym&&ALT_READ_KINDS.indexOf(a.kind)>=0);});
+    alertsSave(keep);
+    alertAdd('signal',0,'',sym);
+    toast('Watching '+sym+' — BUY or SELL rings when it prints');
+    if(!PUSH_ON&&pushSupported()&&Notification.permission!=='denied'){ pushEnable(); } else { pushSync(); }
+    try{alertReadTick(true);}catch(e){}
+  }
+  try{paintFlowLine(window._volume||{});}catch(e){}
+  try{paintWatchBtn();}catch(e){}
+  try{paintMenuAlerts();}catch(e){}
+  return !!signalWatchOf(sym);
+}
+function paintWatchBtn(){
+  const b=document.getElementById('flow-watch');
+  if(!b) return;
+  const w=signalWatchOf(currentSymbol);
+  b.classList.toggle('on',!!w);
+  b.textContent=w?'Watching · BUY/SELL':'Watch BUY / SELL';
+  b.setAttribute('aria-pressed',w?'true':'false');
+}
+function readsStrip(d){
+  const rs=(d&&d.reads)||[];
+  if(!rs.length) return '';
+  const dots=rs.map(function(r){
+    const c=r.type==='BUY'?'b':(r.type==='SELL'?'s':'h');
+    const t=r.type+(r.style?' · '+r.style:'')+' · '+fmtClock(r.time);
+    return '<i class="rd '+c+'" title="'+esc(t)+'"></i>';
+  }).join('');
+  const lt=(d&&d.last_trade)||null;
+  const nBuy=rs.filter(function(r){return r.type==='BUY';}).length;
+  const nSell=rs.filter(function(r){return r.type==='SELL';}).length;
+  const when=lt?('last trade <b class="'+(lt.type==='BUY'?'buy':'sell')+'">'+lt.type+'</b> · '+ago(lt.time))
+               :'no trade in these '+rs.length+' reads';
+  return '<span class="of-row flow-reads"><i class="rd-bars">'+dots+'</i>'
+    +'<span class="rd-t">'+when+'</span>'
+    +'<span class="rd-c">'+nBuy+' buy · '+nSell+' sell · '+(rs.length-nBuy-nSell)+' wait</span></span>'
+    +'<span class="of-row flow-phone">'+phoneAlertState()+'</span>';
+}
+function phoneAlertState(){
+  let on=false;
+  try{ on=(typeof PUSH_ON!=='undefined')?!!PUSH_ON:false; }catch(e){}
+  if(on) return '<span class="ph">phone alerts <b class="on">on</b> · a locked phone hears the next BUY or SELL</span>';
+  let denied=false;
+  try{ denied=('Notification' in window)&&Notification.permission==='denied'; }catch(e){}
+  if(denied) return '<span class="ph">phone alerts <b class="off">blocked</b> · allow notifications in the browser; the in-app toast still rings</span>';
+  return '<button class="ph on-b" onclick="pushEnable()">turn on phone alerts · the phone then rings while it is locked</button>';
+}
+function fmtClock(t){ try{ const d=new Date(t*1000); return d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); }catch(e){ return ''; } }
+
 // the order-flow readout: one line under the chart, always the current read.
 // No pop-up, no history, no sound - it is the strategy's output, not an alert.
 function paintFlowLine(d){
@@ -8460,7 +8579,7 @@ function paintFlowLine(d){
   if(s.type==='HOLD'||!L.ok){
     el.innerHTML='<span class="of-row"><b class="hold">HOLD</b><span>'
       +((( !L.ok?(s.type&&s.type!=='HOLD'?s.type+' held — ':'')+'price lock: '+L.blocked[0]:'')||s.reason||'no edge right now').replace(/&/g,'&amp;').replace(/</g,'&lt;'))
-      +'</span>'+lockChip+'</span>'+orderFlowRow(d);
+      +'</span>'+lockChip+'</span>'+readsStrip(d)+orderFlowRow(d);
     el.hidden=false; return;
   }
   const cls=s.type==='BUY'?'buy':'sell';
@@ -8472,7 +8591,7 @@ function paintFlowLine(d){
     '<span class="flow-k">R</span> '+(s.r!=null?Number(s.r).toFixed(2):'—'),
     lockChip,
     (s.style?'<span class="of-chip">'+s.style+'</span>':'')];
-  el.innerHTML='<span class="of-row">'+bits.join(' ')+'</span>'+orderFlowRow(d);
+  el.innerHTML='<span class="of-row">'+bits.join(' ')+'</span>'+readsStrip(d)+orderFlowRow(d);
   el.hidden=false;
 }
 // the flow numbers, in one compact row: CVD, the bar's aggression, the split, the levels
@@ -8752,7 +8871,7 @@ function orderFlowRow(d){
     (va?'<span class="of-chip">'+va+'</span>':''),
     (imb?'<span class="of-chip">'+imb+' unbalanced</span>':'')
   ];
-  return '<span class="of-row">'+chips.join('')+'<span class="of-more">tap for the full ladder ›</span></span>';
+  return '<span class="of-row flow-nums">'+chips.join('')+'<span class="of-more">tap for the full ladder ›</span></span>';
 }
 
 // ---------- the full order flow: cumulative delta, the ladder, the unbalanced levels ----------

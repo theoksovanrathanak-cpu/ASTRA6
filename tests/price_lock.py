@@ -143,6 +143,31 @@ a_open = VOL.analyse(c, verify_quote={"price": c[-1]["close"]}, tf_minutes=15, m
 check("open market has no session block",
       not any(x["id"] == "session" for x in a_open["verify"]["checks"]))
 
+# 17. the reader can see that the strategy is working, not just what it says now
+reads = a_open.get("reads") or []
+check("the read replays the last bars", len(reads) >= 8, len(reads))
+check("every replayed read carries a time, a price and a side",
+      all(r.get("time") and r.get("price") and r.get("type") in ("BUY", "SELL", "HOLD") for r in reads))
+check("the replay is in time order", [r["time"] for r in reads] == sorted(r["time"] for r in reads))
+lt = a_open.get("last_trade")
+check("a trade in the replay is named as the last trade",
+      (lt is None and not any(r["type"] in ("BUY", "SELL") for r in reads))
+      or (lt and lt["type"] in ("BUY", "SELL") and lt["time"] == max(r["time"] for r in reads if r["type"] in ("BUY", "SELL"))),
+      lt)
+
+# 18. when the lock refuses, it says WHY - never the label of the check that passed
+fails = [x for x in a_bad["verify"]["checks"] if not x["ok"]]
+check("a failed check carries its own wording", all(x.get("fail") for x in fails), fails[:1])
+check("the blocked reason is the failure, not the passing label",
+      all(x["fail"] != x["label"] for x in fails if x["id"] in ("fresh", "tick")), [x.get("fail") for x in fails][:2])
+check("a fresh tape is not called stale",
+      all(x["ok"] for x in a_open["verify"]["checks"] if x["id"] == "fresh"))
+
+# 19. a closed market is not spelled 'the feed has gone quiet'
+closed_fresh = [x for x in a_closed["verify"]["checks"] if x["id"] == "fresh"]
+check("a closed market's freshness reads as its own case",
+      closed_fresh and "closed" in (closed_fresh[0].get("label") or "").lower(), closed_fresh)
+
 print()
 print("%d passed, %d failed" % (len(PASS), len(FAIL)))
 if FAIL:

@@ -509,14 +509,18 @@ def verify(candles, atr=None, va=None, quote=None, tf_minutes=15,
     out = {"ok": True, "checks": [], "blocked_by": [], "warned": [], "px": None}
     now = now or __import__("time").time()
 
-    def add(cid, ok, label, val="", warn=False):
+    def add(cid, ok, label, val="", warn=False, fail_label=None):
+        # `label` says what passed; `fail_label` says what actually went wrong. A reader who
+        # sees "price lock: newest bar is from the live tape" while nothing prints has been
+        # told the opposite of the truth.
         grade = "ok" if ok else ("warn" if warn else "block")
         out["checks"].append({"id": cid, "ok": bool(ok), "grade": grade,
-                              "label": label, "val": val})
+                              "label": label, "val": val,
+                              "fail": (None if ok else (fail_label or label))})
         if grade == "block":
-            out["blocked_by"].append(label)
+            out["blocked_by"].append(fail_label or label)
         elif grade == "warn":
-            out["warned"].append(label)
+            out["warned"].append(fail_label or label)
 
     if not candles:
         add("history", False, "no bars at all")
@@ -558,9 +562,20 @@ def verify(candles, atr=None, va=None, quote=None, tf_minutes=15,
         add("fresh", True, "market closed · last real bar is the close",
             "%.0f h old" % (age / 3600.0) if age > 3600 else "%.0f min old" % (age / 60.0))
     else:
-        allow = max(180.0, tf_minutes * 60 * 2.0 + 120)
-        add("fresh", age <= allow, "newest bar is from the live tape",
-            "%.0f min old%s" % (age / 60.0, "" if age <= allow else " (limit %.0f min)" % (allow / 60.0)))
+        # The newest bar is a CLOSED bar: it is normal for it to be up to one interval old,
+        # and a feed that posts a bar a little late is still the live tape. Beyond three
+        # intervals nothing is trading on it, and the tick check below is the second guard
+        # (a stale tape whose price has moved away is refused there).
+        # a one-minute chart must not be called dead because the feed posts a slower bar;
+        # twenty minutes is the floor for any timeframe
+        soft = max(300.0, tf_minutes * 60 * 2.0 + 120)
+        hard = max(1200.0, tf_minutes * 60 * 3.0 + 300)
+        ok = age <= hard
+        add("fresh", ok, "newest bar is from the live tape",
+            "%.0f min old" % (age / 60.0),
+            warn=(ok and age > soft),
+            fail_label="newest bar is %.0f min old · the feed has gone quiet (limit %.0f min)"
+                       % (age / 60.0, hard / 60.0))
 
     # ---- 5. does the live quote agree with the newest bar?
     qpx = None
@@ -579,7 +594,8 @@ def verify(candles, atr=None, va=None, quote=None, tf_minutes=15,
         out["quote_px"] = round(qpx, 6)
         out["gap"] = round(gap, 6)
         add("tick", gap <= tol, "live quote agrees with the newest bar",
-            "%.2f gap (limit %.2f)" % (gap, tol))
+            "%.2f gap (limit %.2f)" % (gap, tol),
+            fail_label="live quote is %.2f away from the newest close (limit %.2f)" % (gap, tol))
 
     # ---- 6. spread / crossed book
     if isinstance(quote, dict) and quote.get("bid") is not None and quote.get("ask") is not None:
@@ -590,7 +606,8 @@ def verify(candles, atr=None, va=None, quote=None, tf_minutes=15,
             rel = spread / mid if mid else 1.0
             add("spread", bid > 0 and ask > bid and rel <= 0.0035,
                 "book is not crossed and the spread is tight",
-                "%.4f%% spread" % (rel * 100.0))
+                "%.4f%% spread" % (rel * 100.0),
+                fail_label="the book is crossed or the spread is %.3f%% wide" % (rel * 100.0))
         except Exception:
             add("spread", False, "book could not be read", "bid/ask unreadable")
     else:
@@ -605,7 +622,9 @@ def verify(candles, atr=None, va=None, quote=None, tf_minutes=15,
         a = float(atr) if atr else max(px * 0.0005, 1e-9)
         lim = max(6.0 * mad, 4.0 * a)
         add("spike", dev <= lim, "newest close is not a lone outlier",
-            "%.2f from the 20-bar median (limit %.2f)" % (dev, lim))
+            "%.2f from the 20-bar median (limit %.2f)" % (dev, lim),
+            fail_label="newest close is %.2f from the 20-bar median (limit %.2f) - one print, not a move"
+                       % (dev, lim))
     else:
         add("spike", True, "too few bars to test for a spike", "skipped", warn=True)
 
@@ -616,10 +635,53 @@ def verify(candles, atr=None, va=None, quote=None, tf_minutes=15,
     span = (hi - lo) or 1e-9
     pad = span * 0.15
     add("scale", (lo - pad) <= px <= (hi + pad), "price sits inside the range on screen",
-        "%.2f in %.2f–%.2f" % (px, lo, hi))
+        "%.2f in %.2f–%.2f" % (px, lo, hi),
+        fail_label="price %.2f is outside the %.2f–%.2f range on screen - a decimal slip in the feed"
+                   % (px, lo, hi))
 
     out["ok"] = not out["blocked_by"]
     out["grade"] = "ok" if out["ok"] and not out["warned"] else ("warn" if out["ok"] else "blocked")
+    return out
+
+
+def _atr_of(win, n=14):
+    trs = []
+    for i in range(1, len(win)):
+        c, p = win[i], win[i - 1]
+        trs.append(max(c["high"] - c["low"], abs(c["high"] - p["close"]), abs(c["low"] - p["close"])))
+    return sum(trs[-n:]) / len(trs[-n:]) if trs else None
+
+
+def reads_history(candles, n=16, rows=48, min_pct=10.0, window=150):
+    """The same rule table, replayed on the last `n` bars.
+
+    It is not a backtest and claims nothing about money: it answers one question a
+    reader actually asks - "when did this strategy last print a trade, and what was it
+    looking at in between?" Each entry is the read as it stood at that bar's close,
+    with the setup that fired (if any). Nothing here is simulated forward.
+    """
+    out = []
+    if not candles or len(candles) < 60:
+        return out
+    W = min(window, len(candles))
+    start = max(59, len(candles) - max(1, n))
+    for i in range(start, len(candles)):
+        # an older read is measured on the window that existed then, never on bars
+        # from the future
+        win = candles[max(0, i - W + 1):i + 1]
+        if len(win) < 60:
+            continue
+        try:
+            vwap, _used = daily_vwap(win)
+            cl, poc, _step = clusters(win, rows, min_pct)
+            a = _atr_of(win)
+            va = value_area(cl, poc)
+            sg = signal(win, vwap, cl, poc, a, min_pct, vwap_series(win), va=va)
+        except Exception:
+            continue
+        out.append({"time": int(win[-1]["time"]), "price": round(float(win[-1]["close"]), 2),
+                    "type": sg.get("type") or "HOLD", "style": sg.get("style") or "",
+                    "reason": (sg.get("reason") or "")[:140]})
     return out
 
 
@@ -699,7 +761,22 @@ def analyse(candles, rows=48, min_pct=10.0, bias_from="5m", verify_quote=None,
 
     tot_buy = sum(x["buy"] for x in dser)
     tot_sell = sum(x["sell"] for x in dser)
+    # when did this thing last print a trade? the reader deserves an answer, and it is
+    # also the fastest way to tell "the strategy is broken" from "the strategy is waiting"
+    reads = []
+    try:
+        reads = reads_history(candles, n=16, rows=rows, min_pct=min_pct)
+    except Exception as _re:
+        print("reads history", _re)
+    last_trade = None
+    for r in reversed(reads):
+        if r.get("type") in ("BUY", "SELL"):
+            last_trade = r
+            break
+
     return {"status": "ok", "vwap_series": vwap_series(candles[-180:]),
+            "reads": reads, "last_trade": last_trade,
+            "reads_window": len(reads),
             "vwap": round(vwap, 2) if vwap else None,
             "vwap_bars": used, "rows": cl, "poc": poc,
             "value_area": va, "row_size": step,
