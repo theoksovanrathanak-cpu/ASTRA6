@@ -565,7 +565,7 @@ def live_book_update(venue=None, ttl=15.0):
                 b = book.get(k)
                 if b is None:
                     book[k] = {"open": float(o), "high": float(h),
-                               "low": float(l), "close": float(c), "tv": True}
+                               "low": float(l), "close": float(c), "tv": True, "ticks": 0}
                 else:
                     # the venue knows the bar's real open; a tick we saw can only widen
                     # its range and move its close forward
@@ -609,11 +609,12 @@ def _book_tick(price):
             book = _LIVE_BOOK.setdefault(tf, {})
             b = book.get(k)
             if b is None:
-                book[k] = {"open": p, "high": p, "low": p, "close": p, "tv": False}
+                book[k] = {"open": p, "high": p, "low": p, "close": p, "tv": False, "ticks": 1}
             else:
                 b["high"] = max(b["high"], p)
                 b["low"] = min(b["low"], p)
                 b["close"] = p
+                b["ticks"] = int(b.get("ticks") or 0) + 1
             keep = _BOOK_KEEP.get(tf, 500)
             if len(book) > keep:
                 for old in sorted(book)[: len(book) - int(keep * 0.8)]:
@@ -707,8 +708,10 @@ def _tail_bars(tf, after_ts, limit=300):
     while t in book and len(out) < limit:
         b = book[t]
         # every bar before the one running now is closed: it is history, not a forming bar
+        # the volume of a live bar is the number of real quotes that built it - the same
+        # unit the bar feed reports (tick counts), counted, never scaled or invented
         out.append({"time": t, "open": b["open"], "high": b["high"], "low": b["low"],
-                    "close": b["close"], "volume": 0,
+                    "close": b["close"], "volume": int(b.get("ticks") or 0),
                     "complete": not (now_k is not None and t >= now_k),
                     "src": "venue bar" if b.get("tv") else "quote bar"})
         t += sec
@@ -1194,7 +1197,7 @@ def fetch_candles(granularity="M15", count=100, venue=None):
     _tail = _tail_bars(gkey, candles[-1]["time"] if candles else None)
     if _tail:
         candles = candles + _tail
-        src = src + " · newest bars live from the venue"
+        src = src + " · newest bars live from the venue (volume = quotes counted)"
     _TAIL_N[gkey] = len(_tail)
     candles, _ = _stitch_live(candles, live_mid, granularity)
     venue = (fp or {}).get("venue") or _PRICE_VENUE["name"]
@@ -5626,6 +5629,8 @@ def history(granularity: str = "M15", count: int = 100, venue: str = None, email
         "requested": count,
         "forming": (candles[-1].get("complete") is False),
         "live_tail": int(_TAIL_N.get(_tf_key(granularity), 0) or 0),
+        "tail_vol": ("quote ticks, counted about once a second"
+                     if _TAIL_N.get(_tf_key(granularity)) else None),
         "bar_delay_min": round(max(0.0, time.time() - float(candles[-1]["time"])) / 60.0, 1),
         "note": (f"the free feed publishes {len(candles)} {granularity} bars - {count} were asked for"
                  if len(candles) < count else None),

@@ -1110,7 +1110,8 @@ print('|'.join([rej['type'], rej.get('style') or '-', rejh['type'], base['type']
 }
 // ---------------- round 8: one phone tool strip, a live buyer/seller meter --------
 {
-  const strip = (html.match(/<div id="mob-strip"[\s\S]*?<\/div>/) || [''])[0];
+  const _si = html.indexOf('<div id="mob-strip"'), _sj = html.indexOf('<div class="meta-row">', _si);
+  const strip = (_si >= 0 && _sj > _si) ? html.slice(_si, _sj) : '';
   ok('the phone strip carries chart views and indicators',
      /onclick="togglePanel\('chart-menu'\)"/.test(strip) && /onclick="togglePanel\('ind-panel'\)"/.test(strip));
   ok('the phone strip carries every timeframe', ['M1','M5','M15','M30','H1','H4','D'].every(t => strip.includes('data-tf="' + t + '"')));
