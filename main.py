@@ -696,6 +696,29 @@ def _book_loop():
         time.sleep(wait)
 
 
+def _head_bars(tf, before_ts=None, limit=400):
+    """The contiguous run of real bars the book already holds, ending just before `before_ts`.
+
+    When a free feed truncates its intraday history (both of them did at 05:00 UTC: ten
+    bars instead of two hundred and forty) the app still has its own record of every
+    minute it has been running - real quotes, sampled. This hands that back as history
+    instead of drawing an empty chart.
+    """
+    sec = _TF_SEC.get(str(tf).upper())
+    book = live_book_snapshot(tf)
+    if not sec or not book:
+        return []
+    out = []
+    t = (int(before_ts) - sec) if before_ts is not None else max(book)
+    while t in book and len(out) < limit:
+        b = book[t]
+        out.append({"time": t, "open": b["open"], "high": b["high"], "low": b["low"],
+                    "close": b["close"], "volume": int(b.get("ticks") or 0),
+                    "complete": True, "src": "venue bar" if b.get("tv") else "quote bar"})
+        t -= sec
+    return list(reversed(out))
+
+
 def _tail_bars(tf, after_ts, limit=300):
     """The contiguous run of live venue bars that starts right after `after_ts`."""
     sec = _TF_SEC.get(str(tf).upper())
@@ -894,6 +917,7 @@ def fetch_fast_price(venue=None):
 _XAUS_CHART_CACHE = {}
 _last_candle_source = {}
 _TAIL_N = {}
+_LAST_GOOD = {}       # tf -> the last complete, real series (and when it was fetched)
 _XAUS_HIST_CACHE = {"time": 0, "points": []}
 
 def _xaus_chart_raw(range_="1d", interval="5m", ttl=20):
@@ -1074,6 +1098,55 @@ def _xaus_candles(granularity="M15", count=100):
         print("xaus candles err", e)
         return []
 
+def _yf_http_candles(granularity="M15", count=200):
+    """REAL futures OHLCV straight from Yahoo's chart API (no yfinance needed).
+
+    Used when the spot feed comes back truncated - a free feed that suddenly publishes
+    nine bars is not a reason to draw a nine-bar chart. The series is futures; the same
+    spot anchoring as the primary feed puts it on the price the header shows.
+    """
+    g = _tf_key(granularity)
+    cfg = {"M1": ("1m", "1d"), "M5": ("5m", "5d"), "M15": ("15m", "5d"),
+           "M30": ("30m", "5d"), "H1": ("60m", "1mo"), "H4": ("60m", "3mo"),
+           "D": ("1d", "5y"), "W": ("1wk", "5y")}
+    interval, rng = cfg.get(g, ("15m", "5d"))
+    try:
+        import requests as _req
+        r = _req.get("https://query1.finance.yahoo.com/v8/finance/chart/GC=F",
+                     params={"interval": interval, "range": rng},
+                     headers={"User-Agent": "Mozilla/5.0"}, timeout=8)
+        if r.status_code != 200:
+            return []
+        res = (r.json().get("chart") or {}).get("result") or []
+        if not res:
+            return []
+        res = res[0]
+        ts = res.get("timestamp") or []
+        q = ((res.get("indicators") or {}).get("quote") or [{}])[0]
+        o, h, l, c, v = q.get("open") or [], q.get("high") or [], q.get("low") or [], q.get("close") or [], q.get("volume") or []
+        rows = []
+        for i, t in enumerate(ts):
+            try:
+                if None in (o[i], h[i], l[i], c[i]):
+                    continue
+                rows.append({"t": int(t), "o": float(o[i]), "h": float(h[i]), "l": float(l[i]),
+                             "c": float(c[i]), "v": int(v[i] or 0)})
+            except Exception:
+                continue
+        sec = _TF_SEC.get(g)
+        rows = _align_bars(rows, sec)
+        if g == "H4":
+            candles = _agg_points(rows, 4 * 3600)
+        else:
+            candles = [{"time": r_["t"], "open": r_["o"], "high": r_["h"], "low": r_["l"],
+                        "close": r_["c"], "volume": r_["v"], "complete": True} for r_ in rows]
+        candles = _mark_forming(candles, sec)
+        return candles[-count:]
+    except Exception as e:
+        print("yahoo candles", e)
+        return []
+
+
 def _yf_candles(granularity="M15", count=100):
     """REAL fallback candles from yfinance GC=F."""
     try:
@@ -1168,9 +1241,32 @@ def fetch_candles(granularity="M15", count=100, venue=None):
     candles = _xaus_candles(granularity, count)
     _gg = granularity.upper().replace("D1", "D").replace("W1", "W")
     src = "xaus.com /api/v1/history XAU/USD (REAL daily)" if _gg in ("D", "W") else "xaus.com /api/v1/chart XAU/USD (REAL spot OHLCV)"
-    if not candles:
-        candles = _yf_candles(granularity, count)
-        src = "yfinance GC=F (REAL futures OHLCV)"
+    # a free feed that suddenly answers with a handful of bars must not shrink the chart:
+    # fall back to the real futures series, then to the last complete series we held
+    need = max(60, int(count * 0.4))
+    if not candles or len(candles) < need:
+        yf = _yf_http_candles(granularity, count)
+        if len(yf or []) > len(candles or []):
+            candles = yf
+            src = "Yahoo GC=F (REAL futures OHLCV, spot-anchored)" if _tf_key(granularity) not in ("D", "W") else "Yahoo GC=F (REAL futures daily, spot-anchored)"
+        elif not candles:
+            candles = _yf_candles(granularity, count)
+            src = "yfinance GC=F (REAL futures OHLCV)"
+    gk = _tf_key(granularity)
+    if not candles or len(candles) < need:
+        head = _head_bars(gk, candles[0]["time"] if candles else None)
+        if head:
+            candles = head + (candles or [])
+            src = src + " · earlier bars from this session's own tape"
+            if not any((c.get("src") or "") for c in candles[len(head):]):
+                src = src
+    if candles and len(candles) < need:
+        good = _LAST_GOOD.get(gk)
+        if good and (now - good["t"]) < 2700 and len(good["candles"]) > len(candles):
+            candles = [dict(c) for c in good["candles"]]
+            src = src + " · kept the last complete series"
+    elif candles:
+        _LAST_GOOD[gk] = {"t": now, "candles": [dict(c) for c in candles]}
     if not candles:
         if hit:
             return hit["data"]
