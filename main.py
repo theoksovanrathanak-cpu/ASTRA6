@@ -5726,13 +5726,42 @@ _TICK_STARTED = set()
 _LIVE_SRC = {"gold": None, "btc": None}
 
 
+_SQ = {"s": None, "bad": 0, "try": 0.0}
+
+
+def _swiss_session():
+    """One pooled connection for the quote feed.
+
+    Opening a fresh TLS connection for every quote cost ~0.4 s on the server, and that
+    wait was added to every poll - which is half of why the chart crawled. The venue
+    itself ticks about three times a second; a keep-alive socket lets us ask that often.
+    """
+    import requests as _req
+    if _SQ["s"] is None:
+        _SQ["s"] = _req.Session()
+        _SQ["s"].headers.update({"User-Agent": "ASTRA6/1.0", "Connection": "keep-alive"})
+    return _SQ["s"]
+
+
 def _swiss_gold():
     """Swissquote public quotes: real bid/ask that actually ticks (no key needed)."""
-    import requests as _req
-    r = _req.get("https://forex-data-feed.swissquote.com/public-quotes/bboquotes/instrument/XAU/USD",
-                 timeout=4, headers={"User-Agent": "ASTRA6/1.0"})
-    if r.status_code != 200:
+    # back off politely if the venue ever says no: a rate limit answered with more
+    # requests is how a feed gets taken away
+    if _SQ["bad"] and time.time() < _SQ["try"]:
         return None
+    try:
+        r = _swiss_session().get(
+            "https://forex-data-feed.swissquote.com/public-quotes/bboquotes/instrument/XAU/USD",
+            timeout=2.5)
+    except Exception:
+        _SQ["bad"] += 1
+        _SQ["try"] = time.time() + min(30, 2 ** _SQ["bad"])
+        return None
+    if r.status_code != 200:
+        _SQ["bad"] += 1
+        _SQ["try"] = time.time() + min(30, 2 ** _SQ["bad"])
+        return None
+    _SQ["bad"] = 0
     row = r.json()[0]["spreadProfilePrices"][0]
     bid, ask = float(row["bid"]), float(row["ask"])
     return {"mid": round((bid + ask) / 2, 3), "price": round((bid + ask) / 2, 3),
@@ -5968,10 +5997,14 @@ def fetch_live_tick(symbol):
     return fetch_btc_price(None) if sym == "BTCUSD" else fetch_fast_price(None)
 
 
+TICK_EVERY = 0.22        # gold's venue ticks ~3x/s; ask it that often, don't guess
+
+
 def _ticker_loop(key):
-    """Refresh one symbol about once a second; exactly one thread per symbol."""
+    """Follow the venue's own clock: one thread per symbol, no fixed one-second gate."""
     symbol, venue = key
     while True:
+        t0 = time.time()
         try:
             # NOT contextlib.redirect_stdout: that swaps the process-wide sys.stdout,
             # so while the ticker held it every other thread's log line vanished.
@@ -5981,7 +6014,10 @@ def _ticker_loop(key):
                     _TICK_CACHE[key] = {"data": data, "t": time.time()}
         except Exception as e:
             print("ticker err", key, e)
-        time.sleep(1.0)
+        # sleep what is LEFT of the interval, so the fetch itself is not added on top:
+        # a 0.4 s request plus a flat 1.0 s sleep is a 1.4 s chart in a 3 tick/s market
+        spent = time.time() - t0
+        time.sleep(max(0.05, TICK_EVERY - spent))
 
 
 def _ensure_ticker(symbol, venue=None):
@@ -6041,7 +6077,7 @@ def stream_price(symbol: str = "XAUUSD", venue: str = None):
             if time.time() - beat > 10:
                 beat = time.time()
                 yield ": keep-alive\n\n"     # keeps proxies from dropping the stream
-            time.sleep(0.18)
+            time.sleep(0.06)
 
     return StreamingResponse(gen(), media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache, no-transform",
