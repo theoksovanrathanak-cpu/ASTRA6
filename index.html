@@ -8253,7 +8253,16 @@ function pushSleepBeacon(){
 }
 document.addEventListener('visibilitychange',function(){
   if(document.visibilityState==='hidden'){pushSleepBeacon();}
-  else{pushSync();}
+  else{
+    pushSync();
+    // Coming back from another app used to leave the last drawn candle on screen until
+    // the next timed refresh came round: the phone froze the socket while it was away.
+    // Wake the feed and repaint the tape at once, so the chart is current on the first frame.
+    try{ startPriceStream(); }catch(e){}
+    try{ fetchFastPrice(); }catch(e){}
+    try{ if(chart&&!document.hidden) fetchChart(currentTF); }catch(e){}
+    try{ glideReset(); }catch(e){}
+  }
 });
 window.addEventListener('pagehide',pushSleepBeacon);
 
