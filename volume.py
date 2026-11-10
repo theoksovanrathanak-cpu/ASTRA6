@@ -868,6 +868,108 @@ def _atr_of(win, n=14):
     return sum(trs[-n:]) / len(trs[-n:]) if trs else None
 
 
+def trade_stats(candles, tf_minutes=15, sample=160, fwd=40, rows=48, min_pct=10.0):
+    """Replay the SHIPPED rules on the bars just traded and score them.
+
+    Not a backtest with opinions attached: the same function the live signal uses is run
+    at every bar close on the window that existed then, the trade is followed on the bars
+    that came after it, and the plan is executed the way the app executes it (half off at
+    TP1, stop to the entry, runner to TP2, time stop). Every number below is measured, and
+    the sample size travels with it so nobody reads 100% off three trades.
+    """
+    out = {"status": "no_data", "n": 0, "winrate": None, "avg_r": None,
+           "basis": "replay of the shipped rules on real bars"}
+    try:
+        if not candles or len(candles) < 120:
+            return out
+        start = max(60, len(candles) - int(sample) - int(fwd))
+        stop = len(candles) - 1
+        rs, tp1_hits, stopped, timed, still = [], 0, 0, 0, 0
+        for i in range(start, stop):
+            win = candles[max(0, i - 149):i + 1]
+            if len(win) < 60:
+                continue
+            vwap, _ = daily_vwap(win)
+            cl, poc, _s = clusters(profile_window(win, tf_minutes), rows, min_pct)
+            a = _atr_of(win)
+            va = value_area(cl, poc)
+            sg = signal(win, vwap, cl, poc, a, min_pct, vwap_series(win), va=va,
+                        htf_dir=htf_structure(win, tf_minutes))
+            if sg.get("type") not in ("BUY", "SELL"):
+                continue
+            fr = _follow(candles, i, sg, fwd)
+            fr["style"] = sg.get("style") or "other"
+            rs.append(fr)
+        closed = [r for r in rs if r["why"] != "open"]
+        styles = {}
+        for r in closed:
+            k = r.get("style") or "other"
+            b = styles.setdefault(k, {"n": 0, "r": 0.0, "tp1": 0})
+            b["n"] += 1
+            b["r"] += r["r"]
+            b["tp1"] += 1 if r["tp1"] else 0
+        for k, b in styles.items():
+            b["avg_r"] = round(b["r"] / b["n"], 3)
+            b["winrate"] = round(100.0 * b["tp1"] / b["n"], 1)
+            b.pop("r", None)
+        for r in closed:
+            if r["tp1"]:
+                tp1_hits += 1
+            if r["why"] == "sl":
+                stopped += 1
+            elif r["why"] in ("be", "tp2", "time"):
+                timed += 1
+        still = len(rs) - len(closed)
+        if not closed:
+            out.update({"status": "no_trades", "n": len(rs), "open": still})
+            return out
+        vals = [r["r"] for r in closed]
+        out.update({
+            "status": "ok",
+            "n": len(closed), "open": still,
+            "signals": len(rs),
+            "tp1": tp1_hits, "stopped": stopped, "exit_other": timed,
+            "winrate": round(100.0 * tp1_hits / len(closed), 1),        # the trade worked
+            "avg_r": round(sum(vals) / len(vals), 3),
+            "med_r": round(sorted(vals)[len(vals) // 2], 3),
+            "best": round(max(vals), 2), "worst": round(min(vals), 2),
+            "from": int(candles[max(0, len(candles) - int(sample) - int(fwd))]["time"]),
+            "to": int(candles[-1]["time"]),
+            "tf_minutes": int(tf_minutes or 15),
+            "by_style": styles,
+            "basis": "same rules as the live signal, plan applied, spread not charged",
+        })
+    except Exception as e:
+        out.update({"status": "error", "error": str(e)[:140]})
+    return out
+
+
+def _follow(candles, i, sg, fwd):
+    """Follow one signal on the bars after it, executing the shipped plan."""
+    side = 1 if sg["type"] == "BUY" else -1
+    entry, sl, tp1, tp2 = sg["entry"], sg["sl"], sg["tp1"], sg["tp2"]
+    risk = abs(entry - sl) or 1e-9
+    r1 = abs(tp1 - entry) / risk
+    r2 = abs(tp2 - entry) / risk
+    got_tp1 = False
+    stop = sl
+    for c in candles[i + 1:i + 1 + fwd]:
+        if (c["low"] <= stop if side == 1 else c["high"] >= stop):
+            if got_tp1:
+                return {"r": round(0.5 * r1, 3), "why": "be", "tp1": True}   # half banked, rest free
+            return {"r": -1.0, "why": "sl", "tp1": False}
+        if not got_tp1 and (c["high"] >= tp1 if side == 1 else c["low"] <= tp1):
+            got_tp1 = True
+            stop = entry
+        elif got_tp1 and (c["high"] >= tp2 if side == 1 else c["low"] <= tp2):
+            return {"r": round(0.5 * r1 + 0.5 * r2, 3), "why": "tp2", "tp1": True}
+    last = candles[min(i + fwd, len(candles) - 1)]["close"]
+    live = (last - entry) * side / risk
+    if got_tp1:
+        return {"r": round(0.5 * r1 + 0.5 * live, 3), "why": "time", "tp1": True}
+    return {"r": round(live, 3), "why": "open", "tp1": False}
+
+
 def reads_history(candles, n=16, rows=48, min_pct=10.0, window=150, tf_minutes=15):
     """The same rule table, replayed on the last `n` bars.
 

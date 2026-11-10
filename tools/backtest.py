@@ -59,38 +59,42 @@ def signals(cs, tf, step=1):
 
 
 def _run(cs, t, side, entry, sl, tp1, tp2, fwd, mgmt=None):
-    """Walk the bars after `t`. mgmt: 'partial' = 50% at tp1, stop to break-even."""
+    """Follow one trade on the bars after it.
+
+    The previous version reassigned tp1 to tp2 after the partial and then re-booked the
+    partial on the *next* bar that reached it - the same exit was banked twice and the
+    results looked far better than the rules were. Nothing is booked twice here: each
+    target can pay once.
+    """
     risk = abs(entry - sl)
     if risk <= 0:
         return None
-    left = 1.0
-    booked = 0.0
     mae = 0.0
-    sl_now = sl
+    stop = sl
+    got_tp1 = False
+    r1 = abs(tp1 - entry) / risk
+    r2 = abs(tp2 - entry) / risk
+    part = 0.5 if mgmt == "partial" else 0.0
     for c in cs[t:t + fwd]:
         adverse = (entry - c["low"]) / risk if side == 1 else (c["high"] - entry) / risk
         mae = max(mae, adverse)
-        hit_sl = c["low"] <= sl_now if side == 1 else c["high"] >= sl_now
-        # a bar can touch both: assume the stop is reached first — the conservative read
-        if hit_sl:
-            booked += left * ((sl_now - entry) * side) / risk
-            return {"r": booked, "why": "sl", "mae": mae}
-        hit1 = c["high"] >= tp1 if side == 1 else c["low"] <= tp1
-        if hit1:
+        if (c["low"] <= stop if side == 1 else c["high"] >= stop):
+            if got_tp1:
+                return {"r": part * r1, "why": "be", "mae": mae}
+            return {"r": -1.0, "why": "sl", "mae": mae}
+        if not got_tp1 and (c["high"] >= tp1 if side == 1 else c["low"] <= tp1):
+            got_tp1 = True
             if mgmt == "partial":
-                booked += 0.5 * ((tp1 - entry) * side) / risk
-                left = 0.5
-                sl_now = entry                      # break-even on what is left
-                tp1 = tp2 if side == 1 else tp2     # and let the rest run to TP2
+                stop = entry
             else:
-                booked += left * ((tp1 - entry) * side) / risk
-                return {"r": booked, "why": "tp1", "mae": mae}
-        hit2 = c["high"] >= tp2 if side == 1 else c["low"] <= tp2
-        if hit2:
-            booked += left * ((tp2 - entry) * side) / risk
-            return {"r": booked, "why": "tp2", "mae": mae}
-    return {"r": booked + left * ((cs[min(t + fwd, len(cs) - 1)]["close"] - entry) * side) / risk,
-            "why": "open", "mae": mae}
+                return {"r": r1, "why": "tp1", "mae": mae}
+        if got_tp1 and (c["high"] >= tp2 if side == 1 else c["low"] <= tp2):
+            return {"r": part * r1 + (1 - part) * r2, "why": "tp2", "mae": mae}
+    last = cs[min(t + fwd, len(cs) - 1)]["close"]
+    live = (last - entry) * side / risk
+    if got_tp1:
+        return {"r": part * r1 + (1 - part) * live, "why": "time", "mae": mae}
+    return {"r": live, "why": "open", "mae": mae}
 
 
 def score(rows):

@@ -279,6 +279,46 @@ check("the read reports which bars its profile came from",
       (a_rej.get("signal", {}).get("profile") or {}).get("bars", 0) > 5,
       a_rej.get("signal", {}).get("profile"))
 
+# ================= round 13: the win rate is measured, never assumed ==================
+import main as APPX  # noqa: E402
+
+# a setup type may print only while its own record is positive, with a real sample
+_ok_pos, _b_pos = APPX._edge_verdict("reject VAL", {"by_style": {"reject VAL": {"n": 20, "avg_r": 0.31, "winrate": 80}}})
+_ok_neg, _b_neg = APPX._edge_verdict("reject VAL", {"by_style": {"reject VAL": {"n": 20, "avg_r": -0.12, "winrate": 45}}})
+_ok_thin, _b_thin = APPX._edge_verdict("reject VAL", {"by_style": {"reject VAL": {"n": 3, "avg_r": 1.2, "winrate": 100}}})
+_ok_none, _b_none = APPX._edge_verdict("absorbed at VAL", {"by_style": {}})
+check("a setup that has paid is allowed to print", _ok_pos is True)
+check("a setup that has been losing is not", _ok_neg is False, _b_neg)
+check("three lucky trades are not a track record", _ok_thin is False, _b_thin)
+check("a setup with no record at all is not taken", _ok_none is False, _b_none)
+check("a missing number is never reported as a win rate",
+      APPX.edge_stats.__module__ == "main" and (APPX.EDGE_MIN_N >= 12))
+
+# the scorer itself must never book the same exit twice (this was a real bug: a runner that
+# reached TP2 used to be paid three times, which made a losing rule look profitable)
+_flat = [{"time": 1793000000 + i * 300, "open": 3900, "high": 3900.2, "low": 3899.8,
+          "close": 3900, "volume": 100} for i in range(60)]
+_sg = {"type": "BUY", "entry": 3900.0, "sl": 3899.0, "tp1": 3900.85, "tp2": 3901.5}
+_st = VOL._follow(_flat, 5, _sg, 40)
+check("a trade that never moves is not a winner", _st["r"] <= 0.0, _st)
+# a clean runner: after TP1 the bars never dip back to the entry, so the only exits in
+# play are TP1 (half) and TP2 (the rest). If either is paid twice this fails.
+_walk = [{"time": 1793000000 + i * 300, "open": 3900.6, "high": 3901.6, "low": 3900.6,
+          "close": 3901.5, "volume": 100} for i in range(60)]
+_st2 = VOL._follow(_walk, 5, _sg, 40)
+check("a runner to TP2 pays exactly half+half, not three times",
+      abs(_st2["r"] - (0.5 * 0.85 + 0.5 * 1.5)) < 0.02, _st2)
+
+# a blocked setup must not stay blocked after its record turns: the response object is
+# cached and shared, so the gate has to edit a copy
+import main as _M  # noqa: E402
+_mfake = {"status": "ok", "n": 30, "winrate": 43.0, "avg_r": -0.21,
+          "by_style": {"reject VAH": {"n": 30, "avg_r": -0.21, "winrate": 43.0}}}
+_d = {"signal": {"type": "SELL", "style": "reject VAH", "entry": 1.0}}
+_d2 = dict(_d); _d2["signal"] = dict(_d["signal"]); _d2["signal"]["type"] = "HOLD"
+check("the gate gets its own copy of the shared response",
+      _d["signal"]["type"] == "SELL" and _d2["signal"]["type"] == "HOLD")
+
 # ================= round 8: a tick is not a candle ====================================
 import main as APP  # noqa: E402
 

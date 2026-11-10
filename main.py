@@ -3099,20 +3099,28 @@ def broker_stats(email: str = Depends(require_approved_auth)):
         total = len(trades)
         buys = len([t for t in trades if t.get("type") == "BUY"])
         sells = len([t for t in trades if t.get("type") == "SELL"])
+        # This used to invent a 72% win rate with random.random(). That is a fabricated
+        # number in a place a trader would read as their own record, so it is gone: only
+        # closed trades with a real PnL are counted, and with none there is no win rate.
         wins = 0
         losses = 0
-        total_pnl = 0
+        total_pnl = 0.0
+        closed_with_pnl = 0
         for t in trades:
-            import random
-            random.seed(hash(t.get("id","")) % 1000000)
-            is_win = random.random() < 0.72
-            pnl = random.uniform(5, 80) if is_win else -random.uniform(5, 40)
+            pnl = t.get("pnl", t.get("profit"))
+            if pnl is None or t.get("closed_at") is None:
+                continue
+            try:
+                pnl = float(pnl)
+            except Exception:
+                continue
+            closed_with_pnl += 1
             total_pnl += pnl
-            if is_win:
+            if pnl > 0:
                 wins += 1
-            else:
+            elif pnl < 0:
                 losses += 1
-        winrate = round((wins / total * 100) if total > 0 else 0, 1)
+        winrate = round((wins / closed_with_pnl * 100) if closed_with_pnl else 0, 1) if closed_with_pnl else None
         if real_balance is not None:
             # REAL exact balance + PnL from trades = dynamic REAL balance (not fake)
             base_real = real_balance
@@ -3164,10 +3172,16 @@ def broker_stats(email: str = Depends(require_approved_auth)):
             "wins": wins,
             "losses": losses,
             "winrate": winrate,
+            "closed_with_pnl": closed_with_pnl,
+            "winrate_basis": ("real closed trades with a PnL" if closed_with_pnl
+                              else "no closed trades with a PnL - no win rate to report"),
             "total_pnl": round(total_pnl, 2),
             "calendar": calendar,
             "trades": trades[-20:],
-            "message": f"Stats for {email}: {total} trades, {winrate}% winrate, ${balance:.2f} balance ({balance_msg})"
+            "message": (f"Stats for {email}: {total} trades, "
+                        + (f"{winrate}% winrate on {closed_with_pnl} closed trades" if closed_with_pnl
+                           else "no closed trades yet so no win rate")
+                        + f", ${balance:.2f} balance ({balance_msg})")
         }
     except Exception as e:
         import traceback
@@ -4914,6 +4928,65 @@ def _lock_market_open(sym):
     return _dt.datetime.now(_dt.timezone.utc).weekday() < 5
 
 
+_EDGE_CACHE = {}
+EDGE_TTL = 240.0        # recompute the measured record every four minutes
+EDGE_MIN_N = 12         # a setup type needs this many closed trades before it may print
+
+
+def edge_stats(symbol, tf_key, bars=700):
+    """What the shipped rules have actually done on this timeframe, by setup type.
+
+    Every time a setup prints, it is followed on the bars that came after it with the plan
+    the app itself uses, and the result is booked against the setup's name. The app then
+    refuses to print a setup type that has been losing: a signal is a claim, and a claim
+    with a negative record is not worth a phone's attention.
+    """
+    key = (str(symbol).upper(), str(tf_key).upper())
+    now = time.time()
+    hit = _EDGE_CACHE.get(key)
+    if hit and now - hit["t"] < EDGE_TTL:
+        return hit["d"]
+    d = {"status": "no_data", "n": 0, "winrate": None, "avg_r": None, "by_style": {}}
+    try:
+        import volume as VOL
+        raw_c = _zone_candles(symbol, None, tf_key, bars)
+        raw = [{"time": int(c["time"]), "open": c["open"], "high": c["high"], "low": c["low"],
+                "close": c["close"], "volume": float(c.get("volume") or 0)} for c in (raw_c or [])]
+        if len(raw) >= 140:
+            raw = VOL.split_estimate(raw)
+            d = VOL.trade_stats(raw, tf_minutes=VOL.TF_MINUTES.get(tf_key, 15),
+                                sample=max(40, len(raw) - 60))
+    except Exception as e:
+        d = {"status": "error", "error": str(e)[:120], "n": 0, "by_style": {}}
+    _EDGE_CACHE[key] = {"t": now, "d": d}
+    return d
+
+
+def _edge_verdict(style, st):
+    """(allowed, bucket) - a setup may print only if its own record is positive."""
+    b = ((st or {}).get("by_style") or {}).get(style or "")
+    if not b:
+        return False, {"n": 0, "avg_r": None}
+    return (int(b.get("n") or 0) >= EDGE_MIN_N and float(b.get("avg_r") or 0) > 0), b
+
+
+@app.get("/api/signals/stats")
+def signals_stats(symbol: str = "XAUUSD", tf: str = "M5"):
+    """The measured record behind the signals: per setup type, with its sample size."""
+    out = {"status": "ok", "symbol": symbol.upper(), "tf": tf.upper(), "timeframes": {}}
+    for k in ([tf.upper()] if tf else ["M1", "M5", "M15", "H1"]):
+        try:
+            out["timeframes"][k] = edge_stats(symbol, k)
+        except Exception as e:
+            out["timeframes"][k] = {"status": "error", "error": str(e)[:100]}
+    d = out["timeframes"].get(tf.upper()) or {}
+    out.update({"n": d.get("n"), "winrate": d.get("winrate"), "avg_r": d.get("avg_r"),
+                "by_style": d.get("by_style"), "min_n": EDGE_MIN_N,
+                "rule": ("a setup type prints only while its own last trades are net positive "
+                         "with at least %d closed trades" % EDGE_MIN_N)})
+    return out
+
+
 @app.get("/api/book")
 def get_book():
     """What the live bar book holds right now - and what the venue last answered."""
@@ -5236,6 +5309,39 @@ def get_volume(symbol: str = "XAUUSD", venue: str = None, rows: int = 48,
         data = VOL.analyse(raw, rows=max(12, min(120, rows)), min_pct=max(0.0, min(100.0, min_pct)),
                            verify_quote=lock_q, tf_minutes=VOL.TF_MINUTES.get(tf_key, 15),
                            market_open=_lock_market_open(symbol), min_bars=40)
+        # the response is cached for a few seconds and handed to more than one caller:
+        # the edge gate below edits it, so it edits a copy. Otherwise one blocked read
+        # would keep the setup blocked (and keep the old numbers attached) after the
+        # record had already turned - a stuck HOLD is a wrong answer, not a safe one.
+        data = dict(data)
+        data["signal"] = dict(data.get("signal") or {})
+        # ---- PROVE IT: a setup prints only while its own record is positive ----
+        try:
+            st_ = edge_stats(str(symbol).upper(), tf_key)
+            data["stats"] = st_
+            _sg = data.get("signal") or {}
+            if _sg.get("type") in ("BUY", "SELL"):
+                _ok, _b = _edge_verdict(_sg.get("style"), st_)
+                if not _ok:
+                    _sg["edge_block"] = {"style": _sg.get("style"), "n": int(_b.get("n") or 0),
+                                         "avg_r": _b.get("avg_r"), "winrate": _b.get("winrate")}
+                    if int(_b.get("n") or 0) < EDGE_MIN_N:
+                        _why = (f"{_sg.get('style')} setup at the level, but it has only "
+                                f"{int(_b.get('n') or 0)} closed trades behind it - too few to "
+                                f"claim an edge, so it is not taken.")
+                    else:
+                        _why = (f"{_sg.get('style')} setup at the level, but on its last "
+                                f"{int(_b.get('n') or 0)} trades it returned "
+                                f"{float(_b.get('avg_r') or 0):+.2f}R each - not taken until it pays again.")
+                    _sg["blocked_trade"] = {"type": _sg.get("type"), "entry": _sg.get("entry"),
+                                            "sl": _sg.get("sl"), "tp1": _sg.get("tp1"),
+                                            "tp2": _sg.get("tp2"), "style": _sg.get("style")}
+                    _sg["type"] = "HOLD"
+                    _sg["reason"] = _why
+                    data["signal"] = _sg
+        except Exception as _ee:
+            print("edge gate", _ee)
+            data.setdefault("stats", None)
         try:
             _track_active(str(symbol).upper(), tf_key, data.get("signal") or {},
                           (data.get("signal") or {}).get("price"))
@@ -5290,6 +5396,27 @@ def push_scan_once():
         except Exception as e:
             print("push scan", sym, e)
     return sent
+
+def _edge_warm():
+    """Fill the measured record once at boot and keep it fresh, off the request path."""
+    time.sleep(12)
+    while True:
+        try:
+            for tf in ("M5", "M15", "M1", "H1"):
+                try:
+                    edge_stats("XAUUSD", tf)
+                except Exception:
+                    pass
+        except Exception as e:
+            print("edge warm", e)
+        time.sleep(120)
+
+
+try:
+    threading.Thread(target=_edge_warm, daemon=True, name="edge-warm").start()
+except Exception as _ew:
+    print("edge warm thread:", _ew)
+
 
 def push_loop():
     time.sleep(45)          # let the app finish booting before the first scan

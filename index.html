@@ -2292,7 +2292,7 @@ body[data-view="chart"] .hd-quote{left:auto;right:9px;bottom:2px;text-align:righ
         </div>
         <div class="metric">
           <div class="metric-k">Winrate</div>
-          <div class="metric-v mono" id="sig-winrate">--%</div>
+          <div class="metric-v mono" id="sig-winrate">—</div>
         </div>
       </div>
 
@@ -2329,7 +2329,7 @@ body[data-view="chart"] .hd-quote{left:auto;right:9px;bottom:2px;text-align:righ
       <div class="stat">
         <span class="stat-k" id="stat-k-3">Verified winrate</span>
         <div style="text-align:right">
-          <div class="stat-v mono up" id="real-winrate">--%</div>
+          <div class="stat-v mono" id="real-winrate">—</div>
           <div class="stat-sub mono" id="real-stats">—</div>
         </div>
       </div>
@@ -3739,7 +3739,19 @@ function closeMenu(){
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeMenu(); });
 
 function toggleAllData(){const el=document.getElementById('sig-ai');const btn=document.getElementById('btn-toggle-data');if(!el||!btn)return;const isHidden=el.style.display==='none'||el.style.display==='';el.style.display=isHidden?'block':'none';btn.textContent=isHidden?'Hide all data':'Show all data';}
-function renderCurrent(s){if(!s)return;window._lastSignal=s;const typeEl=document.getElementById('sig-type');const card=document.getElementById('current-signal-card');if(!typeEl||!card)return;typeEl.textContent=s.type;typeEl.className='signal-type '+s.type.toLowerCase();card.className='signal-card '+s.type.toLowerCase();const pv=document.getElementById('sig-price');if(pv)pv.className='metric-v mono '+(s.type==='BUY'?'up':s.type==='SELL'?'down':'');const sp=document.getElementById('sig-price');if(sp)sp.textContent=fmtPx(s.price||0);const sc=document.getElementById('sig-conf');if(sc)sc.textContent=(s.confidence||0)+'%';const sw=document.getElementById('sig-winrate');if(sw)sw.textContent=(s.winrate_est||50)+'%';const sl=document.getElementById('sig-time');if(sl){try{sl.textContent=(s.time_str||'')+' · '+(s.strategy||'ASTRA6 Elite');}catch(e){sl.textContent=s.type;}}const reasons=document.getElementById('sig-reasons');if(reasons)reasons.textContent=(s.reasons&&s.reasons[0])||'Scanning for a high-confluence setup.';const sltp=document.getElementById('sig-sltp');if(sltp){
+function renderCurrent(s){if(!s)return;window._lastSignal=s;const typeEl=document.getElementById('sig-type');const card=document.getElementById('current-signal-card');if(!typeEl||!card)return;typeEl.textContent=s.type;typeEl.className='signal-type '+s.type.toLowerCase();card.className='signal-card '+s.type.toLowerCase();const pv=document.getElementById('sig-price');if(pv)pv.className='metric-v mono '+(s.type==='BUY'?'up':s.type==='SELL'?'down':'');const sp=document.getElementById('sig-price');if(sp)sp.textContent=fmtPx(s.price||0);const sc=document.getElementById('sig-conf');if(sc)sc.textContent=(s.confidence||0)+'%';const sw=document.getElementById('sig-winrate');
+  if(sw){
+    // "0%" used to appear whenever there was no sample. That is not a win rate, that is a
+    // missing number - and a missing number is shown as one.
+    sw.textContent=(s.winrate_est==null?'—':s.winrate_est+'%');
+    const st=s.stats||{};
+    sw.title=(s.winrate_est==null)
+      ? 'No closed trades of this setup type yet - nothing measured, nothing claimed.'
+      : ('TP1 reached in '+st.tp1+' of '+st.n+' closed '+((st.tf_minutes||5)+'m')+' signals · '
+         +'avg '+(st.avg_r>=0?'+':'')+st.avg_r+'R per trade');
+    sw.classList.toggle('up',s.winrate_est!=null&&s.winrate_est>=50);
+    sw.classList.toggle('down',s.winrate_est!=null&&s.winrate_est<50);
+  }const sl=document.getElementById('sig-time');if(sl){try{sl.textContent=(s.time_str||'')+' · '+(s.strategy||'ASTRA6 Elite');}catch(e){sl.textContent=s.type;}}const reasons=document.getElementById('sig-reasons');if(reasons)reasons.textContent=(s.reasons&&s.reasons[0])||'Scanning for a high-confluence setup.';const sltp=document.getElementById('sig-sltp');if(sltp){
     if(s.sl){
       sltp.innerHTML=`<span style="color:var(--muted)">ENTRY <b style="color:var(--ink)">${fmtPx(s.entry!=null?s.entry:s.price)}</b></span>`
         +` • <span style="color:var(--red)">SL ${fmtPx(s.sl)}</span>`
@@ -6710,7 +6722,7 @@ el.innerHTML=xd===null||xd===undefined?`<b>${v}</b> · REAL live bid/ask`:`<b>${
 }catch(e){console.log('tv compare err',e);}}
 
 async function fetchLive(){try{const r=await fetch('/api/xauusd/live').catch(()=>null);if(!r)return;const d=await r.json();if(d.status==='ok'&&priceUpdateCount===0){document.getElementById('price').textContent='$'+d.price.toFixed(2);lastPrice=d.price;}}catch(e){console.log('fetchLive err',e);}}
-async function fetchDashboard(){if(true){return;}if(currentSymbol==='XAGUSD'){document.getElementById('refresh-btn').textContent='Refresh';fetchFastPrice();fetchChart(currentTF);return;}const btn=document.getElementById('refresh-btn');if(btn)btn.textContent='…';try{const [curR,alertsR,winrateR]=await Promise.all([fetch('/api/signals/current'),fetch('/api/signals/alerts?limit=15'),fetch('/api/signals/winrate').catch(()=>null)]);const cur=await curR.json();console.log('cur',cur);const alerts=await alertsR.json();if(cur.status==='ok'&&cur.signal)renderCurrent(cur.signal);else renderCurrent({type:'HOLD',price:lastPrice||0,confidence:56,winrate_est:50,timestamp:Date.now()/1000,preview:true,reasons:['No signal - REAL live price']});if(alerts.status==='ok')renderAlerts(alerts.alerts);if(winrateR&&winrateR.ok){const wr=await winrateR.json();if(wr.status==='ok'){document.getElementById('real-winrate').textContent=(wr.winrate||0)+'%';document.getElementById('real-stats').textContent=`${wr.wins||0}W / ${wr.losses||0}L • ${wr.total_evaluated||0} closed`;}}}catch(e){console.log('dashboard err',e);}if(btn)btn.textContent='Refresh';}
+async function fetchDashboard(){if(true){return;}if(currentSymbol==='XAGUSD'){document.getElementById('refresh-btn').textContent='Refresh';fetchFastPrice();fetchChart(currentTF);return;}const btn=document.getElementById('refresh-btn');if(btn)btn.textContent='…';try{const [curR,alertsR,winrateR]=await Promise.all([fetch('/api/signals/current'),fetch('/api/signals/alerts?limit=15'),fetch('/api/signals/winrate').catch(()=>null)]);const cur=await curR.json();console.log('cur',cur);const alerts=await alertsR.json();if(cur.status==='ok'&&cur.signal)renderCurrent(cur.signal);else renderCurrent({type:'HOLD',price:lastPrice||0,confidence:56,winrate_est:null,timestamp:Date.now()/1000,preview:true,reasons:['No signal - REAL live price']});if(alerts.status==='ok')renderAlerts(alerts.alerts);if(winrateR&&winrateR.ok){const wr=await winrateR.json();if(wr.status==='ok'){document.getElementById('real-winrate').textContent=(wr.winrate==null?'—':wr.winrate+'%');document.getElementById('real-stats').textContent=`${wr.wins||0}W / ${wr.losses||0}L • ${wr.total_evaluated||0} closed`;}}}catch(e){console.log('dashboard err',e);}if(btn)btn.textContent='Refresh';}
 function updateTimeSmooth(){const lt=document.getElementById('live-time');if(lt){const now=new Date();lt.textContent=now.toLocaleTimeString('en-US',{hour12:false})+' • '+now.toLocaleDateString();}const ms=document.getElementById('market-status');if(ms){const now=new Date();const day=now.getUTCDay();const utcHour=now.getUTCHours();const isWeekend=(day===6&&utcHour>=22)||(day===0&&utcHour<22)||day===0;const closed=isWeekend;ms.textContent=closed?'CLOSED':'LIVE';ms.style.color=closed?'var(--red)':'var(--green)';const dt=document.getElementById('market-dot');if(dt)dt.className='dot'+(closed?' closed':'');}}
 function toggleSound(){soundOn=!soundOn;localStorage.setItem('astra6_sound',soundOn?'1':'0');const b=document.getElementById('sound-btn');if(b){b.style.opacity=soundOn?'1':'.4';b.title=soundOn?'Alert sound on':'Alert sound off';}}
 function beep(){if(!soundOn)return;try{const A=window.AudioContext||window.webkitAudioContext;if(!A)return;const c=new A();const o=c.createOscillator(),g=c.createGain();o.type='sine';o.frequency.value=880;g.gain.setValueAtTime(.06,c.currentTime);g.gain.exponentialRampToValueAtTime(.0005,c.currentTime+.22);o.connect(g);g.connect(c.destination);o.start();o.stop(c.currentTime+.24);setTimeout(()=>{try{c.close();}catch(e){}},400);}catch(e){}}
@@ -6839,6 +6851,7 @@ function renderVolumeSignal(d){
     (d.reads&&d.reads.length)||0,(d.last_trade&&d.last_trade.time)||0,
     d.reads&&d.reads.length?d.reads[d.reads.length-1].type:'']);
   paintFlowLine(d);
+  try{renderZoneStats(null);}catch(e){}
   try{paintWatchBtn();}catch(e){}
   try{paintMobStrip();}catch(e){}
   if(window._volSigKey===sig) return;   // nothing changed — leave the card alone
@@ -6861,7 +6874,10 @@ function renderVolumeSignal(d){
     lv={sl:lt.sl, tp1:lt.tp1, tp2:lt.tp2, r:lt.r, entry:lt.entry};
   }
   renderCurrent({
-    type:type, price:s.price||d.price, confidence:s.confidence||55, winrate_est:s.winrate_est||50,
+    type:type, price:s.price||d.price, confidence:s.confidence||55,
+    // the measured number, never a placeholder: (d.stats) is this timeframe's own record
+    winrate_est:(d.stats&&d.stats.winrate!=null)?d.stats.winrate:null,
+    stats:d.stats||null,
     timestamp:d.bar_time||Date.now()/1000,
     time_str:new Date().toLocaleString(),
     strategy:'order flow · value area',
@@ -7759,7 +7775,9 @@ function renderZoneSignal(d){
     wr=n?Math.round(100*w/n):null;
   }catch(e){}
   renderCurrent({
-    type:type, price:s.price||d.price, confidence:s.confidence||60, winrate_est:wr!=null?wr:50,
+    type:type, price:s.price||d.price, confidence:s.confidence||60,
+    // a box-hold sample of zero is "no sample", not 50% and not 0%
+    winrate_est:(wr!=null?wr:null),
     timestamp:d.bar_time_5||d.bar_time||Date.now()/1000,
     time_str:new Date(((d.bar_time_5||d.bar_time)||Date.now()/1000)*1000).toLocaleString(),
     strategy:'15m target · 5m entry',
@@ -9437,8 +9455,18 @@ function renderZoneStats(wr){
   const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
   set('stat-total',list.length);
   set('stat-bs',buys+' / '+sells);
-  set('real-winrate',(wr!=null?wr:0)+'%');
-  set('real-stats','5m box hold rate');
+  const st=(window._volume&&window._volume.stats)||null;
+  const measured=(st&&st.winrate!=null)?st.winrate:wr;
+  const el=document.getElementById('real-winrate');
+  if(el){
+    el.textContent=(measured==null?'—':measured+'%');
+    el.classList.toggle('up',measured!=null&&measured>=50);
+    el.classList.toggle('down',measured!=null&&measured<50);
+    el.title=(st&&st.n)?('TP1 reached in '+st.tp1+' of '+st.n+' closed signals · avg '+st.avg_r+'R')
+      :'Nothing closed yet on this timeframe. A missing number is shown as a dash, not as 0%.';
+  }
+  set('real-stats',(st&&st.n)?(st.n+' closed · '+(st.avg_r>=0?'+':'')+st.avg_r+'R avg')
+    :'no closed signals yet');
 }
 function initClicks(){
   document.querySelectorAll('[data-tf]').forEach(b=>{b.onclick=()=>setTimeframe(b.dataset.tf);b.ontouchend=(e)=>{e.preventDefault();setTimeframe(b.dataset.tf);};});
@@ -9521,6 +9549,12 @@ function paintMobStrip(){
       }
       const _scan=scanLabel();
       if(side==='HOLD'&&(_volume0Stale())) sub='waiting pullback';
+      if(side==='HOLD'&&s2.edge_block){
+        // the setup is there but its own record is not good enough to act on - say which
+        const eb=s2.edge_block;
+        sub=(eb.n<12)?('unproven · '+eb.n+' trades')
+                     :('losing · '+eb.n+' trades');
+      }
       if(side==='HOLD'){
         // say which wall stopped it: a pullback to the level, or the timeframe above
         const _hb=((window._volume||{}).signal||{}).htf_block;
