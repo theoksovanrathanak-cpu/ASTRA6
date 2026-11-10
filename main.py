@@ -4933,7 +4933,7 @@ EDGE_TTL = 240.0        # recompute the measured record every four minutes
 EDGE_MIN_N = 12         # a setup type needs this many closed trades before it may print
 
 
-def edge_stats(symbol, tf_key, bars=700):
+def edge_stats(symbol, tf_key, bars=1200):
     """What the shipped rules have actually done on this timeframe, by setup type.
 
     Every time a setup prints, it is followed on the bars that came after it with the plan
@@ -5325,10 +5325,14 @@ def get_volume(symbol: str = "XAUUSD", venue: str = None, rows: int = 48,
                 if not _ok:
                     _sg["edge_block"] = {"style": _sg.get("style"), "n": int(_b.get("n") or 0),
                                          "avg_r": _b.get("avg_r"), "winrate": _b.get("winrate")}
-                    if int(_b.get("n") or 0) < EDGE_MIN_N:
+                    _nb = int(_b.get("n") or 0)
+                    if _nb == 0:
+                        _why = (f"{_sg.get('style')} setup at the level, but it has no completed "
+                                f"trades behind it yet - nothing measured, so it is not taken.")
+                    elif _nb < EDGE_MIN_N:
                         _why = (f"{_sg.get('style')} setup at the level, but it has only "
-                                f"{int(_b.get('n') or 0)} closed trades behind it - too few to "
-                                f"claim an edge, so it is not taken.")
+                                f"{_nb} closed trades behind it - too few to claim an edge, "
+                                f"so it is not taken.")
                     else:
                         _why = (f"{_sg.get('style')} setup at the level, but on its last "
                                 f"{int(_b.get('n') or 0)} trades it returned "

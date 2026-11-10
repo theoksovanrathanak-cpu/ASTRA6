@@ -9552,7 +9552,8 @@ function paintMobStrip(){
       if(side==='HOLD'&&s2.edge_block){
         // the setup is there but its own record is not good enough to act on - say which
         const eb=s2.edge_block;
-        sub=(eb.n<12)?('unproven · '+eb.n+' trades')
+        sub=(!eb.n)?'untested setup'
+           :(eb.n<12)?('unproven · '+eb.n+' trades')
                      :('losing · '+eb.n+' trades');
       }
       if(side==='HOLD'){
