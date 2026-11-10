@@ -6608,7 +6608,9 @@ function startPriceStream(){
     priceStream=null; streamOk=false; return;
   }
   const key=currentSymbol+'|'+currentVenue;
-  if(key===streamKey&&priceStream&&priceStream.readyState===0) return;
+  // 0 = connecting, 1 = open: either way the stream is alive, so do not tear it down
+  // (the resume handler calls this on every switch back to the app)
+  if(key===streamKey&&priceStream&&(priceStream.readyState===0||priceStream.readyState===1)) return;
   stopPriceStream();
   streamKey=key;
   if(typeof EventSource==='undefined') return;      // very old browser: polling stays on
