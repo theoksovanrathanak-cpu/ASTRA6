@@ -6343,7 +6343,7 @@ function queueTick(d){
 // market or a reduced-motion user is painted straight away: easing a big jump would mean
 // showing prices that never happened.
 let _gTarget=null,_gShown=null,_gRaf=0,_gLast=0,_gBar=null,_gSym='';
-const GLIDE_TAU=70;                      // ~95% of the distance in 210 ms
+const GLIDE_TAU=45;                      // lands on the quote inside one tick interval (~135 ms)
 function _glideReduced(){
   try{return !!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches);}catch(e){return false;}
 }
@@ -6357,6 +6357,7 @@ function _glidePaint(close){
       high:Math.max(lc.high,close),low:Math.min(lc.low,close),close:close});
   }catch(e){}
 }
+let _gPaintAt=0;
 function _glideStep(now){
   _gRaf=0;
   const lc=(lastCandles&&lastCandles.length)?lastCandles[lastCandles.length-1]:null;
@@ -6365,8 +6366,11 @@ function _glideStep(now){
   _gLast=now;
   _gShown+=(_gTarget-_gShown)*(1-Math.exp(-dt/GLIDE_TAU));
   const eps=Math.max(0.0005,Math.abs(_gTarget)*2e-6);
-  if(Math.abs(_gTarget-_gShown)<=eps){ _gShown=_gTarget; _glidePaint(_gShown); return; }  // land exactly on the real quote
-  _glidePaint(_gShown);
+  if(Math.abs(_gTarget-_gShown)<=eps){ _gShown=_gTarget; _glidePaint(_gShown); _gPaintAt=now; return; }  // land exactly on the real quote
+  // The eased value is computed every frame but the chart is redrawn at ~30 fps: a
+  // lightweight-charts update repaints the whole pane, and doing that 60 times a second
+  // on a phone is what made a live chart feel heavy. The landing above is still exact.
+  if(now-_gPaintAt>=33){ _glidePaint(_gShown); _gPaintAt=now; }
   _gRaf=requestAnimationFrame(_glideStep);
 }
 function glidePrice(price, barTime){
