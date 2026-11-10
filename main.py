@@ -5334,9 +5334,16 @@ def get_volume(symbol: str = "XAUUSD", venue: str = None, rows: int = 48,
                                 f"{_nb} closed trades behind it - too few to claim an edge, "
                                 f"so it is not taken.")
                     else:
+                        _wr_ = float(_b.get("winrate") or 0)
+                        _ar_ = float(_b.get("avg_r") or 0)
                         _why = (f"{_sg.get('style')} setup at the level, but on its last "
-                                f"{int(_b.get('n') or 0)} trades it returned "
-                                f"{float(_b.get('avg_r') or 0):+.2f}R each - not taken until it pays again.")
+                                f"{int(_b.get('n') or 0)} trades it returned {_ar_:+.2f}R each - "
+                                f"not taken until it pays again.")
+                        if _wr_ >= 50 and _ar_ <= 0:
+                            # the honest explanation of the number people misread: hitting
+                            # the target often is not the same as making money
+                            _why += (f" It reaches TP1 {_wr_:.0f}% of the time, but the "
+                                     f"losers are bigger than the winners.")
                     _sg["blocked_trade"] = {"type": _sg.get("type"), "entry": _sg.get("entry"),
                                             "sl": _sg.get("sl"), "tp1": _sg.get("tp1"),
                                             "tp2": _sg.get("tp2"), "style": _sg.get("style")}

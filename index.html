@@ -2291,7 +2291,7 @@ body[data-view="chart"] .hd-quote{left:auto;right:9px;bottom:2px;text-align:righ
           <div class="metric-v mono" id="sig-conf">--%</div>
         </div>
         <div class="metric">
-          <div class="metric-k">Winrate</div>
+          <div class="metric-k" id="sig-winrate-k">Winrate</div>
           <div class="metric-v mono" id="sig-winrate">—</div>
         </div>
       </div>
@@ -3751,6 +3751,9 @@ function renderCurrent(s){if(!s)return;window._lastSignal=s;const typeEl=documen
          +'avg '+(st.avg_r>=0?'+':'')+st.avg_r+'R per trade');
     sw.classList.toggle('up',s.winrate_est!=null&&s.winrate_est>=50);
     sw.classList.toggle('down',s.winrate_est!=null&&s.winrate_est<50);
+    // the label carries the sample: a percentage with no n is a rumour, not a record
+    const swk=document.getElementById('sig-winrate-k');
+    if(swk) swk.textContent=(st.n?('Winrate · n='+st.n):'Winrate · no sample');
   }const sl=document.getElementById('sig-time');if(sl){try{sl.textContent=(s.time_str||'')+' · '+(s.strategy||'ASTRA6 Elite');}catch(e){sl.textContent=s.type;}}const reasons=document.getElementById('sig-reasons');if(reasons)reasons.textContent=(s.reasons&&s.reasons[0])||'Scanning for a high-confluence setup.';const sltp=document.getElementById('sig-sltp');if(sltp){
     if(s.sl){
       sltp.innerHTML=`<span style="color:var(--muted)">ENTRY <b style="color:var(--ink)">${fmtPx(s.entry!=null?s.entry:s.price)}</b></span>`
