@@ -330,6 +330,29 @@ _d2 = dict(_d); _d2["signal"] = dict(_d["signal"]); _d2["signal"]["type"] = "HOL
 check("the gate gets its own copy of the shared response",
       _d["signal"]["type"] == "SELL" and _d2["signal"]["type"] == "HOLD")
 
+# ================= round 16: a news reading may not nag ================================
+import pushweb as PW  # noqa: E402
+
+_now = 1794321600.0
+_ok, _why = PW.fund_decision(None, "BUY", 0.9, 80, 0, 0, _now)
+check("the first sighting is not news either - the caller remembers it silently",
+      PW.fund_decision(None, "BUY", 0.9, 80, 0, 0, _now)[1] == "flipped")
+check("a strong flip rings", PW.fund_decision("SELL", "BUY", -0.9, 80, 0, 0, _now)[0])
+check("the same side never rings twice",
+      not PW.fund_decision("BUY", "BUY", 0.9, 80, 0, 0, _now)[0])
+check("NEUTRAL never rings",
+      not PW.fund_decision("BUY", "NEUTRAL", 0.0, 80, 0, 0, _now)[0])
+check("a weak reading does not wake the phone",
+      not PW.fund_decision("BUY", "SELL", -0.2, 80, 0, 0, _now)[0])
+check("a low-confidence reading does not either",
+      not PW.fund_decision("BUY", "SELL", -0.9, 20, 0, 0, _now)[0])
+check("a flip inside the cooldown is held",
+      not PW.fund_decision("BUY", "SELL", -0.9, 80, _now - 600, 1, _now)[0])
+check("a flip after the cooldown rings",
+      PW.fund_decision("BUY", "SELL", -0.9, 80, _now - PW.FUND_COOLDOWN - 1, 1, _now)[0])
+check("the daily cap stops the fourth-plus",
+      not PW.fund_decision("BUY", "SELL", -0.9, 80, 0, PW.FUND_MAX_DAY, _now)[0])
+
 # ================= round 8: a tick is not a candle ====================================
 import main as APP  # noqa: E402
 

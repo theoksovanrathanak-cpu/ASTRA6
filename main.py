@@ -5499,6 +5499,116 @@ def _push_rsi(sym):
 _PUSH_VENUE = {"XAUUSD": "XAUS", "XAGUSD": "COMEX", "ES": "CME", "NQ": "CME", "CL": "NYMEX"}
 
 
+_FUND_LOG = os.path.join(os.environ.get("ASTRA6_DATA", "/tmp"), "astra6_fund_log.json")
+
+
+def _fund_price():
+    """The live mid the chart would show, for the price we stamp on a fundamentals flip."""
+    try:
+        q = _push_quote("XAUUSD")
+        return float((q or {}).get("price")) if q else None
+    except Exception:
+        return None
+
+
+def _fund_log_add(side, score, conf, price, stories, start=False):
+    """Write down every flip with the price at that moment.
+
+    This is the only way a news reading can ever be judged honestly later: without a
+    stamped price at the moment it turned, "the fundamentals were right" is a memory, not
+    a record. Nothing here claims an edge - it records what happened.
+    """
+    try:
+        rows = []
+        try:
+            with open(_FUND_LOG, encoding="utf-8") as f:
+                rows = json.load(f) or []
+            if not isinstance(rows, list):
+                rows = []
+        except Exception:
+            rows = []
+        rows.append({"at": int(time.time()), "side": side, "score": round(float(score), 3),
+                     "confidence": int(conf), "price": price, "start": bool(start),
+                     "stories": [{"title": (st or {}).get("title"),
+                                  "impact": (st or {}).get("impact")}
+                                 for st in (stories or [])[:4]]})
+        rows = rows[-400:]
+        os.makedirs(os.path.dirname(_FUND_LOG), exist_ok=True)
+        with open(_FUND_LOG, "w", encoding="utf-8") as f:
+            json.dump(rows, f)
+    except Exception as e:
+        print("fund log", str(e)[:80])
+
+
+def _push_fund(sym="XAUUSD"):
+    """The gold-fundamentals reading as a phone card, and the log behind it.
+
+    The bias is a fixed rule table applied to real published headlines - the same number
+    the panel shows. It is a read of the news, not an entry, and the card says so.
+    """
+    try:
+        import news as NEWS
+        d = NEWS.gold_fundamentals(limit=12)
+    except Exception as e:
+        print("push fund read", str(e)[:80])
+        return None
+    if not d or d.get("status") != "ok":
+        return None
+    bias = str(d.get("bias") or "NEUTRAL").upper()
+    score, conf = d.get("score"), d.get("confidence")
+    stories = d.get("stories") or []
+    voters = [x for x in stories if str(x.get("impact") or "").upper() in ("BUY", "SELL")]
+    # remember the flip only when the side really changes, not on every 5-minute rebuild
+    prev = getattr(_push_fund, "_side", None)
+    if bias != prev:
+        if bias in ("BUY", "SELL"):
+            # the very first stamp of a fresh process is a starting point, not a flip: the
+            # record must not count "the reading was already SELL when the server booted"
+            # as the reading having turned
+            _fund_log_add(bias, score or 0, conf or 0, _fund_price(), voters, start=(prev is None))
+        _push_fund._side = bias
+    if bias != "BUY" and bias != "SELL":
+        return None
+    top = voters[0] if voters else (stories[0] if stories else {})
+    t = (top.get("title") or "")
+    if len(t) > 110:
+        t = t[:107] + "..."
+    money = lambda v: ("$" + format(float(v), ",.2f")) if v is not None else "—"
+    px = _fund_price()
+    body = ("reading %+.2f · %d%% confidence · %d of %d stories vote %s"
+            % (float(score or 0), int(conf or 0),
+               sum(1 for x in voters if str(x.get("impact")).upper() == bias), len(voters) or 0, bias))
+    if t:
+        body += " · " + t
+    if px is not None:
+        body += " · gold " + money(px)
+    body += " · a read of the news, not an entry"
+    return {"side": bias, "score": score, "confidence": conf, "price": px,
+            "title": "GOLD FUNDAMENTAL · %s" % bias, "body": body}
+
+
+def _fund_watch():
+    """Stamp the gold reading on a clock, whether or not a phone has the card armed.
+
+    Without this the history only exists while somebody is subscribed, which makes the
+    reading impossible to judge later. It pushes nothing: the push decision stays in
+    pushweb, this only records what the reading said and what gold cost at the time.
+    """
+    time.sleep(20)
+    while True:
+        try:
+            _push_fund("XAUUSD")
+        except Exception as e:
+            print("fund watch", str(e)[:80])
+        time.sleep(120)
+
+
+try:
+    threading.Thread(target=_fund_watch, daemon=True, name="fund-watch").start()
+except Exception as _fw:
+    print("fund watch thread:", _fw)
+
+
 def _push_read(sym):
     """The market-read card the app itself shows, from the same cluster maths."""
     try:
@@ -5550,7 +5660,8 @@ def _push_read(sym):
 
 try:
     import pushweb as PUSHWEB
-    PUSHWEB.configure(quote_fn=_push_quote, rsi_fn=_push_rsi, read_fn=_push_read)
+    PUSHWEB.configure(quote_fn=_push_quote, rsi_fn=_push_rsi, read_fn=_push_read,
+                      fund_fn=_push_fund)
     PUSHWEB.start()
 except Exception as _pwe:
     print("pushweb:", _pwe)
@@ -5690,10 +5801,68 @@ def get_gold_fundamentals(limit: int = 12):
     """
     try:
         import news as NEWS
-        return NEWS.gold_fundamentals(limit=max(6, min(24, int(limit or 12))))
+        d = NEWS.gold_fundamentals(limit=max(6, min(24, int(limit or 12))))
+        # the reading's own history, so the panel can show whether it has been right
+        try:
+            f = get_fund_flips(limit=60)
+            if isinstance(f, dict) and f.get("status") == "ok":
+                d["flip_record"] = {"n": f.get("n"), "n_measured": f.get("n_measured"),
+                                    "moved_with_read": f.get("moved_with_read"),
+                                    "basis": f.get("basis"),
+                                    "last": (f.get("flips") or [])[-1:] }
+        except Exception as _fe:
+            print("fund flip record", str(_fe)[:80])
+        return d
     except Exception as e:
         print("gold fundamentals err", e)
         return {"status": "error", "error": str(e), "market": "XAUUSD", "real": True}
+
+
+@app.get("/api/fundamentals/flips")
+def get_fund_flips(limit: int = 40):
+    """Every time the gold news reading changed side, with the price stamped at that moment.
+
+    Descriptive only: it says how far gold has moved since each flip, in the flip's own
+    direction. It is NOT a win rate and not an R multiple - a news read has no stop and no
+    target, so pretending it produced trades would be inventing a result. This exists so
+    the reading can be judged later on what it actually did.
+    """
+    try:
+        rows = []
+        try:
+            with open(_FUND_LOG, encoding="utf-8") as f:
+                rows = json.load(f) or []
+        except Exception:
+            rows = []
+        rows = [r for r in rows if isinstance(r, dict)]
+        px = _fund_price()
+        out = []
+        for r in rows[-max(1, min(200, int(limit or 40))):]:
+            side = str(r.get("side") or "").upper()
+            p0 = r.get("price")
+            move = None
+            if p0 and px:
+                move = round(float(px) - float(p0), 2)
+            out.append({"at": r.get("at"), "side": side, "score": r.get("score"),
+                        "confidence": r.get("confidence"), "price": p0,
+                        "moved_usd": move,
+                        "moved_pct": (round(100.0 * (move / float(p0)), 3)
+                                      if move is not None and p0 else None),
+                        "start": bool(r.get("start")),
+                        "with_read": (None if move is None else
+                                      (move > 0 if side == "BUY" else (move < 0 if side == "SELL" else None))),
+                        "stories": r.get("stories") or []})
+        flips = [x for x in out if not x.get("start")]
+        with_read = [x for x in out if x.get("with_read") is not None]
+        return {"status": "ok", "market": "XAUUSD", "price_now": px,
+                "n": len(flips), "n_entries": len(out), "n_measured": len(with_read),
+                "moved_with_read": sum(1 for x in with_read if x["with_read"]),
+                "basis": ("price stamped when the reading turned, compared with the price now · "
+                          "descriptive, not a win rate and not a trade result"),
+                "flips": out}
+    except Exception as e:
+        print("fund flips", e)
+        return {"status": "error", "error": str(e)[:120], "market": "XAUUSD"}
 
 
 @app.get("/api/fundamentals")

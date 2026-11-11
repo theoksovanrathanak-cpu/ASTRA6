@@ -3080,6 +3080,17 @@ function goldFundHtml(){
   }
   h+='<div class="gf-sched"><span>next reading <b id="gf-cd2">'+gfCountdown()+'</b> · '+esc(gfFmt(_gf.next_update))+'</span>'
     +'<span>on the 5-minute clock (:00 :05 :10 …)</span></div>';
+  // what the reading has actually done since it was recorded - facts, not a score
+  const fr=_gf.flip_record;
+  if(fr&&fr.n){
+    const last=((fr.last||[])[0])||null;
+    h+='<div class="gf-sched" style="flex-direction:column;align-items:flex-start;gap:4px">'
+      +'<span><b>'+fr.n+'</b> turn'+(fr.n===1?'':'s')+' recorded · '
+      +'<b>'+(fr.moved_with_read||0)+'</b> of '+(fr.n_measured||0)+' measured moved the way the reading said'
+      +(last&&last.moved_usd!=null?(' · last '+esc(last.side)+' at '+fmtPx(last.price)+', now '
+        +(last.moved_usd>=0?'+':'')+Number(last.moved_usd).toFixed(2)):'')+'</span>'
+      +'<span style="font-size:10px;color:var(--muted)">'+esc(fr.basis||'')+'</span></div>';
+  }
   h+='<div class="sheet-note">'+esc(_gf.method||'')+'<br>'
     +'Rule-based reading of published headlines from '+esc((_gf.sources||[]).join(', ')||'public feeds')
     +'. It is not a forecast and not advice. Times are your own timezone.</div>';
@@ -8148,6 +8159,8 @@ function paintBnav(){
 // The browser's own push service wakes the phone; the server only sends what the
 // trader armed, off the same real prices the chart draws.
 let PUSH_ON=false,PUSH_READ=(function(){try{return localStorage.getItem('astra6_push_read')==='1';}catch(e){return false;}})(),
+    // on by default, because this was asked for; turning it off writes '0' and sticks
+    PUSH_FUND=(function(){try{return localStorage.getItem('astra6_push_fund')!=='0';}catch(e){return true;}})(),
     _pushEp='',_pushReg=null,_pushTimer=0,pushState='off';
 function pushSupported(){
   return ('serviceWorker' in navigator)&&('PushManager' in window)&&('Notification' in window);
@@ -8171,6 +8184,7 @@ function pushRules(){
   });
 }
 function pushReadCard(){return {on:!!PUSH_READ,syms:[SITE_SYMBOL]};}
+function pushFundCard(){return {on:!!PUSH_FUND,sym:SITE_SYMBOL};}
 function pushStateText(){
   if(!pushSupported())return 'This browser cannot receive push notifications.';
   if(pushState==='on')return 'On — the card arrives even with the app closed.';
@@ -8193,7 +8207,7 @@ async function pushEnable(){
     }
     _pushEp=sub.endpoint;
     const r=await (await fetch('/api/push/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({subscription:sub,rules:pushRules(),readCard:pushReadCard(),ua:navigator.userAgent.slice(0,110)})})).json();
+      body:JSON.stringify({subscription:sub,rules:pushRules(),readCard:pushReadCard(),fundCard:pushFundCard(),ua:navigator.userAgent.slice(0,110)})})).json();
     if(!r||r.status!=='ok'){toast('The server did not accept the subscription');return;}
     PUSH_ON=true;pushState='on';
     try{localStorage.setItem('astra6_push','1');}catch(e){}
@@ -8220,7 +8234,7 @@ async function pushResubscribe(){
     if(!sub)return;                     // no handle: the user has to switch it on again
     _pushEp=sub.endpoint; PUSH_ON=true; pushState='on';
     await fetch('/api/push/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({subscription:sub,rules:pushRules(),readCard:pushReadCard(),ua:navigator.userAgent.slice(0,110)})});
+      body:JSON.stringify({subscription:sub,rules:pushRules(),readCard:pushReadCard(),fundCard:pushFundCard(),ua:navigator.userAgent.slice(0,110)})});
     pushHeartbeat();
     if(document.getElementById('push-watch'))renderAlertsPanel();
   }catch(e){}
@@ -8244,7 +8258,7 @@ async function pushSync(){
   if(!PUSH_ON||!_pushEp)return;
   try{
     await fetch('/api/push/sync',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({endpoint:_pushEp,rules:pushRules(),readCard:pushReadCard(),awake:document.visibilityState==='visible'})});
+      body:JSON.stringify({endpoint:_pushEp,rules:pushRules(),readCard:pushReadCard(),fundCard:pushFundCard(),awake:document.visibilityState==='visible'})});
   }catch(e){}
 }
 // the page is going away (tab closed, phone locked, app switched):
@@ -8252,7 +8266,7 @@ async function pushSync(){
 function pushSleepBeacon(){
   if(!_pushEp)return;
   try{
-    const body=JSON.stringify({endpoint:_pushEp,rules:pushRules(),readCard:pushReadCard(),awake:false});
+    const body=JSON.stringify({endpoint:_pushEp,rules:pushRules(),readCard:pushReadCard(),fundCard:pushFundCard(),awake:false});
     if(navigator.sendBeacon){navigator.sendBeacon('/api/push/sync',new Blob([body],{type:'application/json'}));return;}
     fetch('/api/push/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:body,keepalive:true});
   }catch(e){}
@@ -8317,6 +8331,12 @@ function togglePushRead(){
   try{localStorage.setItem('astra6_push_read',PUSH_READ?'1':'0');}catch(e){}
   renderAlertsPanel();pushSync();
 }
+function togglePushFund(){
+  PUSH_FUND=!PUSH_FUND;
+  try{localStorage.setItem('astra6_push_fund',PUSH_FUND?'1':'0');}catch(e){}
+  renderAlertsPanel();pushSync();
+  toast(PUSH_FUND?'Fundamental alerts on — rings only when the news reading flips':'Fundamental alerts off');
+}
 async function pushRestore(){
   if(!pushSupported())return;
   let want=false;
@@ -8346,8 +8366,10 @@ function pushBlockHtml(){
     h+='<div id="push-watch" class="push-watch">checking the watcher…</div>';
     setTimeout(function(){try{pushWatcher();}catch(e){}},60);
     h+='<div class="tp-chips"><button class="tp-chip" onclick="pushTest()">Send a test card</button>'
-      +'<button class="tp-chip'+(PUSH_READ?' on':'')+'" onclick="togglePushRead()">Signal cards</button></div>';
+      +'<button class="tp-chip'+(PUSH_READ?' on':'')+'" onclick="togglePushRead()">Signal cards</button>'
+      +'<button class="tp-chip'+(PUSH_FUND?' on':'')+'" onclick="togglePushFund()">Gold fundamentals</button></div>';
     h+='<div class="tp-note">Signal cards ring twice per trade: once when a BUY or SELL prints, once when it hits TP1, TP2 or the stop. Never on a timer, never a repeat of a side that is still on, at most six an hour.</div>';
+    h+='<div class="tp-note">Gold fundamentals sends BUY or SELL when the news reading <b>turns over</b> — it must change side, be at least 0.45 strong, and it can ring at most 4 times a day, 45 minutes apart. It is a read of the headlines, not an entry: no stop, no target.</div>';
   }
   if(pushIsIOS()&&!pushStandalone()){
     h+='<div class="tp-chips"><button class="tp-chip" onclick="installFlow()">Add to Home Screen</button></div>';

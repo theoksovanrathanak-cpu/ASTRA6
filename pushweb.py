@@ -43,16 +43,27 @@ LAST_SCAN = [0.0]          # when the rule engine last walked the subscribers
 _quote_fn = None
 _rsi_fn = None
 _read_fn = None
+_fund_fn = None
+
+# The news reading is a different kind of animal from a price rule: it is rebuilt on a
+# fixed 5-minute clock and it can sit on one side for hours. So it may ring only when the
+# reading actually turns over, and never more than a few times a day.
+FUND_COOLDOWN = 45 * 60
+FUND_MAX_DAY = 4
+FUND_MIN_CONF = 45
+FUND_MIN_SCORE = 0.45
 
 
-def configure(quote_fn=None, rsi_fn=None, read_fn=None):
-    global _quote_fn, _rsi_fn, _read_fn
+def configure(quote_fn=None, rsi_fn=None, read_fn=None, fund_fn=None):
+    global _quote_fn, _rsi_fn, _read_fn, _fund_fn
     if quote_fn:
         _quote_fn = quote_fn
     if rsi_fn:
         _rsi_fn = rsi_fn
     if read_fn:
         _read_fn = read_fn
+    if fund_fn:
+        _fund_fn = fund_fn
 
 
 # ------------------------------------------------------------------ keys
@@ -351,6 +362,66 @@ def _num(v, dec=2):
         return "—"
 
 
+def fund_decision(prev_side, side, score, conf, last_ts, day_count, now):
+    """Should a fundamentals flip ring the phone? (ring, reason)
+
+    Kept pure and separate so the rule can be tested without a push service. The point of
+    the checks is that a headline reading is noisy: it must actually change side, be strong
+    enough to mean something, and it may not wake anyone more than a few times a day.
+    """
+    side = str(side or "").upper()
+    if side not in ("BUY", "SELL"):
+        return False, "no side"
+    if str(prev_side or "").upper() == side:
+        return False, "same side"
+    try:
+        score, conf = abs(float(score or 0)), float(conf or 0)
+    except Exception:
+        return False, "no numbers"
+    if score < FUND_MIN_SCORE:
+        return False, "reading too weak"
+    if conf < FUND_MIN_CONF:
+        return False, "confidence too low"
+    if last_ts and (now - float(last_ts)) < FUND_COOLDOWN:
+        return False, "cooling down"
+    if int(day_count or 0) >= FUND_MAX_DAY:
+        return False, "daily cap"
+    return True, "flipped"
+
+
+def fund_cards(rec):
+    """The gold-fundamentals card: rings when the news reading turns from one side to the other."""
+    fc = rec.get("fundCard") or {}
+    if not fc.get("on") or not _fund_fn:
+        return []
+    try:
+        d = _fund_fn(fc.get("sym") or "XAUUSD")
+    except Exception as e:
+        print("push fund", str(e)[:80])
+        return []
+    if not d:
+        return []
+    side = str(d.get("side") or "").upper()
+    state = rec.setdefault("fundState", {})
+    key = fc.get("sym") or "XAUUSD"
+    prev = state.get(key) or {}
+    now = time.time()
+    day = int(now // 86400)
+    if int(prev.get("day") or 0) != day:
+        prev = {"side": prev.get("side"), "day": day, "n": 0, "at": prev.get("at") or 0}
+    ok, why = fund_decision(prev.get("side"), side, d.get("score"), d.get("confidence"),
+                            prev.get("at"), prev.get("n"), now)
+    # the first sighting is remembered, never rung: waking a phone to announce that
+    # something has been true all day is exactly the spam this had to stop being
+    first = not prev.get("side")
+    state[key] = {"side": side or prev.get("side"), "day": day,
+                  "n": prev.get("n") or 0, "at": prev.get("at") or 0}
+    if first or not ok or not d.get("title"):
+        return []
+    state[key] = {"side": side, "day": day, "n": int(prev.get("n") or 0) + 1, "at": now}
+    return [card(d.get("title"), d.get("body") or "", key, "fund", "astra6-fund-" + key)]
+
+
 def read_cards(rec):
     """The market-read card, only when the read actually changes."""
     rc = rec.get("readCard") or {}
@@ -411,7 +482,7 @@ def scan_once(force=False):
             awake = (now - float(rec.get("seen") or 0)) < AWAKE_SECONDS
             events = []
             if not awake or force:
-                events = eval_rules(rec) + read_cards(rec)
+                events = eval_rules(rec) + read_cards(rec) + fund_cards(rec)
             if not events:
                 continue
             hist = [t for t in (rec.get("sentAt") or []) if now - float(t) < 3600]
@@ -433,6 +504,7 @@ def scan_once(force=False):
                         r["last"] = rec.get("last") or {}
                         r["readState"] = rec.get("readState") or {}
                         r["readAt"] = rec.get("readAt") or {}
+                        r["fundState"] = rec.get("fundState") or {}
                         r["sentAt"] = rec.get("sentAt") or []
                 _save(rows)
         except Exception as e:
