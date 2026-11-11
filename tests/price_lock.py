@@ -379,6 +379,21 @@ check("a continuation with the fundamentals on side is marked as the confluence"
       bool(_csg3) and _csg3.get("type") == "BUY" and "fundamentals" in (_csg3.get("style") or ""),
       _csg3)
 
+# the weekly value area is a level the continuation family can trade
+_hv = {"high": 3903.0, "low": 3880.0, "poc": 3900.0, "bars": 12}
+_wsig = VOL.continuation(_cc, _cva, _catr, htf_dir=None, fund_dir=None, htf_va=_hv)
+check("a break of the weekly value area is named as one", bool(_wsig) and "weekly" in (_wsig.get("style") or ""),
+      _wsig.get("style") if _wsig else None)
+_va_only = VOL.htf_value_area([{"time": i * 604800, "open": 3900, "high": 3910 + i,
+                                "low": 3890 - i, "close": 3900 + i, "volume": 1000} for i in range(12)])
+check("a weekly value area is built from real weekly bars",
+      bool(_va_only) and _va_only["high"] > _va_only["low"] and _va_only["bars"] == 12, _va_only)
+_wkbars = [{"time": i * 604800, "open": 3900, "high": 3910 + i, "low": 3890 - i,
+            "close": 3900 + i, "volume": 1000} for i in range(12)]
+check("a weekly value area never uses a bar that has not closed yet",
+      VOL.htf_value_area_at(_wkbars, ts=604800 * 12) is not None
+      and VOL.htf_value_area_at(_wkbars, ts=604800 * 5) is None)
+
 # ================= round 16: a news reading may not nag ================================
 import pushweb as PW  # noqa: E402
 

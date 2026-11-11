@@ -4933,6 +4933,37 @@ EDGE_TTL = 240.0        # recompute the measured record every four minutes
 EDGE_MIN_N = 12         # a setup type needs this many closed trades before it may print
 
 
+_HTF_CACHE = {}
+
+
+def _htf_bars(symbol="XAUUSD", kind="1wk", rng="2y"):
+    """Weekly bars straight from the feed (real open/high/low/close, no local invention).
+
+    Used for the higher-timeframe value area: the level where value has sat for a quarter,
+    which the continuation family trades when price breaks and holds it.
+    """
+    k = (str(symbol).upper(), kind, rng)
+    now = time.time()
+    hit = _HTF_CACHE.get(k)
+    if hit and now - hit["t"] < 1800:
+        return hit["d"]
+    out = []
+    try:
+        import requests as _rq
+        u = ("https://xaus.com/api/v1/chart?symbol=xau&range=%s&interval=%s" % (rng, kind))
+        r = _rq.get(u, timeout=12, headers={"User-Agent": "ASTRA6/1.0"})
+        if r.status_code == 200:
+            for p in (r.json().get("points") or []):
+                out.append({"time": int(p["t"]), "open": float(p["o"]), "high": float(p["h"]),
+                            "low": float(p["l"]), "close": float(p["c"]),
+                            "volume": float(p.get("v") or 0)})
+            out.sort(key=lambda c: c["time"])
+    except Exception as e:
+        print("htf bars", str(e)[:80])
+    _HTF_CACHE[k] = {"t": now, "d": out}
+    return out
+
+
 _FUND_DIR = {"t": 0.0, "d": 0}
 
 
@@ -4985,7 +5016,8 @@ def edge_stats(symbol, tf_key, bars=1200):
         if len(raw) >= 140:
             raw = VOL.split_estimate(raw)
             d = VOL.trade_stats(raw, tf_minutes=VOL.TF_MINUTES.get(tf_key, 15),
-                                sample=max(40, len(raw) - 60))
+                                sample=max(40, len(raw) - 60),
+                                htf_bars=_htf_bars(symbol))
     except Exception as e:
         d = {"status": "error", "error": str(e)[:120], "n": 0, "by_style": {}}
     _EDGE_CACHE[key] = {"t": now, "d": d}
@@ -5352,7 +5384,7 @@ def get_volume(symbol: str = "XAUUSD", venue: str = None, rows: int = 48,
         data = VOL.analyse(raw, rows=max(12, min(120, rows)), min_pct=max(0.0, min(100.0, min_pct)),
                            verify_quote=lock_q, tf_minutes=VOL.TF_MINUTES.get(tf_key, 15),
                            market_open=_lock_market_open(symbol), min_bars=40,
-                           fund_dir=fund_dir_now())
+                           fund_dir=fund_dir_now(), htf_bars=_htf_bars(symbol))
         # the response is cached for a few seconds and handed to more than one caller:
         # the edge gate below edits it, so it edits a copy. Otherwise one blocked read
         # would keep the setup blocked (and keep the old numbers attached) after the

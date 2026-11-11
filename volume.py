@@ -433,6 +433,37 @@ def htf_structure(candles, tf_minutes=15, look=3):
 FRESH_RISK_MULT = 0.80      # the level must sit inside the risk the trade would take
 
 
+def htf_value_area(bars, lookback=12):
+    """70% value area of the last `lookback` higher-timeframe bars (weekly by default).
+
+    The session profile answers "where did value sit today"; this answers "where has value
+    sat for three months". A break of THAT is a structural event, not intraday noise, and it
+    is the level the continuation family trades when it is supplied.
+    """
+    if not bars or len(bars) < max(4, lookback // 2):
+        return None
+    w = bars[-int(lookback):]
+    w = split_estimate([dict(b) for b in w])       # clusters needs a buy/sell split
+    cl, poc, _ = clusters(w, 40, 1.0)
+    if not cl or not poc:
+        return None
+    va = value_area(cl, poc)
+    if not va:
+        return None
+    return {"high": va["high"], "low": va["low"], "poc": poc["top"],
+            "bars": len(w), "from": int(w[0]["time"]), "to": int(w[-1]["time"])}
+
+
+def htf_value_area_at(bars, ts, lookback=12, period_s=604800):
+    """The same value area as it stood at `ts` - only bars that had already closed."""
+    if not bars:
+        return None
+    done = [b for b in bars if int(b["time"]) + int(period_s) <= int(ts)]
+    if len(done) < max(4, lookback // 2):
+        return None
+    return htf_value_area(done, lookback)
+
+
 def liquidity_pools(candles, atr, look=60, k=3, tol=0.15):
     """Where the stops are: recent swing highs/lows, grouped into equal-high/low pools.
 
@@ -463,7 +494,7 @@ def liquidity_pools(candles, atr, look=60, k=3, tol=0.15):
 
 
 def continuation(candles, va, atr, htf_dir=None, fund_dir=None, tf_minutes=5,
-                 look_break=10, accept=0.20, retest=0.25, min_pool=2):
+                 look_break=10, accept=0.20, retest=0.25, min_pool=2, htf_va=None):
     """Break liquidity, then trade the direction of the break when the level holds.
 
     This is the opposite bet to the fade in `signal()`. A close beyond a liquidity pool by
@@ -487,14 +518,20 @@ def continuation(candles, va, atr, htf_dir=None, fund_dir=None, tf_minutes=5,
         # two kinds of level can be broken: the value edge itself, and a pooled liquidity
         # level sitting outside it. The edge is the frequent one; the pools are the ones
         # with real stops behind them.
-        cands = [(edge, 0, "value edge")]
+        cands = [(edge, 0, "value edge", 0)]
+        # the weekly / higher-timeframe value area, when the caller has it: a break of the
+        # level where value has sat for months is the bigger structural event
+        if htf_va:
+            h_edge = htf_va.get("high") if side == 1 else htf_va.get("low")
+            if h_edge:
+                cands.append((h_edge, 0, "weekly VAH" if side == 1 else "weekly VAL", 2))
         for g in pools:
             if g["n"] < min_pool:
                 continue
             if (side == 1 and g["price"] <= edge) or (side == -1 and g["price"] >= edge):
                 continue                     # a pool inside value is not a breakout level
-            cands.append((g["price"], int(g["n"]), "highs" if side == 1 else "lows"))
-        for lvl, touches, lname in cands:
+            cands.append((g["price"], int(g["n"]), "highs" if side == 1 else "lows", 1))
+        for lvl, touches, lname, prio in cands:
             g = {"price": lvl, "n": touches}
             bidx = None
             for j in range(max(0, len(candles) - 1 - look_break), len(candles) - 1):
@@ -539,10 +576,14 @@ def continuation(candles, va, atr, htf_dir=None, fund_dir=None, tf_minutes=5,
                     "family": "continuation",
                     "reason": ("broke %s %.2f%s and held it"
                                % (lname, lvl, (" (%dx tested)" % touches) if touches else ""))}
-            if best is None or risk < best["risk"]:
+            # a weekly level beats a pooled one beats the session edge; equal rank goes to
+            # the trade with the tighter stop
+            if best is None or (prio, -risk) > (best["_prio"], -best["risk"]):
+                cand["_prio"] = prio
                 best = cand
     if not best:
         return None
+    best.pop("_prio", None)
     if fund_dir not in (None, 0):
         if fund_dir != (1 if best["type"] == "BUY" else -1):
             best["fund_conflict"] = True
@@ -558,7 +599,7 @@ def continuation(candles, va, atr, htf_dir=None, fund_dir=None, tf_minutes=5,
 
 def signal(candles, vwap, rows, poc, atr, min_pct=10.0, vwap_series_in=None, va=None,
            htf_dir=None, fund_dir=None, tf_minutes=5,
-           families=("continuation", "fade")):
+           families=("continuation", "fade"), htf_va=None):
     """
     Order flow, read off the volume profile the chart is drawing.
 
@@ -596,7 +637,7 @@ def signal(candles, vwap, rows, poc, atr, min_pct=10.0, vwap_series_in=None, va=
     # runs when another rule is silent can never accumulate an honest record.
     if va and "continuation" in families:
         _cont = continuation(candles, va, atr, htf_dir=htf_dir, fund_dir=fund_dir,
-                             tf_minutes=tf_minutes)
+                             tf_minutes=tf_minutes, htf_va=htf_va)
         if _cont:
             _cont.setdefault("price", price)
             _cont["vwap"] = round(vwap, 2) if vwap else None
@@ -1013,7 +1054,8 @@ def _atr_of(win, n=14):
     return sum(trs[-n:]) / len(trs[-n:]) if trs else None
 
 
-def trade_stats(candles, tf_minutes=15, sample=160, fwd=40, rows=48, min_pct=10.0):
+def trade_stats(candles, tf_minutes=15, sample=160, fwd=40, rows=48, min_pct=10.0,
+                htf_bars=None, htf_period_s=604800):
     """Replay the SHIPPED rules on the bars just traded and score them.
 
     Not a backtest with opinions attached: the same function the live signal uses is run
@@ -1038,8 +1080,11 @@ def trade_stats(candles, tf_minutes=15, sample=160, fwd=40, rows=48, min_pct=10.
             cl, poc, _s = clusters(profile_window(win, tf_minutes), rows, min_pct)
             a = _atr_of(win)
             va = value_area(cl, poc)
+            hva = (htf_value_area_at(htf_bars, win[-1]["time"], period_s=htf_period_s)
+                   if htf_bars else None)
             sg = signal(win, vwap, cl, poc, a, min_pct, vwap_series(win), va=va,
-                        htf_dir=htf_structure(win, tf_minutes), tf_minutes=tf_minutes)
+                        htf_dir=htf_structure(win, tf_minutes), tf_minutes=tf_minutes,
+                        htf_va=hva)
             if sg.get("type") not in ("BUY", "SELL"):
                 continue
             fr = _follow(candles, i, sg, fwd)
@@ -1168,7 +1213,7 @@ def reads_history(candles, n=16, rows=48, min_pct=10.0, window=150, tf_minutes=1
 
 
 def analyse(candles, rows=48, min_pct=10.0, bias_from="5m", verify_quote=None,
-            tf_minutes=15, market_open=True, min_bars=60, fund_dir=None):
+            tf_minutes=15, market_open=True, min_bars=60, fund_dir=None, htf_bars=None):
     """Full pass: split -> vwap -> clusters -> signal."""
     if not candles:
         return {"status": "error", "error": "no candles"}
@@ -1185,8 +1230,9 @@ def analyse(candles, rows=48, min_pct=10.0, bias_from="5m", verify_quote=None,
     atr = sum(trs[-14:]) / len(trs[-14:]) if trs else None
     va = value_area(cl, poc)
     htf = htf_structure(candles, tf_minutes)
+    hva = htf_value_area(htf_bars) if htf_bars else None
     sig = signal(candles, vwap, cl, poc, atr, min_pct, vwap_series(candles), va=va, htf_dir=htf,
-                 fund_dir=fund_dir, tf_minutes=tf_minutes)
+                 fund_dir=fund_dir, tf_minutes=tf_minutes, htf_va=hva)
     sig["htf"] = htf
     sig["profile"] = {"scope": "session", "bars": len(prof),
                       "from": int(prof[0]["time"]) if prof else None,
