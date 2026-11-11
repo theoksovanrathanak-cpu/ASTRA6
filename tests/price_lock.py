@@ -312,6 +312,19 @@ _ok_stable, _b_stable = APPX._edge_verdict("reject VAL", {"by_style": {"reject V
     "by_family": {"rejection fade": {"n": 50, "avg_r": 0.09,
                                      "h1_avg": 0.04, "h2_avg": 0.14, "stable": True}}})
 check("a bucket that paid in both halves is taken", _ok_stable is True, _b_stable)
+
+# The stats endpoint used to upper-case "1m" into "1M", which is not a timeframe name, so
+# four different requests all answered with one timeframe's numbers. The same name must
+# always resolve to the same bars.
+check("1m and M1 are the same timeframe",
+      APPX._stats_tf("1m") == APPX._stats_tf("M1") == "M1", APPX._stats_tf("1m"))
+check("5m/15m/1h resolve to M5/M15/H1",
+      (APPX._stats_tf("5m"), APPX._stats_tf("15m"), APPX._stats_tf("1h")) == ("M5", "M15", "H1"),
+      (APPX._stats_tf("5m"), APPX._stats_tf("15m"), APPX._stats_tf("1h")))
+check("an unnamed timeframe falls back to M5, never to a bogus key",
+      APPX._stats_tf("") == "M5", APPX._stats_tf(""))
+
+_sf = getattr(APPX, "_stats_families", None)
 _ok_thin_half, _b_thin_half = APPX._edge_verdict("reject VAL", {"by_style": {"reject VAL": {
     "n": 14, "avg_r": 0.40, "winrate": 70, "h1_avg": 0.9, "h2_avg": None, "stable": False}}})
 check("a bucket with no second half to check is not taken", _ok_thin_half is False, _b_thin_half)

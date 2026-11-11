@@ -5075,18 +5075,34 @@ def _edge_verdict(style, st):
     return True, b
 
 
+_STATS_TF = {"1M": "M1", "1MIN": "M1", "5M": "M5", "15M": "M15", "30M": "M30",
+             "1H": "H1", "60M": "H1", "4H": "H4", "1D": "D1", "D": "D1"}
+
+
+def _stats_tf(tf):
+    """Accept 1m/5m/15m/1h as well as M1/M5/M15/H1 - the same name must mean the same bars.
+
+    (Until now "1m" upper-cased to "1M" and fell through to the default timeframe, so four
+    different requests answered with one timeframe's numbers.)
+    """
+    t = str(tf or "").strip().upper()
+    return _STATS_TF.get(t, t or "M5")
+
+
 @app.get("/api/signals/stats")
 def signals_stats(symbol: str = "XAUUSD", tf: str = "M5"):
     """The measured record behind the signals: per setup type, with its sample size."""
-    out = {"status": "ok", "symbol": symbol.upper(), "tf": tf.upper(), "timeframes": {}}
-    for k in ([tf.upper()] if tf else ["M1", "M5", "M15", "H1"]):
+    tf = _stats_tf(tf)
+    out = {"status": "ok", "symbol": symbol.upper(), "tf": tf, "timeframes": {}}
+    for k in ([tf] if tf else ["M1", "M5", "M15", "H1"]):
         try:
             out["timeframes"][k] = edge_stats(symbol, k)
         except Exception as e:
             out["timeframes"][k] = {"status": "error", "error": str(e)[:100]}
-    d = out["timeframes"].get(tf.upper()) or {}
+    d = out["timeframes"].get(tf) or {}
     out.update({"n": d.get("n"), "winrate": d.get("winrate"), "avg_r": d.get("avg_r"),
-                "by_style": d.get("by_style"), "min_n": EDGE_MIN_N,
+                "by_style": d.get("by_style"), "by_family": d.get("by_family"),
+                "min_n": EDGE_MIN_N,
                 "rule": ("a setup type prints only while its own last trades are net positive "
                          "with at least %d closed trades" % EDGE_MIN_N)})
     return out
