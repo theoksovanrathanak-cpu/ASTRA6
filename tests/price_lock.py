@@ -341,6 +341,44 @@ _d2 = dict(_d); _d2["signal"] = dict(_d["signal"]); _d2["signal"]["type"] = "HOL
 check("the gate gets its own copy of the shared response",
       _d["signal"]["type"] == "SELL" and _d2["signal"]["type"] == "HOLD")
 
+# ================= round 18: break liquidity and hold (continuation) ==================
+# a quiet range, then a decisive close above it, then a retest that holds
+_cont_cs = []
+_base = 3900.0
+for _i in range(70):
+    _o = _base + (0.6 if _i % 2 else -0.6)
+    _cont_cs.append({"time": 1793000000 + _i * 300, "open": _o, "high": _o + 1.2, "low": _o - 1.2,
+                     "close": _o, "volume": 100.0})
+# two equal highs just above the range = a liquidity pool worth breaking
+_cont_cs[40].update({"high": _base + 4.2, "low": _base + 1.0, "open": _base + 2.0, "close": _base + 1.8})
+_cont_cs[58].update({"high": _base + 4.2, "low": _base + 1.0, "open": _base + 2.0, "close": _base + 1.8})
+# the break: closes well above the pool
+_cont_cs.append({"time": 1793000000 + 70 * 300, "open": _base + 1.5, "high": _base + 8.0,
+                 "low": _base + 1.0, "close": _base + 7.0, "volume": 260.0})
+# the retest: trades back to the level and closes above it
+_cont_cs.append({"time": 1793000000 + 71 * 300, "open": _base + 7.0, "high": _base + 8.2,
+                 "low": _base + 4.4, "close": _base + 6.4, "volume": 150.0})
+_cc = VOL.split_estimate(_cont_cs)
+_crows, _cpoc, _ = VOL.clusters(VOL.profile_window(_cc, 5), 48, 10.0)
+_cva = VOL.value_area(_crows, _cpoc)
+_catr = VOL._atr_of(_cc)
+_csg = VOL.continuation(_cc, _cva, _catr, htf_dir=1, fund_dir=None)
+check("a break of liquidity that holds prints a continuation BUY",
+      bool(_csg) and _csg.get("type") == "BUY", _csg)
+check("the continuation stop sits behind the break structure",
+      bool(_csg) and _csg["sl"] < _csg["entry"] and _csg["tp1"] > _csg["entry"] < _csg["tp2"], _csg)
+check("the continuation targets are 1.5R and 3R of its own risk",
+      bool(_csg) and abs((_csg["tp1"] - _csg["entry"]) / (_csg["entry"] - _csg["sl"]) - 1.5) < 0.15,
+      _csg)
+_csg2 = VOL.continuation(_cc, _cva, _catr, htf_dir=1, fund_dir=-1)
+check("a continuation against the gold fundamentals is refused, and says why",
+      bool(_csg2) and _csg2.get("type") == "HOLD" and "fundamentals" in (_csg2.get("reason") or ""),
+      _csg2)
+_csg3 = VOL.continuation(_cc, _cva, _catr, htf_dir=1, fund_dir=1)
+check("a continuation with the fundamentals on side is marked as the confluence",
+      bool(_csg3) and _csg3.get("type") == "BUY" and "fundamentals" in (_csg3.get("style") or ""),
+      _csg3)
+
 # ================= round 16: a news reading may not nag ================================
 import pushweb as PW  # noqa: E402
 

@@ -4933,6 +4933,36 @@ EDGE_TTL = 240.0        # recompute the measured record every four minutes
 EDGE_MIN_N = 12         # a setup type needs this many closed trades before it may print
 
 
+_FUND_DIR = {"t": 0.0, "d": 0}
+
+
+def fund_dir_now():
+    """+1 / -1 / 0 - the gold-fundamentals bias, refreshed on the same 5-minute clock.
+
+    This is the second half of "liquidity x fundamentals": the breakout must agree with
+    what the news is doing to gold, or it is not taken. Cached so a page load cannot hammer
+    the news feeds, and it degrades to 0 (no opinion) instead of guessing.
+    """
+    now = time.time()
+    if now - _FUND_DIR["t"] < 240:
+        return _FUND_DIR["d"]
+    d = 0
+    try:
+        import news as NEWS
+        g = NEWS.gold_fundamentals(limit=12)
+        b = str((g or {}).get("bias") or "").upper()
+        if b == "BUY":
+            d = 1
+        elif b == "SELL":
+            d = -1
+        if (g or {}).get("stale"):
+            d = 0            # no fresh headline: no opinion is the honest answer
+    except Exception as e:
+        print("fund dir", str(e)[:80])
+    _FUND_DIR.update({"t": now, "d": d})
+    return d
+
+
 def edge_stats(symbol, tf_key, bars=1200):
     """What the shipped rules have actually done on this timeframe, by setup type.
 
@@ -5321,7 +5351,8 @@ def get_volume(symbol: str = "XAUUSD", venue: str = None, rows: int = 48,
         lock_q = _lock_quote(symbol, venue)
         data = VOL.analyse(raw, rows=max(12, min(120, rows)), min_pct=max(0.0, min(100.0, min_pct)),
                            verify_quote=lock_q, tf_minutes=VOL.TF_MINUTES.get(tf_key, 15),
-                           market_open=_lock_market_open(symbol), min_bars=40)
+                           market_open=_lock_market_open(symbol), min_bars=40,
+                           fund_dir=fund_dir_now())
         # the response is cached for a few seconds and handed to more than one caller:
         # the edge gate below edits it, so it edits a copy. Otherwise one blocked read
         # would keep the setup blocked (and keep the old numbers attached) after the
@@ -5333,6 +5364,8 @@ def get_volume(symbol: str = "XAUUSD", venue: str = None, rows: int = 48,
             st_ = edge_stats(str(symbol).upper(), tf_key)
             data["stats"] = st_
             _sg = data.get("signal") or {}
+            if _sg.get("family") == "continuation":
+                data["fund_dir"] = fund_dir_now()
             if _sg.get("type") in ("BUY", "SELL"):
                 _ok, _b = _edge_verdict(_sg.get("style"), st_)
                 if not _ok:

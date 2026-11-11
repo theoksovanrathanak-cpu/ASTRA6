@@ -433,8 +433,132 @@ def htf_structure(candles, tf_minutes=15, look=3):
 FRESH_RISK_MULT = 0.80      # the level must sit inside the risk the trade would take
 
 
+def liquidity_pools(candles, atr, look=60, k=3, tol=0.15):
+    """Where the stops are: recent swing highs/lows, grouped into equal-high/low pools.
+
+    A pool is a price touched more than once (`n`) - that is a level with resting orders
+    behind it, which is exactly what a break has to eat through to continue.
+    """
+    if not atr or atr <= 0 or len(candles) < 20:
+        return [], []
+    w = candles[-min(look, len(candles)):]
+    hi, lo = [], []
+    for i in range(k, len(w) - k):
+        h, l = w[i]["high"], w[i]["low"]
+        if all(w[j]["high"] <= h for j in range(i - k, i + k + 1) if j != i):
+            hi.append(h)
+        if all(w[j]["low"] >= l for j in range(i - k, i + k + 1) if j != i):
+            lo.append(l)
+    def group(pts):
+        out = []
+        for p in pts:
+            for g in out:
+                if abs(g["price"] - p) <= tol * atr:
+                    g["n"] += 1
+                    break
+            else:
+                out.append({"price": p, "n": 1})
+        return out
+    return group(hi), group(lo)
+
+
+def continuation(candles, va, atr, htf_dir=None, fund_dir=None, tf_minutes=5,
+                 look_break=10, accept=0.20, retest=0.25, min_pool=2):
+    """Break liquidity, then trade the direction of the break when the level holds.
+
+    This is the opposite bet to the fade in `signal()`. A close beyond a liquidity pool by
+    `accept` ATR is acceptance; a pullback that touches the level without closing back
+    through it is a retest that held; the bar that closes back on the breakout side is the
+    entry, with the stop behind the whole break structure.
+
+    `fund_dir` is the gold-fundamentals bias (+1 buy / -1 sell / 0 none). When it is known
+    and it disagrees with the break, the trade is refused - the user asked for the
+    confluence, and a breakout against the macro is the one this should not take.
+    """
+    if len(candles) < 60 or not atr or atr <= 0 or not va:
+        return None
+    vah, val = va.get("high"), va.get("low")
+    if not vah or not val:
+        return None
+    hs, ls = liquidity_pools(candles, atr)
+    cur = candles[-1]
+    best = None
+    for side, pools, edge in ((1, hs, vah), (-1, ls, val)):
+        # two kinds of level can be broken: the value edge itself, and a pooled liquidity
+        # level sitting outside it. The edge is the frequent one; the pools are the ones
+        # with real stops behind them.
+        cands = [(edge, 0, "value edge")]
+        for g in pools:
+            if g["n"] < min_pool:
+                continue
+            if (side == 1 and g["price"] <= edge) or (side == -1 and g["price"] >= edge):
+                continue                     # a pool inside value is not a breakout level
+            cands.append((g["price"], int(g["n"]), "highs" if side == 1 else "lows"))
+        for lvl, touches, lname in cands:
+            g = {"price": lvl, "n": touches}
+            bidx = None
+            for j in range(max(0, len(candles) - 1 - look_break), len(candles) - 1):
+                c = candles[j]
+                if (side == 1 and c["close"] >= lvl + accept * atr) or \
+                   (side == -1 and c["close"] <= lvl - accept * atr):
+                    bidx = j
+            if bidx is None:
+                continue
+            if any((side == 1 and c["close"] < lvl) or (side == -1 and c["close"] > lvl)
+                   for c in candles[bidx:]):
+                continue                     # closed back through: the break failed
+            # the retest may happen on this bar or on one of the last three: waiting for
+            # it to be exactly the current bar made the setup fire once in a thousand bars,
+            # which is too rare to ever build a record, let alone trade
+            touched = False
+            for c in candles[max(bidx, len(candles) - 4):]:
+                if (side == 1 and c["low"] <= lvl + retest * atr) or \
+                   (side == -1 and c["high"] >= lvl - retest * atr):
+                    touched = True
+            held = touched and ((side == 1 and cur["close"] > lvl) or
+                                (side == -1 and cur["close"] < lvl))
+            if not held:
+                continue
+            if htf_dir is not None and htf_dir != 0 and htf_dir != side:
+                continue
+            e = cur["close"]
+            stop = (min(c["low"] for c in candles[bidx:]) - 0.1 * atr) if side == 1 else \
+                   (max(c["high"] for c in candles[bidx:]) + 0.1 * atr)
+            risk = abs(e - stop)
+            if risk < 0.5 * atr or risk > 3.0 * atr:
+                continue
+            cand = {"type": "BUY" if side == 1 else "SELL",
+                    "entry": round(e, 2), "sl": round(stop, 2),
+                    "tp1": round(e + side * 1.5 * risk, 2),
+                    "tp2": round(e + side * 3.0 * risk, 2),
+                    "risk": round(risk, 2), "atr": round(atr, 2),
+                    "r": round(abs(e + side * 3.0 * risk - e) / risk, 2),
+                    "plan": {"partial_pct": 50, "be_after": "tp1", "time_stop_bars": 24},
+                    "level": round(lvl, 2), "level_touches": int(touches),
+                    "style": ("break %s held" % lname),
+                    "family": "continuation",
+                    "reason": ("broke %s %.2f%s and held it"
+                               % (lname, lvl, (" (%dx tested)" % touches) if touches else ""))}
+            if best is None or risk < best["risk"]:
+                best = cand
+    if not best:
+        return None
+    if fund_dir not in (None, 0):
+        if fund_dir != (1 if best["type"] == "BUY" else -1):
+            best["fund_conflict"] = True
+            best["type"] = "HOLD"
+            best["reason"] = (best["style"] + " at " + str(best["level"]) +
+                              ", but the gold fundamentals point the other way - "
+                              "the confluence is the point, so it is not taken.")
+            return best
+        best["fund_agrees"] = True
+        best["style"] = best["style"] + " + fundamentals"
+    return best
+
+
 def signal(candles, vwap, rows, poc, atr, min_pct=10.0, vwap_series_in=None, va=None,
-           htf_dir=None):
+           htf_dir=None, fund_dir=None, tf_minutes=5,
+           families=("continuation", "fade")):
     """
     Order flow, read off the volume profile the chart is drawing.
 
@@ -465,6 +589,19 @@ def signal(candles, vwap, rows, poc, atr, min_pct=10.0, vwap_series_in=None, va=
     a = atr or (candles[-1]["high"] - candles[-1]["low"]) or price * 0.0005
 
     va = va or value_area(rows, poc)
+
+    # ---- continuation first: liquidity broke and held ------------------------------
+    # Its own thesis, its own stop, its own measured record. Evaluated before the fade so
+    # the replay that grades it can see every setup it would have taken - a rule that only
+    # runs when another rule is silent can never accumulate an honest record.
+    if va and "continuation" in families:
+        _cont = continuation(candles, va, atr, htf_dir=htf_dir, fund_dir=fund_dir,
+                             tf_minutes=tf_minutes)
+        if _cont:
+            _cont.setdefault("price", price)
+            _cont["vwap"] = round(vwap, 2) if vwap else None
+            return _cont
+
     if va:
         val, vah = va["low"], va["high"]
     else:
@@ -902,7 +1039,7 @@ def trade_stats(candles, tf_minutes=15, sample=160, fwd=40, rows=48, min_pct=10.
             a = _atr_of(win)
             va = value_area(cl, poc)
             sg = signal(win, vwap, cl, poc, a, min_pct, vwap_series(win), va=va,
-                        htf_dir=htf_structure(win, tf_minutes))
+                        htf_dir=htf_structure(win, tf_minutes), tf_minutes=tf_minutes)
             if sg.get("type") not in ("BUY", "SELL"):
                 continue
             fr = _follow(candles, i, sg, fwd)
@@ -1031,7 +1168,7 @@ def reads_history(candles, n=16, rows=48, min_pct=10.0, window=150, tf_minutes=1
 
 
 def analyse(candles, rows=48, min_pct=10.0, bias_from="5m", verify_quote=None,
-            tf_minutes=15, market_open=True, min_bars=60):
+            tf_minutes=15, market_open=True, min_bars=60, fund_dir=None):
     """Full pass: split -> vwap -> clusters -> signal."""
     if not candles:
         return {"status": "error", "error": "no candles"}
@@ -1048,7 +1185,8 @@ def analyse(candles, rows=48, min_pct=10.0, bias_from="5m", verify_quote=None,
     atr = sum(trs[-14:]) / len(trs[-14:]) if trs else None
     va = value_area(cl, poc)
     htf = htf_structure(candles, tf_minutes)
-    sig = signal(candles, vwap, cl, poc, atr, min_pct, vwap_series(candles), va=va, htf_dir=htf)
+    sig = signal(candles, vwap, cl, poc, atr, min_pct, vwap_series(candles), va=va, htf_dir=htf,
+                 fund_dir=fund_dir, tf_minutes=tf_minutes)
     sig["htf"] = htf
     sig["profile"] = {"scope": "session", "bars": len(prof),
                       "from": int(prof[0]["time"]) if prof else None,

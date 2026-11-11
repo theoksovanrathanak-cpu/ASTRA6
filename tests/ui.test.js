@@ -412,7 +412,7 @@ def mk(n=90, start=100.0, step=0.15, vol=10.0):
     return out
 c=mk(); vw,_=V.daily_vwap(c); rows,poc,st=V.clusters(c,48,10.0)
 atr=sum(c[i]['high']-c[i]['low'] for i in range(-14,0))/14
-s=V.signal(c,vw,rows,poc,atr,10.0,V.vwap_series(c))
+s=V.signal(c,vw,rows,poc,atr,10.0,V.vwap_series(c),families=('fade',))
 p=s['entry']; r=s['risk']
 tp1=abs(s['tp1']-p); tp2=abs(s['tp2']-p)
 checks=[]
