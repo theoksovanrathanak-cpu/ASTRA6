@@ -4963,11 +4963,24 @@ def edge_stats(symbol, tf_key, bars=1200):
 
 
 def _edge_verdict(style, st):
-    """(allowed, bucket) - a setup may print only if its own record is positive."""
+    """(allowed, bucket) - a setup may print only if its own record is positive AND stable.
+
+    Positive on average is not enough. Five lucky trades at the end of the window can drag
+    an average above zero while the rule has been losing for days. The bucket therefore has
+    to be positive in BOTH halves of the replay, each with a real sample - that is the
+    cheapest honest test for "it keeps working", as opposed to "it worked".
+    """
     b = ((st or {}).get("by_style") or {}).get(style or "")
     if not b:
         return False, {"n": 0, "avg_r": None}
-    return (int(b.get("n") or 0) >= EDGE_MIN_N and float(b.get("avg_r") or 0) > 0), b
+    n = int(b.get("n") or 0)
+    avg = float(b.get("avg_r") or 0)
+    if n < EDGE_MIN_N or avg <= 0:
+        return False, b
+    # older payloads (or a caller that only knows the average) still work
+    if "h1_avg" not in b and "stable" not in b:
+        return True, b
+    return bool(b.get("stable")), b
 
 
 @app.get("/api/signals/stats")
@@ -5336,9 +5349,19 @@ def get_volume(symbol: str = "XAUUSD", venue: str = None, rows: int = 48,
                     else:
                         _wr_ = float(_b.get("winrate") or 0)
                         _ar_ = float(_b.get("avg_r") or 0)
-                        _why = (f"{_sg.get('style')} setup at the level, but on its last "
-                                f"{int(_b.get('n') or 0)} trades it returned {_ar_:+.2f}R each - "
-                                f"not taken until it pays again.")
+                        _nb2 = int(_b.get("n") or 0)
+                        _h1, _h2 = _b.get("h1_avg"), _b.get("h2_avg")
+                        if (_b.get("stable") is False and _ar_ > 0
+                                and _h1 is not None and _h2 is not None):
+                            _why = (f"{_sg.get('style')} setup at the level, but its {_nb2} "
+                                    f"closed trades only average {_ar_:+.2f}R because one half "
+                                    f"of the window carried the other: first half {_h1:+.2f}R, "
+                                    f"second half {_h2:+.2f}R. That is noise, not an edge, so "
+                                    f"it is not taken.")
+                        else:
+                            _why = (f"{_sg.get('style')} setup at the level, but on its last "
+                                    f"{_nb2} trades it returned {_ar_:+.2f}R each - "
+                                    f"not taken until it pays again.")
                         if _wr_ >= 50 and _ar_ <= 0:
                             # the honest explanation of the number people misread: hitting
                             # the target often is not the same as making money

@@ -302,6 +302,17 @@ check("a setup that has paid is allowed to print", _ok_pos is True)
 check("a setup that has been losing is not", _ok_neg is False, _b_neg)
 check("three lucky trades are not a track record", _ok_thin is False, _b_thin)
 check("a setup with no record at all is not taken", _ok_none is False, _b_none)
+# an average can be rescued by one lucky half; the gate now asks for both halves
+_ok_mixed, _b_mixed = APPX._edge_verdict("reject VAL", {"by_style": {"reject VAL": {
+    "n": 30, "avg_r": 0.12, "winrate": 60, "h1_avg": -0.30, "h2_avg": 0.54, "stable": False}}})
+check("a bucket that only paid in one half of the window is not taken",
+      _ok_mixed is False, _b_mixed)
+_ok_stable, _b_stable = APPX._edge_verdict("reject VAL", {"by_style": {"reject VAL": {
+    "n": 30, "avg_r": 0.12, "winrate": 60, "h1_avg": 0.05, "h2_avg": 0.19, "stable": True}}})
+check("a bucket that paid in both halves is taken", _ok_stable is True, _b_stable)
+_ok_thin_half, _b_thin_half = APPX._edge_verdict("reject VAL", {"by_style": {"reject VAL": {
+    "n": 14, "avg_r": 0.40, "winrate": 70, "h1_avg": 0.9, "h2_avg": None, "stable": False}}})
+check("a bucket with no second half to check is not taken", _ok_thin_half is False, _b_thin_half)
 check("a missing number is never reported as a win rate",
       APPX.edge_stats.__module__ == "main" and (APPX.EDGE_MIN_N >= 12))
 

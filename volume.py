@@ -910,16 +910,34 @@ def trade_stats(candles, tf_minutes=15, sample=160, fwd=40, rows=48, min_pct=10.
             rs.append(fr)
         closed = [r for r in rs if r["why"] != "open"]
         styles = {}
-        for r in closed:
+        # A setup's average can be positive on a handful of lucky trades. The only way to
+        # tell that apart from a real edge is to ask whether it paid in BOTH halves of the
+        # window: the same trade list, cut in time. If one half paid and the other lost,
+        # what was measured is noise, and the app must not print on noise.
+        mid = len(closed) // 2
+        for idx, r in enumerate(closed):
             k = r.get("style") or "other"
-            b = styles.setdefault(k, {"n": 0, "r": 0.0, "tp1": 0})
+            b = styles.setdefault(k, {"n": 0, "r": 0.0, "tp1": 0,
+                                      "h1_n": 0, "h1_r": 0.0, "h2_n": 0, "h2_r": 0.0})
             b["n"] += 1
             b["r"] += r["r"]
             b["tp1"] += 1 if r["tp1"] else 0
+            if idx < mid:
+                b["h1_n"] += 1
+                b["h1_r"] += r["r"]
+            else:
+                b["h2_n"] += 1
+                b["h2_r"] += r["r"]
         for k, b in styles.items():
             b["avg_r"] = round(b["r"] / b["n"], 3)
             b["winrate"] = round(100.0 * b["tp1"] / b["n"], 1)
+            b["h1_avg"] = round(b["h1_r"] / b["h1_n"], 3) if b["h1_n"] else None
+            b["h2_avg"] = round(b["h2_r"] / b["h2_n"], 3) if b["h2_n"] else None
+            b["stable"] = bool(b["h1_n"] >= 4 and b["h2_n"] >= 4
+                               and b["h1_avg"] > 0 and b["h2_avg"] > 0)
             b.pop("r", None)
+            b.pop("h1_r", None)
+            b.pop("h2_r", None)
         for r in closed:
             if r["tp1"]:
                 tp1_hits += 1
