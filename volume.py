@@ -566,7 +566,15 @@ def signal(candles, vwap, rows, poc, atr, min_pct=10.0, vwap_series_in=None, va=
     # higher timeframe was ignored, and +0.09R when they were only taken with it. A bounce
     # off value against the next timeframe up is a counter-trend entry, and those are what
     # sit in drawdown while the trend does what it was already doing.
-    if side and htf_dir is not None and htf_dir != side:
+    #
+    # A SIDEWAYS timeframe above is not a trend against the trade - it is the absence of
+    # one. The old test (htf_dir != side) treated 0 as an enemy and vetoed every setup
+    # while the frame above was ranging, which is the whole Asian session: that is why the
+    # app would not trade between 00:00 and 07:00 UTC. Measured over six days of M5 gold,
+    # same rules, plan applied: with the frame +0.15R (n=47), sideway +0.17R (n=34),
+    # against -0.06R (n=39). Sideways is therefore let through; only a real counter-trend
+    # entry is refused.
+    if side and htf_dir is not None and htf_dir == -side:
         out.update({"type": "HOLD",
                     "htf_block": {"side": "BUY" if side == 1 else "SELL", "style": style,
                                   "htf": "up" if htf_dir > 0 else ("down" if htf_dir < 0 else "sideways")},

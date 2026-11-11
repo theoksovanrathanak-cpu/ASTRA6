@@ -257,6 +257,17 @@ _s_up = VOL.signal(rej, _rvw, _rv[0], _rv[1], _ratr, 10.0, VOL.vwap_series(rej),
                    va=VOL.value_area(_rv[0], _rv[1]), htf_dir=1)
 check("the same VAL rejection inside a rising higher timeframe prints a BUY",
       _s_up.get("type") == "BUY", _s_up.get("reason"))
+# A sideways frame above is not a trend against the trade. It used to be treated as one,
+# which vetoed every setup while the hour above was ranging - the entire Asian session.
+_s_flat = VOL.signal(rej, _rvw, _rv[0], _rv[1], _ratr, 10.0, VOL.vwap_series(rej),
+                     va=VOL.value_area(_rv[0], _rv[1]), htf_dir=0)
+check("the same VAL rejection with a SIDEWAYS frame above still prints (Asian session)",
+      _s_flat.get("type") == "BUY" and not _s_flat.get("htf_block"), _s_flat.get("reason"))
+_s_dn = VOL.signal(rej, _rvw, _rv[0], _rv[1], _ratr, 10.0, VOL.vwap_series(rej),
+                   va=VOL.value_area(_rv[0], _rv[1]), htf_dir=-1)
+check("the same VAL rejection against a FALLING frame above is still refused",
+      _s_dn.get("type") == "HOLD" and (_s_dn.get("htf_block") or {}).get("htf") == "down",
+      _s_dn.get("reason"))
 check("that BUY carries the level, a stop and two targets in order",
       (_s_up.get("sl") or 0) < (_s_up.get("entry") or 0)
       < (_s_up.get("tp1") or 0) < (_s_up.get("tp2") or 0),
