@@ -5025,14 +5025,20 @@ def edge_stats(symbol, tf_key, bars=1200):
 
 
 def _edge_verdict(style, st):
-    """(allowed, bucket) - a setup may print only if its own record is positive AND stable.
+    """(allowed, bucket) - prints only if BOTH the bucket and its family have earned it.
 
-    Positive on average is not enough. Five lucky trades at the end of the window can drag
-    an average above zero while the rule has been losing for days. The bucket therefore has
-    to be positive in BOTH halves of the replay, each with a real sample - that is the
-    cheapest honest test for "it keeps working", as opposed to "it worked".
+    Two levels, because one is not enough:
+      * the bucket (this exact setup) must be positive, with n >= EDGE_MIN_N, and positive
+        in both halves of the replay - a positive average can be one lucky day;
+      * the family (the thesis the bucket belongs to: rejection fade / absorption fade /
+        acceptance / continuation) must be net positive too. A 16-trade bucket inside a
+        family that is -0.24R over 49 trades is a fluctuation, not an edge.
+
+    The second level is what the intraday fade failed: green buckets kept appearing inside
+    a losing thesis, and printing them one at a time is how a dead strategy stays alive.
     """
-    b = ((st or {}).get("by_style") or {}).get(style or "")
+    st = st or {}
+    b = (st.get("by_style") or {}).get(style or "")
     if not b:
         return False, {"n": 0, "avg_r": None}
     n = int(b.get("n") or 0)
@@ -5042,7 +5048,31 @@ def _edge_verdict(style, st):
     # older payloads (or a caller that only knows the average) still work
     if "h1_avg" not in b and "stable" not in b:
         return True, b
-    return bool(b.get("stable")), b
+    if not b.get("stable"):
+        return False, b
+    fam_name = None
+    try:
+        import volume as _V
+        fam_name = _V.style_family(style)
+    except Exception:
+        fam_name = None
+    fam = (st.get("by_family") or {}).get(fam_name or "")
+    if fam_name and fam_name != "other":
+        if fam is None:
+            return False, b                     # no family record -> cannot vouch for the thesis
+        f_n = int(fam.get("n") or 0)
+        f_avg = float(fam.get("avg_r") or 0)
+        if f_n < EDGE_MIN_N or f_avg <= 0:
+            b = dict(b)
+            b["family"] = {"name": fam_name, "n": f_n, "avg_r": f_avg,
+                           "h1_avg": fam.get("h1_avg"), "h2_avg": fam.get("h2_avg")}
+            return False, b
+        if not fam.get("stable"):
+            b = dict(b)
+            b["family"] = {"name": fam_name, "n": f_n, "avg_r": f_avg,
+                           "h1_avg": fam.get("h1_avg"), "h2_avg": fam.get("h2_avg")}
+            return False, b
+    return True, b
 
 
 @app.get("/api/signals/stats")
@@ -5416,7 +5446,19 @@ def get_volume(symbol: str = "XAUUSD", venue: str = None, rows: int = 48,
                         _ar_ = float(_b.get("avg_r") or 0)
                         _nb2 = int(_b.get("n") or 0)
                         _h1, _h2 = _b.get("h1_avg"), _b.get("h2_avg")
-                        if (_b.get("stable") is False and _ar_ > 0
+                        _f = _b.get("family") or {}
+                        if _f and float(_f.get("avg_r") or 0) <= 0:
+                            _why = (f"{_sg.get('style')} setup at the level, but it belongs to "
+                                    f"the {_f.get('name')} family, and that family has returned "
+                                    f"{float(_f.get('avg_r')):+.2f}R over its last "
+                                    f"{int(_f.get('n') or 0)} trades - a green bucket inside a "
+                                    f"losing thesis is a fluctuation, so it is not taken.")
+                        elif _f and _f.get("stable") is False:
+                            _why = (f"{_sg.get('style')} setup at the level, but the "
+                                    f"{_f.get('name')} family has not held up across both halves "
+                                    f"of the window ({_f.get('h1_avg')} / {_f.get('h2_avg')}R), "
+                                    f"so it is not taken.")
+                        elif (_b.get("stable") is False and _ar_ > 0
                                 and _h1 is not None and _h2 is not None):
                             _why = (f"{_sg.get('style')} setup at the level, but its {_nb2} "
                                     f"closed trades only average {_ar_:+.2f}R because one half "

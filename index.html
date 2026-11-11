@@ -3756,6 +3756,12 @@ function renderCurrent(s){if(!s)return;window._lastSignal=s;const typeEl=documen
     // missing number - and a missing number is shown as one.
     sw.textContent=(s.winrate_est==null?'—':s.winrate_est+'%');
     const st=s.stats||{};
+    if(st.family){
+      const f=st.family;
+      sw.title=(f.avg_r<=0)
+        ? ('This setup belongs to the '+f.name+' family, which has returned '+f.avg_r+'R over '+f.n+' trades - a bucket inside a losing thesis is not an edge.')
+        : sw.title;
+    }
     sw.title=(s.winrate_est==null)
       ? 'No closed trades of this setup type yet - nothing measured, nothing claimed.'
       : ('TP1 reached in '+st.tp1+' of '+st.n+' closed '+((st.tf_minutes||5)+'m')+' signals · '

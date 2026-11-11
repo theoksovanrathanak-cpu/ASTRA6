@@ -308,11 +308,35 @@ _ok_mixed, _b_mixed = APPX._edge_verdict("reject VAL", {"by_style": {"reject VAL
 check("a bucket that only paid in one half of the window is not taken",
       _ok_mixed is False, _b_mixed)
 _ok_stable, _b_stable = APPX._edge_verdict("reject VAL", {"by_style": {"reject VAL": {
-    "n": 30, "avg_r": 0.12, "winrate": 60, "h1_avg": 0.05, "h2_avg": 0.19, "stable": True}}})
+    "n": 30, "avg_r": 0.12, "winrate": 60, "h1_avg": 0.05, "h2_avg": 0.19, "stable": True}},
+    "by_family": {"rejection fade": {"n": 50, "avg_r": 0.09,
+                                     "h1_avg": 0.04, "h2_avg": 0.14, "stable": True}}})
 check("a bucket that paid in both halves is taken", _ok_stable is True, _b_stable)
 _ok_thin_half, _b_thin_half = APPX._edge_verdict("reject VAL", {"by_style": {"reject VAL": {
     "n": 14, "avg_r": 0.40, "winrate": 70, "h1_avg": 0.9, "h2_avg": None, "stable": False}}})
 check("a bucket with no second half to check is not taken", _ok_thin_half is False, _b_thin_half)
+# a green bucket inside a losing thesis is a fluctuation, not an edge
+_st_neg_fam = {"by_style": {"reject VAL": {"n": 16, "avg_r": 0.20, "winrate": 66,
+                                           "h1_avg": 0.30, "h2_avg": 0.10, "stable": True}},
+               "by_family": {"rejection fade": {"n": 49, "avg_r": -0.236,
+                                                "h1_avg": -0.62, "h2_avg": 0.33, "stable": False}}}
+_ok, _b = APPX._edge_verdict("reject VAL", _st_neg_fam)
+check("a green bucket inside a losing family is refused", _ok is False and (_b.get("family") or {}).get("name") == "rejection fade", _b)
+_st_pos_fam = {"by_style": {"accept below value": {"n": 20, "avg_r": 0.31, "winrate": 70,
+                                                   "h1_avg": 0.22, "h2_avg": 0.40, "stable": True}},
+               "by_family": {"acceptance": {"n": 30, "avg_r": 0.18,
+                                            "h1_avg": 0.12, "h2_avg": 0.24, "stable": True}}}
+_ok2, _b2 = APPX._edge_verdict("accept below value", _st_pos_fam)
+check("a green bucket inside a green family is taken", _ok2 is True, _b2)
+_st_no_fam = {"by_style": {"reject VAH": {"n": 20, "avg_r": 0.30, "winrate": 70,
+                                          "h1_avg": 0.2, "h2_avg": 0.4, "stable": True}}}
+_ok3, _b3 = APPX._edge_verdict("reject VAH", _st_no_fam)
+check("a bucket with no family record cannot vouch for its thesis", _ok3 is False, _b3)
+check("setups are grouped into the thesis they belong to",
+      VOL.style_family("reject VAL") == "rejection fade"
+      and VOL.style_family("accept below value") == "acceptance"
+      and VOL.style_family("break weekly VAH held") == "continuation")
+
 check("a missing number is never reported as a win rate",
       APPX.edge_stats.__module__ == "main" and (APPX.EDGE_MIN_N >= 12))
 

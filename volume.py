@@ -464,6 +464,24 @@ def htf_value_area_at(bars, ts, lookback=12, period_s=604800):
     return htf_value_area(done, lookback)
 
 
+FAMILIES = {
+    "rejection fade": ("reject VAL", "reject VAH"),
+    "absorption fade": ("absorbed at VAL", "absorbed at VAH"),
+    "acceptance": ("accept above value", "accept below value"),
+}
+
+
+def style_family(style):
+    """Which thesis a setup belongs to. Buckets are graded inside their family."""
+    st = str(style or "")
+    if st.startswith("break"):
+        return "continuation"
+    for fam, members in FAMILIES.items():
+        if st in members:
+            return fam
+    return "other"
+
+
 def liquidity_pools(candles, atr, look=60, k=3, tol=0.15):
     """Where the stops are: recent swing highs/lows, grouped into equal-high/low pools.
 
@@ -1120,6 +1138,32 @@ def trade_stats(candles, tf_minutes=15, sample=160, fwd=40, rows=48, min_pct=10.
             b.pop("r", None)
             b.pop("h1_r", None)
             b.pop("h2_r", None)
+        # ---- family rollup --------------------------------------------------------
+        # A bucket being green is not enough when the THESIS under it has been losing: a
+        # 16-trade bucket inside a family that is -0.24R over 49 trades is a fluctuation,
+        # not an edge. Live signals are therefore gated on both levels.
+        fams = {}
+        for k, b in styles.items():
+            f = style_family(k)
+            g = fams.setdefault(f, {"n": 0, "r": 0.0, "tp1": 0,
+                                    "h1_n": 0, "h1_r": 0.0, "h2_n": 0, "h2_r": 0.0})
+            g["n"] += b["n"]
+            g["tp1"] += b["tp1"]
+            g["r"] += (b.get("avg_r") or 0) * b["n"]
+            g["h1_n"] += b["h1_n"]
+            g["h2_n"] += b["h2_n"]
+            g["h1_r"] += (b.get("h1_avg") or 0) * b["h1_n"]
+            g["h2_r"] += (b.get("h2_avg") or 0) * b["h2_n"]
+        for f, g in fams.items():
+            g["avg_r"] = round(g["r"] / g["n"], 3) if g["n"] else None
+            g["winrate"] = round(100.0 * g["tp1"] / g["n"], 1) if g["n"] else None
+            g["h1_avg"] = round(g["h1_r"] / g["h1_n"], 3) if g["h1_n"] else None
+            g["h2_avg"] = round(g["h2_r"] / g["h2_n"], 3) if g["h2_n"] else None
+            g["stable"] = bool(g["h1_n"] >= 4 and g["h2_n"] >= 4
+                               and g["h1_avg"] > 0 and g["h2_avg"] > 0)
+            for fld in ("r", "h1_r", "h2_r"):
+                g.pop(fld, None)
+
         for r in closed:
             if r["tp1"]:
                 tp1_hits += 1
@@ -1145,6 +1189,7 @@ def trade_stats(candles, tf_minutes=15, sample=160, fwd=40, rows=48, min_pct=10.
             "to": int(candles[-1]["time"]),
             "tf_minutes": int(tf_minutes or 15),
             "by_style": styles,
+            "by_family": fams,
             "basis": "same rules as the live signal, plan applied, spread not charged",
         })
     except Exception as e:
