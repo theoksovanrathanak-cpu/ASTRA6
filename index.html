@@ -3756,16 +3756,16 @@ function renderCurrent(s){if(!s)return;window._lastSignal=s;const typeEl=documen
     // missing number - and a missing number is shown as one.
     sw.textContent=(s.winrate_est==null?'—':s.winrate_est+'%');
     const st=s.stats||{};
-    if(st.family){
-      const f=st.family;
-      sw.title=(f.avg_r<=0)
-        ? ('This setup belongs to the '+f.name+' family, which has returned '+f.avg_r+'R over '+f.n+' trades - a bucket inside a losing thesis is not an edge.')
-        : sw.title;
-    }
-    sw.title=(s.winrate_est==null)
+    // When the block is the FAMILY's record, say so - otherwise the tooltip reads like the
+    // setup itself was measured and rejected, which is a different (and wrong) statement.
+    const _fam=(st.family&&st.family.avg_r<=0)
+      ? (' Blocked by its family: '+st.family.name+' is '+st.family.avg_r+'R over '+st.family.n
+         +' trades - a bucket inside a losing thesis is not an edge.')
+      : '';
+    sw.title=((s.winrate_est==null)
       ? 'No closed trades of this setup type yet - nothing measured, nothing claimed.'
       : ('TP1 reached in '+st.tp1+' of '+st.n+' closed '+((st.tf_minutes||5)+'m')+' signals · '
-         +'avg '+(st.avg_r>=0?'+':'')+st.avg_r+'R per trade');
+         +'avg '+(st.avg_r>=0?'+':'')+st.avg_r+'R per trade'))+_fam;
     sw.classList.toggle('up',s.winrate_est!=null&&s.winrate_est>=50);
     sw.classList.toggle('down',s.winrate_est!=null&&s.winrate_est<50);
     // the label carries the sample: a percentage with no n is a rumour, not a record

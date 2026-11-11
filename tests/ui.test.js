@@ -256,6 +256,16 @@ section('the ladder and the card quote the same numbers');
   ok('other symbol has its own ladder', latestTrade('BTCUSD') === null);
 }
 
+section('the win rate tooltip tells the truth about why a setup is blocked');
+{
+  // The first version of this note set sw.title and then the next line overwrote it, so the
+  // family explanation never reached the screen. Guard the append, not the assignment.
+  ok('a family block is appended to the tooltip', /\+_fam;/.test(html));
+  ok('and is no longer assigned then overwritten', !/sw\.title=\(f\.avg_r<=0\)/.test(html));
+  ok('the note names the family and its record',
+     /Blocked by its family: '\+st\.family\.name/.test(html) && /st\.family\.avg_r/.test(html));
+}
+
 section('3D welcome');
 {
   const intro = document.getElementById('intro');
