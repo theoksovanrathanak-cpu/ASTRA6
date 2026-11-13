@@ -406,6 +406,17 @@ _losing = {"by_style": {"logic sweep BUY": {"n": 40, "avg_r": -0.3, "stable": Fa
 _ok_l, _b_l = APPX._edge_verdict("logic sweep BUY", _losing)
 check("a losing engine is not allowed to print, however clean the setup", _ok_l is False, _b_l)
 
+# The accounting bug that made every mode look like a loss: a trade that tagged TP1 and
+# then reversed must keep its hit count. Zeroing it booked a full -1R at every mode.
+_late = {"time": 2, "type": "BUY", "entry": 100.0, "sl": 99.0, "tp": [101, 101.5, 102, 103],
+         "risk": 1.0, "score": 90, "hit": 1, "r": -1.0, "r_gross": -1.0, "cost_r": 0.0,
+         "bars": 9}
+check("a trade that paid TP1 then stopped is a win at TP1, not a loss",
+      LE.stats([_late], 1)["avg_r"] == 1.0 and LE.stats([_late], 1)["wins"] == 1,
+      LE.stats([_late], 1))
+check("...and still a loss when booked beyond the target it reached",
+      LE.stats([_late], 2)["avg_r"] == -1.0, LE.stats([_late], 2))
+
 _blk = LE.edge_block([_amb])
 check("the gate sees the engine in its own shape",
       set(_blk["by_style"]) >= {"logic sweep BUY", "logic sweep SELL"} and

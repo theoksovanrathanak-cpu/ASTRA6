@@ -5069,9 +5069,11 @@ def _logic_stats(symbol, tf_key, venue=None):
     """The engine's own replay over the same bars, in the gate's shape."""
     import logic_engine as LOGIC
     ent_s, conf_tf, conf_s, bias_tf, bias_s = _LOGIC_TF.get(tf_key, (900, "H1", 3600, "H1", 3600))
-    raw = _zone_candles(symbol, venue, tf_key, 500)
-    conf = _zone_candles(symbol, venue, conf_tf, 500)
-    bias = _zone_candles(symbol, venue, bias_tf, 300)
+    # the caps in _zone_candles are the real limit; asking for more costs nothing and
+    # asking for 500 was short enough that the engine could never reach EDGE_MIN_N
+    raw = _zone_candles(symbol, venue, tf_key, 1200)
+    conf = _zone_candles(symbol, venue, conf_tf, 1200)
+    bias = _zone_candles(symbol, venue, bias_tf, 800)
     to = lambda rows: [{"time": int(c["time"]), "open": float(c["open"]), "high": float(c["high"]),
                         "low": float(c["low"]), "close": float(c["close"]),
                         "volume": float(c.get("volume") or 0)} for c in (rows or [])]

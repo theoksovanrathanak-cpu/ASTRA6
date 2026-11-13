@@ -370,7 +370,10 @@ def replay(entry, conf, bias_bars, cfg=None, max_hold=240, step=1):
         for j in range(i + 1, min(len(entry), i + 1 + max_hold)):
             b = entry[j]
             if (b["low"] <= sl) if side == 1 else (b["high"] >= sl):
-                res_r, exit_j, hit = -1.0, j, 0     # conservative: stop wins the tie
+                # conservative: the stop wins the tie - but the targets this trade had
+                # ALREADY reached stay on the record. Zeroing `hit` here is what made a
+                # trade that tagged TP1 and reversed book as a full loss at every mode.
+                res_r, exit_j = -1.0, j
                 break
             reached = [k for k, t in enumerate(tps)
                        if (b["high"] >= t if side == 1 else b["low"] <= t)]
