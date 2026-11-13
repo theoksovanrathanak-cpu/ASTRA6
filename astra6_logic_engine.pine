@@ -538,7 +538,7 @@ var table dash = na
 if showDash and barstate.islast
     if not na(dash)
         table.delete(dash)
-    dash := table.new(tpPos(), 2, 11, border_width=1, border_color=color.new(#3A506B, 0),
+    dash := table.new(tpPos(), 2, 13, border_width=1, border_color=color.new(#3A506B, 0),
          bgcolor=color.new(#0A1220, 8), frame_color=color.new(#3A506B, 0), frame_width=1)
     int mi = statMode == "TP1" ? 0 : statMode == "TP2" ? 1 : statMode == "TP3" ? 2 : 3
     int mn = array.get(mN, mi)
@@ -579,6 +579,10 @@ if showDash and barstate.islast
     table.cell(dash, 1, 9, cfm, text_color=ctxValid ? color.new(#2ECC71, 0) : color.new(color.gray, 0), text_size=tpSize())
     table.cell(dash, 0, 10, "SIGNAL / FLOW", text_color=color.new(color.silver, 0), text_size=tpSize())
     table.cell(dash, 1, 10, m1s + " · " + flow, text_color=color.white, text_size=tpSize())
+    table.cell(dash, 0, 11, "MAX W/L STREAK", text_color=color.new(color.silver, 0), text_size=tpSize())
+    table.cell(dash, 1, 11, str.tostring(maxW) + " / " + str.tostring(maxL), text_color=color.white, text_size=tpSize())
+    table.cell(dash, 0, 12, "SIMULATED", text_color=color.new(color.silver, 0), text_size=tpSize())
+    table.cell(dash, 1, 12, "chart prices · not broker fills", text_color=color.new(color.orange, 0), text_size=tpSize())
 
 // ═══════════════════════════ ALERTS ═══════════════════════════════════════════════
 alertcondition(triggerBuy, "ASTRA6 LE · BUY", "ASTRA6 LOGIC ENGINE BUY {{ticker}} {{interval}}")
