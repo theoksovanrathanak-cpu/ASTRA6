@@ -387,6 +387,25 @@ check("a bar that touches stop and target books the stop",
 _st = LE.stats([dict(_amb, **{"hit": 2, "r": -1.0, "r_gross": -1.0})], 2)
 check("booking at TP1 uses the target that was actually reached", _st["wins"] == 1, _st)
 
+
+_ev = {"ok": True, "type": "BUY", "side": 1, "entry": 4000.0, "sl": 3995.0, "risk": 5.0,
+       "tp": [4005.0, 4007.5, 4010.0, 4015.0], "score": 95, "sweep": {"level": 3996.0},
+       "why": ["bias is bullish by structure (+20)"],
+       "_meta": {"entry_tf": "M1", "conf_tf": "M5", "bias_tf": "H1"}}
+_pay = APPX._logic_payload(_ev, {})
+check("the card gets all four targets", _pay.get("tp1") == 4005 and _pay.get("tp4") == 4015,
+      (_pay.get("tp1"), _pay.get("tp4")))
+check("the card names the family the gate will use", _pay.get("family") == "liquidity sweep",
+      _pay.get("family"))
+check("the card states which three timeframes it read", "M5" in (_pay.get("tf_plan") or ""),
+      _pay.get("tf_plan"))
+_losing = {"by_style": {"logic sweep BUY": {"n": 40, "avg_r": -0.3, "stable": False,
+                                            "h1_avg": -0.2, "h2_avg": -0.4}},
+           "by_family": {"liquidity sweep": {"n": 80, "avg_r": -0.25, "stable": False,
+                                             "h1_avg": -0.2, "h2_avg": -0.3}}}
+_ok_l, _b_l = APPX._edge_verdict("logic sweep BUY", _losing)
+check("a losing engine is not allowed to print, however clean the setup", _ok_l is False, _b_l)
+
 _blk = LE.edge_block([_amb])
 check("the gate sees the engine in its own shape",
       set(_blk["by_style"]) >= {"logic sweep BUY", "logic sweep SELL"} and
