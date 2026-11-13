@@ -1,0 +1,595 @@
+//@version=6
+// ═══════════════════════════════════════════════════════════════════════════════════
+//  ASTRA6 LOGIC ENGINE — XAUUSD (M1 execution)
+//  Structure-first scalping: HTF bias → confirmation structure → entry trigger.
+//
+//  NON-REPAINTING CONTRACT
+//    1. Every decision is taken on barstate.isconfirmed. The signal exists only after
+//       the entry bar has closed, so the fill you can actually get is the next bar's
+//       open. That one-tick delay is the price of not repainting; it is not hidden.
+//    2. Higher timeframes are read as request.security(expr[1], lookahead_on). The [1]
+//       pins the value to a bar that has already CLOSED, so no future data can leak in.
+//       (lookahead_off together with [1] would hand you two-bar-old data instead.)
+//    3. A pivot only enters the level list pivotLen bars after it printed. A swing that
+//       is still forming cannot be referenced.
+//    4. Nothing historical is moved after the fact: labels, lines and boxes are drawn
+//       once, at the bar that decided them.
+// ═══════════════════════════════════════════════════════════════════════════════════
+indicator("ASTRA6 LOGIC ENGINE", shorttitle="ASTRA6 LE", overlay=true,
+     max_labels_count=500, max_lines_count=500, max_boxes_count=500)
+
+// ═══════════════════════════ A. GENERAL ═══════════════════════════════════════════
+enableBuy  = input.bool(true, "Enable BUY", group="A. General")
+enableSell = input.bool(true, "Enable SELL", group="A. General")
+minScoreIn = input.int(70, "Minimum signal score (below = no trade)", minval=50, maxval=100, group="A. General")
+sensMode   = input.string("Normal", "Signal sensitivity", options=["Conservative", "Normal", "Aggressive"], group="A. General")
+
+// ═══════════════════════════ B. TIMEFRAMES ════════════════════════════════════════
+confTf = input.timeframe("5", "Confirmation timeframe", group="B. Timeframes")
+biasTf = input.timeframe("60", "Higher timeframe (bias)", group="B. Timeframes")
+
+// ═══════════════════════════ C. LIQUIDITY ═════════════════════════════════════════
+pivotLen  = input.int(3, "Pivot length (bars each side)", minval=1, maxval=10, group="C. Liquidity")
+eqTol     = input.float(0.25, "Equal high / low tolerance (ATR)", minval=0.05, maxval=1.0, step=0.05, group="C. Liquidity")
+sweepMin  = input.float(0.05, "Minimum sweep overshoot (ATR)", minval=0.0, maxval=0.5, step=0.01, group="C. Liquidity")
+sweepLook = input.int(40, "Sweep lookback (confirmation bars)", minval=5, maxval=120, group="C. Liquidity")
+
+// ═══════════════════════════ D. RISK ══════════════════════════════════════════════
+slBuf      = input.float(0.15, "Stop buffer (ATR)", minval=0.0, maxval=1.0, step=0.05, group="D. Risk management")
+tp1R       = input.float(1.0, "TP1 (R)", minval=0.2, step=0.1, group="D. Risk management")
+tp2R       = input.float(1.5, "TP2 (R)", minval=0.3, step=0.1, group="D. Risk management")
+tp3R       = input.float(2.0, "TP3 (R)", minval=0.4, step=0.1, group="D. Risk management")
+tp4R       = input.float(3.0, "TP4 (R)", minval=0.5, step=0.1, group="D. Risk management")
+useBE      = input.bool(true, "Move stop to break-even after TP1", group="D. Risk management")
+useTrail   = input.bool(false, "Trail stop after TP2", group="D. Risk management")
+trailAtr   = input.float(1.0, "Trail distance (ATR)", minval=0.2, step=0.1, group="D. Risk management")
+oneAtATime = input.bool(true, "One trade at a time (no duplicates)", group="D. Risk management")
+
+// ═══════════════════════════ E. DASHBOARD ═════════════════════════════════════════
+showDash = input.bool(true, "Show dashboard", group="E. Dashboard")
+dashPos  = input.string("Top right", "Position", options=["Top right", "Top left", "Bottom right", "Bottom left"], group="E. Dashboard")
+dashSize = input.string("Normal", "Size", options=["Small", "Normal", "Large"], group="E. Dashboard")
+statMode = input.string("TP2", "Performance booked at", options=["TP1", "TP2", "TP3", "TP4"], group="E. Dashboard")
+
+// ═══════════════════════════ F. VISUAL ════════════════════════════════════════════
+showFVG     = input.bool(true, "Show fair value gaps", group="F. Visual")
+showBOS     = input.bool(true, "Show BOS / MSS markers", group="F. Visual")
+showLiq     = input.bool(true, "Show liquidity levels", group="F. Visual")
+showLevels  = input.bool(true, "Show entry / SL / TP lines", group="F. Visual")
+showHistory = input.bool(false, "Show historical signals", group="F. Visual")
+
+// ═══════════════════════════ HELPERS ══════════════════════════════════════════════
+pushCapped(array<float> a, float v, int cap) =>
+    array.push(a, v)
+    if array.size(a) > cap
+        array.shift(a)
+    v
+
+trAt(array<float> h, array<float> l, array<float> c, int i) =>
+    float pc = i > 0 ? array.get(c, i - 1) : array.get(c, i)
+    math.max(array.get(h, i) - array.get(l, i),
+     math.max(math.abs(array.get(h, i) - pc), math.abs(array.get(l, i) - pc)))
+
+atrOf(array<float> h, array<float> l, array<float> c, int n) =>
+    int sz = array.size(c)
+    float res = na
+    if sz > 1
+        int m = math.min(n, sz - 1)
+        float s = 0.0
+        for i = sz - m to sz - 1
+            s += trAt(h, l, c, i)
+        res := s / m
+    res
+
+pivotHi(array<float> h, int len) =>
+    int sz = array.size(h)
+    float res = na
+    if sz >= 2 * len + 1
+        int j = sz - 1 - len
+        float v = array.get(h, j)
+        bool ok = true
+        for k = 1 to len
+            if array.get(h, j - k) >= v
+                ok := false
+            if array.get(h, j + k) > v
+                ok := false
+        if ok
+            res := v
+    res
+
+pivotLo(array<float> l, int len) =>
+    int sz = array.size(l)
+    float res = na
+    if sz >= 2 * len + 1
+        int j = sz - 1 - len
+        float v = array.get(l, j)
+        bool ok = true
+        for k = 1 to len
+            if array.get(l, j - k) <= v
+                ok := false
+            if array.get(l, j + k) < v
+                ok := false
+        if ok
+            res := v
+    res
+
+addLevel(array<float> lv, array<int> tp, float v, float tol) =>
+    int sz = array.size(lv)
+    bool merged = false
+    if sz > 0
+        float last = array.get(lv, sz - 1)
+        if math.abs(v - last) <= tol
+            array.set(lv, sz - 1, (last + v) / 2.0)
+            array.set(tp, sz - 1, array.get(tp, sz - 1) + 1)
+            merged := true
+    if not merged
+        array.push(lv, v)
+        array.push(tp, 1)
+        if array.size(lv) > 20
+            array.shift(lv)
+            array.shift(tp)
+    merged
+
+nearestBelow(array<float> lv, float px) =>
+    int sz = array.size(lv)
+    float best = na
+    float bd = 1e10
+    if sz > 0
+        for i = 0 to sz - 1
+            float v = array.get(lv, i)
+            if v < px
+                float d = px - v
+                if d < bd
+                    bd := d
+                    best := v
+    best
+
+nearestAbove(array<float> lv, float px) =>
+    int sz = array.size(lv)
+    float best = na
+    float bd = 1e10
+    if sz > 0
+        for i = 0 to sz - 1
+            float v = array.get(lv, i)
+            if v > px
+                float d = v - px
+                if d < bd
+                    bd := d
+                    best := v
+    best
+
+// ═══════════════════════════ TIMEFRAME PLUMBING ═══════════════════════════════════
+// [1] = the previous, already-closed bar of that timeframe. Never the forming one.
+cO = request.security(syminfo.tickerid, confTf, open[1], lookahead=barmerge.lookahead_on)
+cH = request.security(syminfo.tickerid, confTf, high[1], lookahead=barmerge.lookahead_on)
+cL = request.security(syminfo.tickerid, confTf, low[1], lookahead=barmerge.lookahead_on)
+cC = request.security(syminfo.tickerid, confTf, close[1], lookahead=barmerge.lookahead_on)
+bC = request.security(syminfo.tickerid, biasTf, close[1], lookahead=barmerge.lookahead_on)
+bH = request.security(syminfo.tickerid, biasTf, high[1], lookahead=barmerge.lookahead_on)
+bL = request.security(syminfo.tickerid, biasTf, low[1], lookahead=barmerge.lookahead_on)
+
+newConf = ta.change(time(confTf)) != 0
+newBias = ta.change(time(biasTf)) != 0
+
+var array<float> cBo = array.new_float()
+var array<float> cBh = array.new_float()
+var array<float> cBl = array.new_float()
+var array<float> cBc = array.new_float()
+var array<float> pH = array.new_float()
+var array<int>   pHt = array.new_int()
+var array<float> pL = array.new_float()
+var array<int>   pLt = array.new_int()
+var array<float> bBh = array.new_float()
+var array<float> bBl = array.new_float()
+var array<float> bBc = array.new_float()
+
+if newConf and not na(cC)
+    pushCapped(cBo, cO, 400)
+    pushCapped(cBh, cH, 400)
+    pushCapped(cBl, cL, 400)
+    pushCapped(cBc, cC, 400)
+    float catr0 = atrOf(cBh, cBl, cBc, 14)
+    float tol0 = nz(catr0) * eqTol
+    float ph0 = pivotHi(cBh, pivotLen)
+    float pl0 = pivotLo(cBl, pivotLen)
+    if not na(ph0)
+        addLevel(pH, pHt, ph0, tol0)
+    if not na(pl0)
+        addLevel(pL, pLt, pl0, tol0)
+
+if newBias and not na(bC)
+    pushCapped(bBh, bH, 240)
+    pushCapped(bBl, bL, 240)
+    pushCapped(bBc, bC, 240)
+
+// ═══════════════════════════ H1 BIAS ══════════════════════════════════════════════
+biasSeries() =>
+    int sz = array.size(bBc)
+    int dir = 0
+    string strg = "none"
+    if sz >= 20
+        float m = 0.0
+        int cnt = math.min(20, sz)
+        for i = sz - cnt to sz - 1
+            m += array.get(bBc, i)
+        m := m / cnt
+        int len = pivotLen
+        float h1 = na
+        float l1 = na
+        float h2 = na
+        float l2 = na
+        if sz >= 4 * len + 2
+            int j = sz - 1 - len
+            h1 := array.get(bBh, j)
+            l1 := array.get(bBl, j)
+            int j2 = j - len * 2
+            if j2 >= len
+                h2 := array.get(bBh, j2)
+                l2 := array.get(bBl, j2)
+        bool up = not na(h1) and not na(h2) and h1 > h2 and l1 > l2
+        bool dn = not na(h1) and not na(h2) and h1 < h2 and l1 < l2
+        float lastb = array.get(bBc, sz - 1)
+        if up
+            dir := 1
+            strg := "structure"
+        else if dn
+            dir := -1
+            strg := "structure"
+        else if lastb > m
+            dir := 1
+            strg := "mean"
+        else if lastb < m
+            dir := -1
+            strg := "mean"
+    [dir, strg]
+
+[biasDir, biasStrength] = biasSeries()
+
+// ═══════════════════════════ CONFIRMATION CONTEXT ═════════════════════════════════
+cATR = atrOf(cBh, cBl, cBc, 14)
+
+var float ctxSweepLvl  = na
+var float ctxSweepExt  = na
+var int   ctxSweepBar  = -1
+var int   ctxSweepTaps = 0
+var float ctxBosLvl    = na
+var int   ctxSide      = 0
+var float ctxFvgTop    = na
+var float ctxFvgBot    = na
+var int   ctxFvgBar    = -1
+var int   ctxDispBar   = -1
+var bool  ctxValid     = false
+
+if newConf and array.size(cBc) > 30 and not na(cATR)
+    int szc = array.size(cBc)
+    int from = math.max(2, szc - 1 - sweepLook)
+    bool found = false
+    for side = 1 to 2
+        if not found
+            int s = side == 1 ? 1 : -1
+            int sweptAt = -1
+            float sweptLvl = na
+            float sweptExt = na
+            if s == 1
+                float lvB = nearestBelow(pL, array.get(cBl, szc - 1))
+                if not na(lvB)
+                    for j = szc - 1 to from
+                        if array.get(cBl, j) < lvB and (lvB - array.get(cBl, j)) >= sweepMin * cATR and array.get(cBc, j) > lvB
+                            sweptAt := j
+                            sweptLvl := lvB
+                            sweptExt := array.get(cBl, j)
+                            break
+            else
+                float lvA = nearestAbove(pH, array.get(cBh, szc - 1))
+                if not na(lvA)
+                    for j = szc - 1 to from
+                        if array.get(cBh, j) > lvA and (array.get(cBh, j) - lvA) >= sweepMin * cATR and array.get(cBc, j) < lvA
+                            sweptAt := j
+                            sweptLvl := lvA
+                            sweptExt := array.get(cBh, j)
+                            break
+            if sweptAt >= 0
+                float ref = s == 1 ? nearestAbove(pH, sweptLvl) : nearestBelow(pL, sweptLvl)
+                int bosAt = -1
+                if not na(ref)
+                    for j = sweptAt to szc - 1
+                        if (s == 1 and array.get(cBc, j) > ref) or (s == -1 and array.get(cBc, j) < ref)
+                            bosAt := j
+                            break
+                int dispAt = -1
+                if bosAt >= 0
+                    for j = sweptAt to szc - 1
+                        float body = math.abs(array.get(cBc, j) - array.get(cBo, j))
+                        bool dirOk = s == 1 ? array.get(cBc, j) > array.get(cBo, j) : array.get(cBc, j) < array.get(cBo, j)
+                        if dirOk and body >= 1.2 * cATR
+                            dispAt := j
+                            break
+                float fTop = na
+                float fBot = na
+                int fAt = -1
+                if dispAt >= 0
+                    for j = dispAt to szc - 1
+                        if j >= 2
+                            if s == 1 and array.get(cBl, j) > array.get(cBh, j - 2)
+                                fTop := array.get(cBl, j)
+                                fBot := array.get(cBh, j - 2)
+                                fAt := j
+                            if s == -1 and array.get(cBh, j) < array.get(cBl, j - 2)
+                                fTop := array.get(cBl, j - 2)
+                                fBot := array.get(cBh, j)
+                                fAt := j
+                if bosAt >= 0 and dispAt >= 0 and fAt >= 0
+                    ctxSide := s
+                    ctxSweepLvl := sweptLvl
+                    ctxSweepExt := sweptExt
+                    ctxSweepBar := sweptAt
+                    ctxSweepTaps := 1
+                    ctxBosLvl := ref
+                    ctxFvgTop := fTop
+                    ctxFvgBot := fBot
+                    ctxFvgBar := fAt
+                    ctxDispBar := dispAt
+                    ctxValid := true
+                    found := true
+    if not found
+        ctxValid := false
+
+// ═══════════════════════════ SCORE ════════════════════════════════════════════════
+scoreH1   = ctxValid and biasDir != 0 and biasDir == ctxSide ? (biasStrength == "structure" ? 20 : 12) : 0
+scoreSwp  = ctxValid ? 20 : 0
+scoreBos  = ctxValid ? ((array.size(cBc) - 1 - ctxSweepBar) <= 6 ? 15 : 10) : 0
+scoreDisp = ctxValid ? 15 : 0
+scoreFvg  = ctxValid ? 15 : 0
+
+// ═══════════════════════════ ENTRY TRIGGER ════════════════════════════════════════
+ema9 = ta.ema(close, 9)
+inZone   = ctxValid ? (ctxSide == 1 ? (low <= ctxFvgTop and close >= ctxFvgBot) : (high >= ctxFvgBot and close <= ctxFvgTop)) : false
+candleOk = ctxValid ? (ctxSide == 1 ? close > open : close < open) : false
+emaOk    = ctxValid ? (ctxSide == 1 ? close > ema9 : close < ema9) : false
+scoreMom = (inZone and candleOk ? 10 : 0) + (emaOk ? 5 : 0)
+rawScore = scoreH1 + scoreSwp + scoreBos + scoreDisp + scoreFvg + scoreMom
+
+// sensitivity shifts the bar; it never changes a rule
+needScore = minScoreIn + (sensMode == "Conservative" ? 5 : sensMode == "Aggressive" ? -5 : 0)
+
+triggerBuy  = ctxValid and ctxSide == 1 and inZone and candleOk and emaOk and rawScore >= needScore and enableBuy
+triggerSell = ctxValid and ctxSide == -1 and inZone and candleOk and emaOk and rawScore >= needScore and enableSell
+
+// ═══════════════════════════ TRADE ENGINE ═════════════════════════════════════════
+var int    posDir   = 0
+var float  posEntry = na
+var float  posSL    = na
+var float  posRisk  = na
+var float  posTP1   = na
+var float  posTP2   = na
+var float  posTP3   = na
+var float  posTP4   = na
+var bool   posBE    = false
+var int    posHit   = 0
+var int    posBar   = -1
+
+// per-mode statistics: mode 1..4 = booked at TP1..TP4
+var array<int>   mN   = array.new_int(4, 0)
+var array<int>   mW   = array.new_int(4, 0)
+var array<int>   mL   = array.new_int(4, 0)
+var array<float> mGW  = array.new_float(4, 0.0)
+var array<float> mGL  = array.new_float(4, 0.0)
+var array<float> mSum = array.new_float(4, 0.0)
+// streaks and the last outcome, on the trade as actually managed
+var int    nTrades = 0
+var int    streak  = 0
+var int    maxW    = 0
+var int    maxL    = 0
+var float  lastR   = na
+var string lastOut = "—"
+
+var label sigLabel = na
+var line lnEntry = na
+var line lnSL    = na
+var line lnTP1   = na
+var line lnTP2   = na
+var line lnTP3   = na
+var line lnTP4   = na
+
+bool closedNow = false
+float exitR = 0.0
+int exitHit = 0
+string exitHow = ""
+
+if barstate.isconfirmed and posDir != 0
+    bool isLong = posDir == 1
+    float stopNow = posSL
+    bool hitStop = isLong ? low <= stopNow : high >= stopNow
+    int reached = posHit
+    if not hitStop
+        if not na(posTP1) and (isLong ? high >= posTP1 : low <= posTP1)
+            reached := math.max(reached, 1)
+        if not na(posTP2) and (isLong ? high >= posTP2 : low <= posTP2)
+            reached := math.max(reached, 2)
+        if not na(posTP3) and (isLong ? high >= posTP3 : low <= posTP3)
+            reached := math.max(reached, 3)
+        if not na(posTP4) and (isLong ? high >= posTP4 : low <= posTP4)
+            reached := math.max(reached, 4)
+    if hitStop
+        // same-bar rule: the stop is assumed touched first. No free lunch.
+        exitR := (stopNow - posEntry) * posDir / posRisk
+        exitHow := posBE ? "BE" : "SL"
+        exitHit := 0
+        closedNow := true
+    else if reached >= 4
+        exitR := tp4R
+        exitHow := "TP4"
+        exitHit := 4
+        closedNow := true
+    else
+        posHit := reached
+        if useBE and reached >= 1 and not posBE
+            posSL := posEntry
+            posBE := true
+        if useTrail and reached >= 2 and not na(cATR)
+            float trail = isLong ? close - trailAtr * cATR : close + trailAtr * cATR
+            posSL := isLong ? math.max(posSL, trail) : math.min(posSL, trail)
+
+if closedNow
+    for k = 0 to 3
+        float rk = exitHit >= k + 1 ? (k == 0 ? tp1R : k == 1 ? tp2R : k == 2 ? tp3R : tp4R) : exitR
+        array.set(mN, k, array.get(mN, k) + 1)
+        array.set(mSum, k, array.get(mSum, k) + rk)
+        if rk > 0
+            array.set(mW, k, array.get(mW, k) + 1)
+            array.set(mGW, k, array.get(mGW, k) + rk)
+        else if rk < 0
+            array.set(mL, k, array.get(mL, k) + 1)
+            array.set(mGL, k, array.get(mGL, k) - rk)
+    nTrades += 1
+    lastR := exitR
+    lastOut := exitHow
+    streak := exitR > 0 ? (streak > 0 ? streak + 1 : 1) : exitR < 0 ? (streak < 0 ? streak - 1 : -1) : 0
+    maxW := math.max(maxW, streak)
+    maxL := math.max(maxL, -streak)
+    posDir := 0
+    posHit := 0
+    posBE := false
+
+// ---- open a new trade ------------------------------------------------------------
+if barstate.isconfirmed and (triggerBuy or triggerSell) and not closedNow
+    bool canOpen = not oneAtATime or posDir == 0
+    if canOpen
+        int dir = triggerBuy ? 1 : -1
+        float entryPx = close
+        float stopPx = dir == 1 ? ctxSweepExt - slBuf * cATR : ctxSweepExt + slBuf * cATR
+        float risk = math.abs(entryPx - stopPx)
+        if risk > 0
+            posDir := dir
+            posEntry := entryPx
+            posRisk := risk
+            posSL := stopPx
+            posTP1 := entryPx + dir * tp1R * risk
+            posTP2 := entryPx + dir * tp2R * risk
+            posTP3 := entryPx + dir * tp3R * risk
+            posTP4 := entryPx + dir * tp4R * risk
+            posHit := 0
+            posBE := false
+            posBar := bar_index
+            if not showHistory and not na(sigLabel)
+                label.delete(sigLabel)
+            sigLabel := label.new(bar_index, dir == 1 ? low : high,
+                 (dir == 1 ? "BUY " : "SELL ") + str.tostring(rawScore) + "/100",
+                 style=dir == 1 ? label.style_label_up : label.style_label_down,
+                 color=dir == 1 ? color.new(#2962FF, 0) : color.new(#E5383B, 0),
+                 textcolor=color.white, size=size.small)
+            if showLevels
+                if not na(lnEntry)
+                    line.delete(lnEntry)
+                if not na(lnSL)
+                    line.delete(lnSL)
+                if not na(lnTP1)
+                    line.delete(lnTP1)
+                if not na(lnTP2)
+                    line.delete(lnTP2)
+                if not na(lnTP3)
+                    line.delete(lnTP3)
+                if not na(lnTP4)
+                    line.delete(lnTP4)
+                lnEntry := line.new(bar_index, entryPx, bar_index + 24, entryPx, color=color.new(color.gray, 0), width=1)
+                lnSL    := line.new(bar_index, stopPx, bar_index + 24, stopPx, color=color.new(#E5383B, 0), width=2)
+                lnTP1   := line.new(bar_index, posTP1, bar_index + 24, posTP1, color=color.new(#2ECC71, 0), width=1)
+                lnTP2   := line.new(bar_index, posTP2, bar_index + 24, posTP2, color=color.new(#2ECC71, 0), width=1)
+                lnTP3   := line.new(bar_index, posTP3, bar_index + 24, posTP3, color=color.new(#2ECC71, 0), width=1)
+                lnTP4   := line.new(bar_index, posTP4, bar_index + 24, posTP4, color=color.new(#2ECC71, 0), width=2)
+
+// the stop line follows break-even / trailing while the trade is open
+if barstate.isconfirmed and showLevels and posDir != 0 and not na(lnSL)
+    line.set_y1(lnSL, posSL)
+    line.set_y2(lnSL, posSL)
+
+// ═══════════════════════════ DRAWINGS ═════════════════════════════════════════════
+var array<box>   fvgBoxes = array.new_box()
+var array<label> bosTags  = array.new_label()
+
+if showFVG and newConf and ctxValid and ctxFvgBar >= 0
+    box b = box.new(bar_index - 1, ctxFvgTop, bar_index + 12, ctxFvgBot,
+         border_color=color.new(ctxSide == 1 ? #2ECC71 : #E5383B, 60),
+         bgcolor=color.new(ctxSide == 1 ? #2ECC71 : #E5383B, 88))
+    array.push(fvgBoxes, b)
+    if array.size(fvgBoxes) > 40
+        box.delete(array.shift(fvgBoxes))
+
+if showBOS and newConf and ctxValid and not na(ctxBosLvl)
+    label t = label.new(bar_index, ctxBosLvl, "BOS", style=label.style_label_left,
+         color=color.new(#1E88E5, 20), textcolor=color.white, size=size.tiny)
+    array.push(bosTags, t)
+    if array.size(bosTags) > 40
+        label.delete(array.shift(bosTags))
+
+plot(showLiq and array.size(pH) > 0 ? array.get(pH, array.size(pH) - 1) : na,
+     title="buy-side liquidity", color=color.new(color.orange, 55), linewidth=1)
+plot(showLiq and array.size(pL) > 0 ? array.get(pL, array.size(pL) - 1) : na,
+     title="sell-side liquidity", color=color.new(color.aqua, 55), linewidth=1)
+
+// ═══════════════════════════ DASHBOARD ════════════════════════════════════════════
+tpPos() =>
+    dashPos == "Top left" ? position.top_left : dashPos == "Bottom right" ? position.bottom_right : dashPos == "Bottom left" ? position.bottom_left : position.top_right
+
+tpSize() =>
+    dashSize == "Small" ? size.small : dashSize == "Large" ? size.large : size.normal
+
+var table dash = na
+if showDash and barstate.islast
+    if not na(dash)
+        table.delete(dash)
+    dash := table.new(tpPos(), 2, 11, border_width=1, border_color=color.new(#3A506B, 0),
+         bgcolor=color.new(#0A1220, 8), frame_color=color.new(#3A506B, 0), frame_width=1)
+    int mi = statMode == "TP1" ? 0 : statMode == "TP2" ? 1 : statMode == "TP3" ? 2 : 3
+    int mn = array.get(mN, mi)
+    int mw = array.get(mW, mi)
+    int ml = array.get(mL, mi)
+    float mgw = array.get(mGW, mi)
+    float mgl = array.get(mGL, mi)
+    float msum = array.get(mSum, mi)
+    float wr = mn > 0 ? 100.0 * mw / mn : na
+    float pf = mgl > 0 ? mgw / mgl : na
+    float avgr = mn > 0 ? msum / mn : na
+    string status = posDir == 1 ? "BUY OPEN" : posDir == -1 ? "SELL OPEN" : "WAITING"
+    string flow = biasDir == 1 ? "BUY" : biasDir == -1 ? "SELL" : "NEUTRAL"
+    string h1s = biasDir == 1 ? "BULLISH" : biasDir == -1 ? "BEARISH" : "NEUTRAL"
+    string cfm = ctxValid ? "CONFIRMED" : "WAITING"
+    string m1s = posDir == 1 ? "BUY" : posDir == -1 ? "SELL" : "NONE"
+    color stCol = posDir != 0 ? color.new(#2ECC71, 0) : color.new(color.gray, 0)
+    color h1Col = biasDir == 1 ? color.new(#2ECC71, 0) : biasDir == -1 ? color.new(#E5383B, 0) : color.new(color.gray, 0)
+    table.cell(dash, 0, 0, "ASTRA6 LOGIC ENGINE", text_color=color.white, text_size=tpSize(), bgcolor=color.new(#13233A, 0))
+    table.cell(dash, 1, 0, syminfo.ticker + " · " + timeframe.period, text_color=color.white, text_size=tpSize(), bgcolor=color.new(#13233A, 0))
+    table.cell(dash, 0, 1, "STATUS", text_color=color.new(color.silver, 0), text_size=tpSize())
+    table.cell(dash, 1, 1, status, text_color=stCol, text_size=tpSize())
+    table.cell(dash, 0, 2, "SCORE", text_color=color.new(color.silver, 0), text_size=tpSize())
+    table.cell(dash, 1, 2, str.tostring(rawScore) + "/100", text_color=color.white, text_size=tpSize())
+    table.cell(dash, 0, 3, "TOTAL TRADES", text_color=color.new(color.silver, 0), text_size=tpSize())
+    table.cell(dash, 1, 3, str.tostring(mn), text_color=color.white, text_size=tpSize())
+    table.cell(dash, 0, 4, "WINS / LOSSES", text_color=color.new(color.silver, 0), text_size=tpSize())
+    table.cell(dash, 1, 4, str.tostring(mw) + " / " + str.tostring(ml), text_color=color.white, text_size=tpSize())
+    table.cell(dash, 0, 5, "WIN RATE", text_color=color.new(color.silver, 0), text_size=tpSize())
+    table.cell(dash, 1, 5, na(wr) ? "—" : str.tostring(wr, "#.#") + "%", text_color=color.white, text_size=tpSize())
+    table.cell(dash, 0, 6, "PROFIT FACTOR", text_color=color.new(color.silver, 0), text_size=tpSize())
+    table.cell(dash, 1, 6, na(pf) ? "—" : str.tostring(pf, "#.##"), text_color=color.white, text_size=tpSize())
+    table.cell(dash, 0, 7, "AVG R (" + statMode + ")", text_color=color.new(color.silver, 0), text_size=tpSize())
+    table.cell(dash, 1, 7, na(avgr) ? "—" : str.tostring(avgr, "#.##") + "R", text_color=color.white, text_size=tpSize())
+    table.cell(dash, 0, 8, "H1 BIAS", text_color=color.new(color.silver, 0), text_size=tpSize())
+    table.cell(dash, 1, 8, h1s, text_color=h1Col, text_size=tpSize())
+    table.cell(dash, 0, 9, "CONFIRMATION", text_color=color.new(color.silver, 0), text_size=tpSize())
+    table.cell(dash, 1, 9, cfm, text_color=ctxValid ? color.new(#2ECC71, 0) : color.new(color.gray, 0), text_size=tpSize())
+    table.cell(dash, 0, 10, "SIGNAL / FLOW", text_color=color.new(color.silver, 0), text_size=tpSize())
+    table.cell(dash, 1, 10, m1s + " · " + flow, text_color=color.white, text_size=tpSize())
+
+// ═══════════════════════════ ALERTS ═══════════════════════════════════════════════
+alertcondition(triggerBuy, "ASTRA6 LE · BUY", "ASTRA6 LOGIC ENGINE BUY {{ticker}} {{interval}}")
+alertcondition(triggerSell, "ASTRA6 LE · SELL", "ASTRA6 LOGIC ENGINE SELL {{ticker}} {{interval}}")
+alertcondition(closedNow and exitHit >= 1, "ASTRA6 LE · TP1", "ASTRA6 LE TP1 reached on {{ticker}}")
+alertcondition(closedNow and exitHit >= 4, "ASTRA6 LE · TP4", "ASTRA6 LE TP4 reached on {{ticker}}")
+
+// ═══════════════════════════ DATA WINDOW ══════════════════════════════════════════
+plot(rawScore, "score", display=display.data_window)
+plot(biasDir, "bias", display=display.data_window)
+plot(posDir, "position", display=display.data_window)
+plot(triggerBuy ? 1 : 0, "buy trigger", display=display.data_window)
+plot(triggerSell ? 1 : 0, "sell trigger", display=display.data_window)
+plot(closedNow ? exitR : na, "last closed R", display=display.data_window)

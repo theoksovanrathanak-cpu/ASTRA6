@@ -468,6 +468,8 @@ FAMILIES = {
     "rejection fade": ("reject VAL", "reject VAH"),
     "absorption fade": ("absorbed at VAL", "absorbed at VAH"),
     "acceptance": ("accept above value", "accept below value"),
+    # round 21: the structure-first engine. Its own thesis, its own record.
+    "liquidity sweep": ("logic sweep BUY", "logic sweep SELL", "logic sweep"),
 }
 
 

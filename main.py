@@ -4994,6 +4994,95 @@ def fund_dir_now():
     return d
 
 
+_LOGIC_TF = {"M1": (60, "M5", 300, "H1", 3600), "M5": (300, "M15", 900, "H1", 3600),
+             "M15": (900, "H1", 3600, "H1", 3600), "H1": (3600, "H4", 14400, "H4", 14400),
+             "M30": (1800, "H1", 3600, "H1", 3600), "H4": (14400, "D", 86400, "D", 86400)}
+
+
+def _logic_signal(raw, symbol, tf_key, venue=None):
+    """The structure-first engine, read on real bars of the three timeframes it needs.
+
+    Entry is the timeframe you are looking at; confirmation is the next one up (M5 for an
+    M1 chart, exactly as specified); bias is H1. Every bar is a real bar from the feed -
+    nothing is clock-guessed, and no forming bar is used.
+    """
+    import logic_engine as LOGIC
+    ent_s, conf_tf, conf_s, bias_tf, bias_s = _LOGIC_TF.get(tf_key, (900, "H1", 3600, "H1", 3600))
+    conf = _zone_candles(symbol, venue, conf_tf, 400)
+    bias = _zone_candles(symbol, venue, bias_tf, 240)
+    to = lambda rows: [{"time": int(c["time"]), "open": float(c["open"]), "high": float(c["high"]),
+                        "low": float(c["low"]), "close": float(c["close"]),
+                        "volume": float(c.get("volume") or 0)} for c in (rows or [])]
+    entry = to(raw)
+    if len(entry) < 80 or len(conf) < 40 or len(bias) < 20:
+        return None, {"entry_s": ent_s, "conf_tf": conf_tf, "bias_tf": bias_tf}
+    cfg = {"min_score": 70, "spread": 0.35, "entry_s": ent_s, "confirm_s": conf_s, "bias_s": bias_s}
+    atr = LOGIC.atr_list(entry, 14)[-1]
+    ev = LOGIC.evaluate(entry, to(conf), to(bias), len(entry) - 1, cfg, atr=atr)
+    ev["_meta"] = {"entry_s": ent_s, "conf_tf": conf_tf, "bias_tf": bias_tf,
+                   "entry_tf": tf_key, "spread": 0.35, "min_score": 70}
+    return ev, ev["_meta"]
+
+
+def _logic_payload(ev, base):
+    """Turn the engine's read into the signal the site already knows how to draw."""
+    sig = dict(base or {})
+    meta = ev.get("_meta") or {}
+    sig["engine"] = "logic"
+    sig["tf_plan"] = "%s entry · %s confirmation · %s bias" % (
+        meta.get("entry_tf"), meta.get("conf_tf"), meta.get("bias_tf"))
+    sig["score"] = int(ev.get("score") or 0)
+    sig["score_parts"] = {k: int(ev.get(k) or 0) for k in
+                          ("score_h1", "score_sweep", "score_bos", "score_disp",
+                           "score_fvg", "score_mom")}
+    why = ev.get("why") or []
+    if ev.get("ok") and ev.get("type") in ("BUY", "SELL"):
+        tp = ev.get("tp") or []
+        side = ev.get("side")
+        sig.update({"type": ev["type"], "entry": ev["entry"], "sl": ev["sl"],
+                    "tp1": tp[0] if len(tp) > 0 else None, "tp2": tp[1] if len(tp) > 1 else None,
+                    "tp3": tp[2] if len(tp) > 2 else None, "tp4": tp[3] if len(tp) > 3 else None,
+                    "risk": ev.get("risk"), "r": 3.0,
+                    "confidence": min(95, 55 + int(ev.get("score") or 0) // 3),
+                    "style": "logic sweep " + ev["type"],
+                    "family": "liquidity sweep",
+                    "plan": {"partial_at": tp[0] if tp else None, "partial_pct": 50,
+                             "be_after": "tp1", "runner_at": tp[-1] if tp else None,
+                             "time_stop_bars": 24},
+                    "reason": ("%s sweep %.2f · score %d/100 · %s · stop %.2f · tp1 %.2f · "
+                               "tp2 %.2f · tp3 %.2f · tp4 %.2f"
+                               % (ev["type"].lower(), (ev.get("sweep") or {}).get("level") or 0,
+                                  int(ev.get("score") or 0), meta.get("tf_plan", ""),
+                                  abs((ev.get("entry") or 0) - (ev.get("sl") or 0)),
+                                  tp[0] if tp else 0, tp[1] if len(tp) > 1 else 0,
+                                  tp[2] if len(tp) > 2 else 0, tp[3] if len(tp) > 3 else 0))})
+        sig.pop("edge_block", None)
+    else:
+        sig.update({"type": "HOLD", "style": None, "entry": None, "sl": None,
+                    "reason": ("HOLD — " + "; ".join(why[:2])) if why else "HOLD — waiting",
+                    "plan": None})
+    sig["why"] = why
+    return sig
+
+
+def _logic_stats(symbol, tf_key, venue=None):
+    """The engine's own replay over the same bars, in the gate's shape."""
+    import logic_engine as LOGIC
+    ent_s, conf_tf, conf_s, bias_tf, bias_s = _LOGIC_TF.get(tf_key, (900, "H1", 3600, "H1", 3600))
+    raw = _zone_candles(symbol, venue, tf_key, 500)
+    conf = _zone_candles(symbol, venue, conf_tf, 500)
+    bias = _zone_candles(symbol, venue, bias_tf, 300)
+    to = lambda rows: [{"time": int(c["time"]), "open": float(c["open"]), "high": float(c["high"]),
+                        "low": float(c["low"]), "close": float(c["close"]),
+                        "volume": float(c.get("volume") or 0)} for c in (rows or [])]
+    e = to(raw)
+    if len(e) < 120 or len(conf or []) < 60:
+        return {}
+    cfg = {"min_score": 70, "spread": 0.35, "entry_s": ent_s, "confirm_s": conf_s, "bias_s": bias_s}
+    tr = LOGIC.replay(e, to(conf), to(bias), cfg)
+    return LOGIC.edge_block(tr)
+
+
 def edge_stats(symbol, tf_key, bars=1200):
     """What the shipped rules have actually done on this timeframe, by setup type.
 
@@ -5018,6 +5107,18 @@ def edge_stats(symbol, tf_key, bars=1200):
             d = VOL.trade_stats(raw, tf_minutes=VOL.TF_MINUTES.get(tf_key, 15),
                                 sample=max(40, len(raw) - 60),
                                 htf_bars=_htf_bars(symbol))
+            # the structure-first engine is graded in the same shape, so the same gate
+            # (bucket + family, both positive and stable) judges it without special cases
+            try:
+                lb = _logic_stats(symbol, tf_key)
+                if lb:
+                    d = dict(d)
+                    d["by_style"] = dict(d.get("by_style") or {}, **(lb.get("by_style") or {}))
+                    d["by_family"] = dict(d.get("by_family") or {}, **(lb.get("by_family") or {}))
+                    d["logic"] = {"n": lb.get("n"), "avg_r": lb.get("avg_r"),
+                                  "winrate": lb.get("winrate")}
+            except Exception as _le:
+                print("logic stats", str(_le)[:90])
     except Exception as e:
         d = {"status": "error", "error": str(e)[:120], "n": 0, "by_style": {}}
     _EDGE_CACHE[key] = {"t": now, "d": d}
@@ -5437,6 +5538,15 @@ def get_volume(symbol: str = "XAUUSD", venue: str = None, rows: int = 48,
         # record had already turned - a stuck HOLD is a wrong answer, not a safe one.
         data = dict(data)
         data["signal"] = dict(data.get("signal") or {})
+        # ---- ROUND 21: the strategy IS the structure engine now ----
+        try:
+            _ev, _meta = _logic_signal(raw, str(symbol).upper(), tf_key, venue)
+            if _ev is not None:
+                data["signal"] = _logic_payload(_ev, data.get("signal") or {})
+                data["engine"] = "logic"
+                data["engine_tf"] = _meta
+        except Exception as _le:
+            print("logic signal", str(_le)[:120])
         # ---- PROVE IT: a setup prints only while its own record is positive ----
         try:
             st_ = edge_stats(str(symbol).upper(), tf_key)

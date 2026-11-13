@@ -303,6 +303,95 @@ check("a setup that has been losing is not", _ok_neg is False, _b_neg)
 check("three lucky trades are not a track record", _ok_thin is False, _b_thin)
 check("a setup with no record at all is not taken", _ok_none is False, _b_none)
 # an average can be rescued by one lucky half; the gate now asks for both halves
+# ═══════════════ ROUND 21: the structure engine must not be able to see the future ═══
+import logic_engine as LE
+
+
+def _synth(n=900, seed=11):
+    """A deterministic walk with real swings - enough structure for the engine to chew."""
+    import random
+    rnd = random.Random(seed)
+    px, bars = 4000.0, []
+    for i in range(n):
+        drift = 0.35 if (i // 120) % 2 == 0 else -0.35
+        o = px
+        c = o + drift + rnd.gauss(0, 0.55)
+        h = max(o, c) + abs(rnd.gauss(0, 0.25))
+        l = min(o, c) - abs(rnd.gauss(0, 0.25))
+        bars.append({"time": 1700000000 + i * 60, "open": o, "high": h, "low": l,
+                     "close": c, "volume": 100 + i % 17})
+        px = c
+    return bars
+
+
+_B = _synth()
+_CF = [{"time": _B[i]["time"], "open": _B[i]["open"], "high": max(x["high"] for x in _B[i:i + 5]),
+        "low": min(x["low"] for x in _B[i:i + 5]), "close": _B[min(i + 4, len(_B) - 1)]["close"],
+        "volume": 0} for i in range(0, len(_B) - 4, 5)]
+_H1 = [{"time": _B[i]["time"], "open": _B[i]["open"], "high": max(x["high"] for x in _B[i:i + 60]),
+        "low": min(x["low"] for x in _B[i:i + 60]), "close": _B[min(i + 59, len(_B) - 1)]["close"],
+        "volume": 0} for i in range(0, len(_B) - 59, 60)]
+
+_atr = LE.atr_list(_B, 14)[500]
+_full = LE.evaluate(_B, _CF, _H1, 500, atr=_atr)
+# the same bar, decided with only the bars that existed at that moment
+_cut = LE.evaluate(_B[:501], [b for b in _CF if b["time"] + 300 <= _B[500]["time"] + 60],
+                   [b for b in _H1 if b["time"] + 3600 <= _B[500]["time"] + 60], 500,
+                   atr=LE.atr_list(_B[:501], 14)[500])
+check("the engine decides a bar from that bar alone (no lookahead)",
+      (_full.get("score"), _full.get("side"), _full.get("ok")) ==
+      (_cut.get("score"), _cut.get("side"), _cut.get("ok")),
+      (_full.get("score"), _cut.get("score")))
+
+_sig = None
+for _i in range(120, len(_B) - 2):
+    _e = LE.evaluate(_B, _CF, _H1, _i, atr=LE.atr_list(_B, 14)[_i])
+    if _e.get("ok"):
+        _sig = _e
+        _sig["_i"] = _i
+        break
+check("a full setup is reachable on real-shaped bars", _sig is not None, None)
+if _sig:
+    _tp = _sig["tp"]
+    _up = _sig["side"] == 1
+    check("four targets, in order, from the actual entry",
+          len(_tp) == 4 and (all(_tp[k] < _tp[k + 1] for k in range(3)) if _up
+                             else all(_tp[k] > _tp[k + 1] for k in range(3))), _tp)
+    check("the stop is on the losing side of the entry",
+          (_sig["sl"] < _sig["entry"]) if _up else (_sig["sl"] > _sig["entry"]),
+          (_sig["entry"], _sig["sl"]))
+    check("score never leaves 0..100", 0 <= _sig["score"] <= 100, _sig["score"])
+    check("every point is accounted for",
+          _sig["score"] == sum(_sig.get(k) or 0 for k in
+                               ("score_h1", "score_sweep", "score_bos", "score_disp",
+                                "score_fvg", "score_mom")), _sig["score"])
+
+# the padding test: appending future bars must not change a past decision
+_past = LE.evaluate(_B[:600], [b for b in _CF if b["time"] + 300 <= _B[599]["time"] + 60],
+                    [b for b in _H1 if b["time"] + 3600 <= _B[599]["time"] + 60], 599,
+                    atr=LE.atr_list(_B[:600], 14)[599])
+_more = _B + _synth(200, seed=99)
+_more = [dict(b, time=1700000000 + i * 60) for i, b in enumerate(_more)]
+_past2 = LE.evaluate(_more[:600], [b for b in _CF if b["time"] + 300 <= _more[599]["time"] + 60],
+                     [b for b in _H1 if b["time"] + 3600 <= _more[599]["time"] + 60], 599,
+                     atr=LE.atr_list(_more[:600], 14)[599])
+check("later bars cannot rewrite an earlier decision",
+      _past.get("score") == _past2.get("score") and _past.get("ok") == _past2.get("ok"),
+      (_past.get("score"), _past2.get("score")))
+
+# same-bar ambiguity is booked against the trader, never for him
+_amb = {"time": 1, "type": "BUY", "entry": 100.0, "sl": 99.0, "tp": [101, 101.5, 102, 103],
+        "risk": 1.0, "score": 90, "r_gross": -1.0, "cost_r": 0.0, "r": -1.0, "hit": 0, "bars": 3}
+check("a bar that touches stop and target books the stop",
+      LE.stats([_amb], 2)["avg_r"] == -1.0, LE.stats([_amb], 2)["avg_r"])
+_st = LE.stats([dict(_amb, **{"hit": 2, "r": -1.0, "r_gross": -1.0})], 2)
+check("booking at TP1 uses the target that was actually reached", _st["wins"] == 1, _st)
+
+_blk = LE.edge_block([_amb])
+check("the gate sees the engine in its own shape",
+      set(_blk["by_style"]) >= {"logic sweep BUY", "logic sweep SELL"} and
+      "liquidity sweep" in _blk["by_family"], list(_blk["by_style"]))
+
 _ok_mixed, _b_mixed = APPX._edge_verdict("reject VAL", {"by_style": {"reject VAL": {
     "n": 30, "avg_r": 0.12, "winrate": 60, "h1_avg": -0.30, "h2_avg": 0.54, "stable": False}}})
 check("a bucket that only paid in one half of the window is not taken",

@@ -238,6 +238,14 @@ section('view switching');
   ok('hint text follows', els['view-hint'].textContent === 'trading chart only');
 }
 
+section('the signal card carries the whole plan, not half of it');
+{
+  ok('TP3 is rendered when the engine sends one', /TP3 \$\{fmtPx\(s\.tp3\)\}/.test(html));
+  ok('TP4 is rendered when the engine sends one', /TP4 \$\{fmtPx\(s\.tp4\)\}/.test(html));
+  ok('the score is shown with its maximum', /score \$\{s\.score\}\/100/.test(html));
+  ok('the timeframe plan is shown', /\$\{s\.tf_plan\}/.test(html));
+}
+
 section('the ladder and the card quote the same numbers');
 {
   currentSymbol = 'XAUUSD';
