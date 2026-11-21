@@ -984,8 +984,10 @@ section('one strategy, one price, more tools');
      && /google\.accounts\.id\.initialize\(\{ client_id: OWNER\.client_id/.test(html));
   ok('the sign-in button is hidden once the owner is in', /chip\.hidden = true/.test(html)
      && /chip\.hidden = false/.test(html));
-  ok('the old lock row now signs the owner out', /id="menu-lock-btn"[^>]*onclick="lockNow\(\)"/.test(html)
-     && /function lockNow\(\)\{ ownerSignOut\(\); \}/.test(html));
+  ok('the old lock action still signs the owner out', /function lockNow\(\)\{ ownerSignOut\(\); \}/.test(html)
+     && !/id="menu-lock-btn"/.test(html));
+  ok('the menu has one Owner section, not two', (html.match(/>Owner<\/div>/g) || []).length === 1
+     && !/id="menu-owner-row"/.test(html));
 
   // ---- order flow: the value edge decides, not the VWAP side ----
   const { execSync: ex2 } = require('child_process');

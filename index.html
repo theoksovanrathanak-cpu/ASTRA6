@@ -2044,7 +2044,7 @@ body[data-view="chart"] #mysig-section{margin-bottom:14px}
   .mrow .mst{order:2;margin-left:auto}
   .mrow .mmid{flex:1 1 100%;order:3}
   .mrow .ma{order:4;width:100%;justify-content:flex-end}
-  .mrow .ma button{padding:6px 11px;font-size:10px}
+  .mrow .ma button{padding:8px 13px;font-size:10.5px;min-height:34px}
   .mysig-list{max-height:none;overflow:visible}   /* the page scrolls, the list is never cut */
 }
 .mysig-empty{font-size:11px;color:var(--muted);padding:10px 2px}
@@ -2240,12 +2240,15 @@ body::before,[data-theme="dark"] body::before{
     <button class="menu-x" onclick="closeMenu()" aria-label="Close">×</button>
   </div>
 
-  <div class="menu-sec" id="menu-owner-row" hidden>
+  <div class="menu-sec" id="menu-owner-sec" hidden>
     <div class="menu-label">Owner</div>
-    <button class="menu-lock" id="menu-lock-btn" type="button" onclick="lockNow()" hidden>
-      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 17l5-5-5-5"/><path d="M20 12H9"/><path d="M13 4H6.5A1.5 1.5 0 0 0 5 5.5v13A1.5 1.5 0 0 0 6.5 20H13"/></svg>
-      <span>Sign out</span>
-    </button>
+    <div class="menu-hint" id="owner-menu-hint">signed in</div>
+    <div class="menu-btns">
+      <button class="chip" onclick="closeMenu();openPostSignal()">Post a signal</button>
+      <button class="chip" onclick="closeMenu();openSiteEditor()">Customize site</button>
+    </div>
+    <button class="chip" style="width:100%;justify-content:center;margin-top:6px"
+            onclick="closeMenu();ownerSignOut()">Sign out</button>
   </div>
 
   <div class="menu-sec">
@@ -2262,17 +2265,6 @@ body::before,[data-theme="dark"] body::before{
       <div class="fund-row"><span class="fund-x">reading the news…</span></div>
     </div>
     <button class="chip" style="width:100%;justify-content:center" onclick="openGoldFundamentals()">Open gold fundamentals</button>
-  </div>
-
-  <div class="menu-sec" id="menu-owner-sec" hidden>
-    <div class="menu-label">Owner</div>
-    <div class="menu-hint" id="owner-menu-hint">signed in</div>
-    <div class="menu-btns">
-      <button class="chip" onclick="closeMenu();openPostSignal()">Post a signal</button>
-      <button class="chip" onclick="closeMenu();openSiteEditor()">Customize site</button>
-    </div>
-    <button class="chip" style="width:100%;justify-content:center;margin-top:6px"
-            onclick="closeMenu();ownerSignOut()">Sign out</button>
   </div>
 
   <div class="menu-sec">
@@ -9697,10 +9689,6 @@ function ownerChip() {
       chip.title = 'Sign in with Google';
     }
   }
-  const lockBtn = document.getElementById('menu-lock-btn');
-  if (lockBtn) lockBtn.hidden = !OWNER.signedIn;
-  const ownerRow = document.getElementById('menu-owner-row');
-  if (ownerRow) ownerRow.hidden = !OWNER.signedIn;
   // the posting and customising tools exist in the menu, and only for the owner
   const sec = document.getElementById('menu-owner-sec');
   if (sec) sec.hidden = !OWNER.me;
