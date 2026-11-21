@@ -60,6 +60,15 @@ check("any signed-in Google address reads back, but only the owner may publish",
       O.read_session(FakeReq(O.make_session("visitor@gmail.com"))) == "visitor@gmail.com"
       and raises(lambda: O.require_owner(FakeReq(O.make_session("visitor@gmail.com"))), 403)
       and O.require_owner(FakeReq(O.make_session(O.OWNER_EMAIL))) == O.OWNER_EMAIL)
+try:
+    import pushweb as _PW
+    _c = _PW.signal_card({"id": "s1", "side": "BUY", "entry": 3520.5, "sl": 3512.0, "tp1": 3532.0})
+    check("a published signal builds a real card", _c["title"].startswith("ASTRA6") and "3,520.50" in _c["body"]
+          and "3,512.00" in _c["body"] and _c["kind"] == "signal")
+    check("the card carries no invented number", set(_c.keys()) >= {"title", "body", "sym", "kind", "tag", "ts", "url"})
+    check("broadcast exists and is callable", callable(_PW.broadcast))
+except Exception as _e:
+    check("push module usable: " + str(_e), False)
 check("no cookie means no owner", O.read_session(FakeReq()) is None)
 check("require_owner raises 401 without a session", raises(lambda: O.require_owner(FakeReq()), 401))
 

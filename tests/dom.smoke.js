@@ -53,7 +53,8 @@ setTimeout(() => {
     check('  ' + id + ' gone from the page', !el || !el.isConnected, id);
   }
   check('no Telegram block in the footer', !/ASTRA6RENDER/.test(doc.body.innerHTML));
-  check('no signal-alert button anywhere', !/alertSignal|Signal alert/.test(doc.body.innerHTML));
+  check('no old signal-alert sender anywhere', !/alertSignal|Send signal alert|Signal alert to/.test(doc.body.innerHTML));
+  check('the new signal card exists and starts hidden', !!doc.getElementById('sig-alert') && doc.getElementById('sig-alert').hidden);
 
   console.log('the card is read only');
   check('no form and no inputs on the page', !doc.getElementById('mysig-form')

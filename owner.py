@@ -323,6 +323,13 @@ def signals_post(body: SignalBody, request: Request):
         rows.insert(0, row)
         rows = rows[:120]
         _write("signals.json", rows)
+    # ring every phone that asked to be told; a phone with the page open draws its own card
+    try:
+        import pushweb as _push
+        _card = _push.signal_card(row)
+        threading.Thread(target=_push.broadcast, args=(_card,), daemon=True).start()
+    except Exception as e:
+        print("signal push:", str(e)[:80])
     return {"ok": True, "signal": row, "persistent": persistent()}
 
 

@@ -657,6 +657,20 @@ section('the drawer stays clean');
   ok('setTimeframe still finds its buttons', /querySelectorAll\('\[data-tf\]'\)/.test(grab('setTimeframe')));
 }
 
+section('a published signal rings on the page');
+{
+  ok('the card exists, empty until something is published', /<div class="sig-alert" id="sig-alert" hidden/.test(html));
+  ok('it shows the side, the entry, the stop and the targets',
+     /sa-badge/.test(html) && /entry <b>/.test(html) && /stop <b>/.test(html) && /tp' \+ p\[1\]/.test(html));
+  ok('a voice reads the same numbers, never invented ones',
+     /new SpeechSynthesisUtterance/.test(html) && /says\.push\('Entry ' \+ saNum\(sig\.entry\)/.test(html)
+     && !/Math\.random/.test(grab('signalSay')));
+  ok('the voice can be switched off and stays off', /astra6_voice/.test(html) && /signalVoiceOn\(\)/.test(html));
+  ok('the first look only learns the list, and an empty list still counts as a first look',
+     /localStorage\.getItem\('astra6_sigwatch'\)/.test(html) && /if \(!booted \|\| !fresh\.length\) return/.test(html));
+  ok('the list is watched from the first minute', /setInterval\(function \(\) \{ try \{ signalWatch\(\); \} catch \(e\) \{\} \}, 20000\)/.test(html));
+}
+
 section('the page says when the data stops');
 {
   const at = s => new Date(s).getTime();

@@ -228,6 +228,49 @@ def _send(subscription, payload):
         return False, code or str(e)[:80]
 
 
+def broadcast(payload, skip_awake=True):
+    """Send one card to every live subscription. Returns how many really left.
+
+    A phone with the page on screen is skipped: that page draws the card and reads it
+    out itself, and a duplicate lock-screen card for the same signal is noise.
+    """
+    if not ready():
+        return 0
+    sent = 0
+    now = time.time()
+    for rec in subscribers():
+        try:
+            awake = (now - float(rec.get("seen") or 0)) < AWAKE_SECONDS
+            if skip_awake and awake:
+                continue
+            ok, _ = send_to(rec, payload)
+            if ok:
+                sent += 1
+        except Exception as e:
+            print("broadcast:", str(e)[:80])
+    return sent
+
+
+def signal_card(row):
+    """The card for a signal the owner has just published. Every number comes from the row."""
+    side = str(row.get("side") or "").upper()
+    bits = []
+    if row.get("entry") is not None:
+        bits.append("entry " + _num(row.get("entry"), 2))
+    if row.get("sl") is not None:
+        bits.append("SL " + _num(row.get("sl"), 2))
+    for i, key in enumerate(("tp1", "tp2", "tp3"), 1):
+        if row.get(key) is not None:
+            bits.append("TP%d %s" % (i, _num(row.get(key), 2)))
+    note = str(row.get("note") or "").strip()[:80]
+    body = " · ".join(bits) + ((" · " + note) if note else "")
+    title = ("ASTRA6 · %s XAUUSD" % side) if side else "ASTRA6 · new signal"
+    p = card(title, body or "the owner published a signal", "XAUUSD", kind="signal",
+             tag="astra6-signal-" + str(row.get("id") or int(time.time())))
+    p["url"] = "/?src=signal"
+    return p
+
+
 def send_to(rec, payload):
     ok, code = _send(rec.get("subscription") or {}, payload)
     if not ok and code in (404, 410):

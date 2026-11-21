@@ -2129,6 +2129,27 @@ body::before,[data-theme="dark"] body::before{
   background:#26364e!important;border-color:#31445f!important;color:#fff!important;
 }
 
+/* ---------- a published signal: a card that slides in and reads itself ---------- */
+.sig-alert{
+  position:fixed;left:50%;transform:translateX(-50%) translateY(14px);bottom:18px;z-index:96;
+  width:min(430px,calc(100vw - 24px));padding:14px 15px 13px;border-radius:18px;
+  background:#101a2b;border:1px solid #25334a;color:#e9eff9;
+  box-shadow:0 22px 60px -22px rgba(0,0,0,.95),inset 0 1px 0 rgba(255,255,255,.06);
+  opacity:0;pointer-events:none;transition:opacity .22s ease,transform .22s ease;
+  font:14px/1.45 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+}
+.sig-alert.on{opacity:1;pointer-events:auto;transform:translateX(-50%) translateY(0)}
+.sa-hd{display:flex;align-items:center;gap:9px;margin-bottom:9px}
+.sa-badge{font-size:11px;font-weight:900;letter-spacing:.08em;padding:4px 9px;border-radius:999px;
+  background:rgba(47,158,124,.18);color:#7fe0bd;border:1px solid rgba(47,158,124,.45)}
+.sa-badge.sell{background:rgba(210,84,79,.18);color:#ff9d99;border-color:rgba(210,84,79,.45)}
+.sa-title{font-size:13px;font-weight:800;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sa-btn{border:0;background:transparent;color:#8fa1bb;font-size:15px;line-height:1;cursor:pointer;padding:4px 5px;display:inline-flex;align-items:center}
+.sa-btn svg{display:block}
+.sa-btn:hover{color:#e9eff9}
+.sa-body{font-size:13px;color:#c7d3e4;display:flex;flex-wrap:wrap;gap:6px 14px;margin-bottom:6px}
+.sa-body b{color:#fff;font-variant-numeric:tabular-nums}
+.sa-foot{font-size:11px;color:#7e8ca2}
 /* the hero aura was a spinning rainbow; the mark is monochrome, so it is a navy glow */
 .home::before,[data-theme="dark"] .home::before{
   opacity:.8!important;filter:blur(34px)!important;animation:none!important;
@@ -2238,6 +2259,13 @@ body::before,[data-theme="dark"] body::before{
             onclick="closeMenu();ownerSignOut()">Sign out</button>
   </div>
 
+  <div class="menu-sec">
+    <div class="menu-label">Alerts</div>
+    <button class="chip" id="push-btn" style="width:100%;justify-content:center"
+            onclick="closeMenu();pushEnable()">Signal alerts on this phone</button>
+    <div class="menu-hint" id="push-note">One card with the same numbers the owner published — even when the app is shut.</div>
+  </div>
+
   <div class="menu-sec" id="menu-install-sec">
     <div class="menu-label">Install</div>
     <button class="chip" id="install-btn" style="width:100%;justify-content:center" onclick="closeMenu();installFlow()">Add to Home Screen</button>
@@ -2277,6 +2305,17 @@ body::before,[data-theme="dark"] body::before{
     <div class="ig-note" id="ig-note"></div>
   </div>
 </div>
+<div class="sig-alert" id="sig-alert" hidden role="alert" aria-live="assertive">
+  <div class="sa-hd">
+    <span class="sa-badge" id="sa-side">BUY</span>
+    <span class="sa-title" id="sa-title">New signal</span>
+    <button class="sa-btn" id="sa-voice" type="button" onclick="signalVoiceToggle()" aria-label="Voice on or off"></button>
+    <button class="sa-btn sa-x" type="button" onclick="signalAlertHide()" aria-label="Close">×</button>
+  </div>
+  <div class="sa-body" id="sa-body"></div>
+  <div class="sa-foot" id="sa-foot"></div>
+</div>
+
 <div class="sheet-scrim" id="sheet-scrim" onclick="closeSheet()"></div>
 <section class="sheet" id="sheet" aria-hidden="true" aria-label="Panel">
   <div class="sheet-hd">
@@ -9756,6 +9795,111 @@ async function ownerBoot() {
   maybeAutoSignIn();
 }
 
+/* ---- a signal the owner publishes rings: a card on the screen and a voice reading it ---- */
+function saSeenLoad() { try { return JSON.parse(localStorage.getItem('astra6_seen_sig') || '[]') || []; } catch (e) { return []; } }
+function saSeenSave(a) { try { localStorage.setItem('astra6_seen_sig', JSON.stringify(a.slice(-80))); } catch (e) {} }
+function signalVoiceOn() { try { return localStorage.getItem('astra6_voice') !== '0'; } catch (e) { return true; } }
+function saNum(v) { const n = Number(v); return isFinite(n) ? n.toFixed(2) : String(v); }
+let _saHideT = null;
+
+function signalSay(sig) {
+  if (!signalVoiceOn()) return;
+  if (!('speechSynthesis' in window)) return;
+  try {
+    const says = ['New signal.'];
+    says.push((sig.side === 'BUY' ? 'Buy' : 'Sell') + ' gold.');
+    if (sig.entry != null) says.push('Entry ' + saNum(sig.entry) + '.');
+    if (sig.sl != null) says.push('Stop ' + saNum(sig.sl) + '.');
+    ['tp1', 'tp2', 'tp3'].forEach(function (k, i) {
+      if (sig[k] != null) says.push('Target ' + (i + 1) + ', ' + saNum(sig[k]) + '.');
+    });
+    if (sig.note) says.push(String(sig.note).slice(0, 110));
+    const u = new SpeechSynthesisUtterance(says.join(' '));
+    u.lang = 'en-US'; u.rate = 0.97; u.pitch = 1; u.volume = 1;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(u);
+  } catch (e) { console.log('voice', e); }
+}
+
+const SA_ICON_ON = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5h3l4.5-3.6v12.2L7 14.5H4z"/><path d="M16 9.2a4 4 0 0 1 0 5.6"/><path d="M18.7 6.5a8 8 0 0 1 0 11"/></svg>';
+const SA_ICON_OFF = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5h3l4.5-3.6v12.2L7 14.5H4z"/><path d="m16 9.5 5 5"/><path d="m21 9.5-5 5"/></svg>';
+function signalVoicePaint() {
+  const b = document.getElementById('sa-voice');
+  if (b) b.innerHTML = signalVoiceOn() ? SA_ICON_ON : SA_ICON_OFF;
+}
+
+function signalVoiceToggle() {
+  const on = !signalVoiceOn();
+  try { localStorage.setItem('astra6_voice', on ? '1' : '0'); } catch (e) {}
+  signalVoicePaint();
+  if (on) { if (_saShowing) signalSay(_saShowing); }
+  else { try { window.speechSynthesis.cancel(); } catch (e) {} }
+}
+
+let _saShowing = null;
+function signalAlertShow(sig) {
+  const el = document.getElementById('sig-alert');
+  if (!el) return;
+  _saShowing = sig;
+  const side = String(sig.side || '').toUpperCase();
+  const badge = document.getElementById('sa-side');
+  if (badge) { badge.textContent = side || 'SIGNAL'; badge.className = 'sa-badge' + (side === 'SELL' ? ' sell' : ''); }
+  const title = document.getElementById('sa-title');
+  if (title) title.textContent = 'New signal · XAUUSD';
+  const body = document.getElementById('sa-body');
+  if (body) {
+    const bits = [];
+    if (sig.entry != null) bits.push('<span>entry <b>' + saNum(sig.entry) + '</b></span>');
+    if (sig.sl != null) bits.push('<span>stop <b>' + saNum(sig.sl) + '</b></span>');
+    [['tp1', 1], ['tp2', 2], ['tp3', 3]].forEach(function (p) {
+      if (sig[p[0]] != null) bits.push('<span>tp' + p[1] + ' <b>' + saNum(sig[p[0]]) + '</b></span>');
+    });
+    body.innerHTML = bits.join('') || '';
+  }
+  const foot = document.getElementById('sa-foot');
+  if (foot) foot.textContent = sig.note ? String(sig.note).slice(0, 90) : 'published by the owner';
+  signalVoicePaint();
+  try { closeSheet(); } catch (e) {}          // a signal outranks an open sheet
+  el.hidden = false;
+  requestAnimationFrame(function () { el.classList.add('on'); });
+  signalSay(sig);
+  clearTimeout(_saHideT);
+  _saHideT = setTimeout(signalAlertHide, 30000);
+}
+
+function signalAlertHide() {
+  const el = document.getElementById('sig-alert');
+  _saShowing = null;
+  clearTimeout(_saHideT);
+  try { window.speechSynthesis.cancel(); } catch (e) {}
+  if (!el) return;
+  el.classList.remove('on');
+  setTimeout(function () { if (!el.classList.contains('on')) el.hidden = true; }, 240);
+}
+
+/* Watch the published list. The first look only learns what is already there; after that
+   anything new that was published in the last quarter of an hour rings. */
+async function signalWatch() {
+  try {
+    const r = await fetch('/api/signals', { cache: 'no-store' });
+    if (!r.ok) return;
+    const d = await r.json();
+    const rows = (d && d.signals) || [];
+    const seen = saSeenLoad();
+    const fresh = rows.filter(function (x) { return seen.indexOf(x.id) < 0; });
+    OWNER.signals = rows;
+    signalsRender();
+    saSeenSave(seen.concat(fresh.map(function (x) { return x.id; })));
+    // the very first look only learns what is already published (even when the list is empty)
+    let booted = false;
+    try { booted = localStorage.getItem('astra6_sigwatch') === '1'; localStorage.setItem('astra6_sigwatch', '1'); } catch (e) {}
+    if (!booted || !fresh.length) return;
+    const now = Math.floor(Date.now() / 1000);
+    const hot = fresh.filter(function (x) { return (now - Number(x.at || 0)) < 900; });
+    if (hot.length) signalAlertShow(hot[0]);
+  } catch (e) {}
+}
+
 /* ---- the door opens by itself ---- */
 let _autoSignInTried = false;
 function maybeAutoSignIn() {
@@ -10047,7 +10191,10 @@ async function saveSite() {
   }
 }
 
-document.addEventListener('DOMContentLoaded', function () { setTimeout(function () { try { ownerBoot(); } catch (e) { console.log(e); } }, 350); });
+document.addEventListener('DOMContentLoaded', function () { setTimeout(function () { try { ownerBoot(); } catch (e) { console.log(e); } }, 350);
+  setTimeout(function () { try { signalWatch(); } catch (e) {} }, 900);
+  setInterval(function () { try { signalWatch(); } catch (e) {} }, 20000);
+});
 
 
 /* Every removed panel or readout is given a detached stand-in: the tick loops still
