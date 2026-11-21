@@ -2226,6 +2226,12 @@ body[data-view="chart"] #mysig-section{margin-bottom:14px}
     <button class="chip" style="width:100%;justify-content:center" onclick="openJournal()">Open journal</button>
   </div>
 
+  <div class="menu-sec">
+    <div class="menu-hint" id="build-note">build r27</div>
+    <button class="chip" style="width:100%;justify-content:center;margin-top:6px"
+            onclick="appRefresh()">Refresh app</button>
+  </div>
+
   </aside>
 
 <div class="ios-guide" id="ios-guide" aria-hidden="true" role="dialog" aria-label="Add ASTRA6 to the Home Screen">
@@ -9589,6 +9595,33 @@ async function publishFromSheet() {
    The owner is one address. Google proves it; this page never sees a password. Visitors
    read the published signals and can keep a private one on their own device, but only the
    signed-in owner can publish or change the site.                                        */
+const ASTRA6_BUILD = 'r27';
+
+/* A phone can keep an old copy of the page in its offline cache. This throws the
+   cache away and reloads from the network, so an old build can never stick around. */
+function appRefresh() {
+  const done = function () { try { location.reload(); } catch (e) {} };
+  try {
+    const jobs = [];
+    if (window.caches && caches.keys) {
+      jobs.push(caches.keys().then(function (ks) {
+        return Promise.all(ks.map(function (k) { return caches.delete(k); }));
+      }));
+    }
+    if ('serviceWorker' in navigator && navigator.serviceWorker.getRegistrations) {
+      jobs.push(navigator.serviceWorker.getRegistrations().then(function (rs) {
+        return Promise.all(rs.map(function (r) { return r.unregister(); }));
+      }));
+    }
+    if (!jobs.length) { done(); return; }
+    Promise.all(jobs.map(function (j) { return j.catch(function () {}); })).then(done, done);
+  } catch (e) { done(); }
+}
+document.addEventListener('DOMContentLoaded', function () {
+  const el = document.getElementById('build-note');
+  if (el) el.textContent = 'build ' + ASTRA6_BUILD;
+});
+
 const OWNER = { me: false, email: null, ready: false, client_id: null, persistent: false,
                 keyReady: false, site: null, signals: [] };
 
