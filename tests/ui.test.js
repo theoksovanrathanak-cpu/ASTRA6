@@ -969,7 +969,8 @@ section('one strategy, one price, more tools');
   ok('the 4-digit passcode screen is gone', !/<div id="lock"|id="lock-dots"|id="lock-pad"/.test(html));
   ok('nothing asks for a PIN on boot', !/lkOpen\(lkGet\(LK\.pin\)/.test(html));
   ok('the sign-in sheet opens by itself', /function maybeAutoSignIn\(\)/.test(html)
-     && /setTimeout\(function \(\) \{ if \(!OWNER\.me\) ownerTap\(\); \}, 700\)/.test(html));
+     && /setTimeout\(function \(\) \{\s*if \(OWNER\.me\) return;\s*ownerTap\(\);/.test(html));
+  ok('a first visit is not reloaded under the sheet', /const _wasControlled=!!navigator\.serviceWorker\.controller/.test(html));
   ok('one tap asks Google for the owner account', /google\.accounts\.id\.prompt\(/.test(html)
      && /google\.accounts\.id\.initialize\(\{ client_id: OWNER\.client_id/.test(html));
   ok('the sign-in button is hidden once the owner is in', /chip\.hidden = true/.test(html)

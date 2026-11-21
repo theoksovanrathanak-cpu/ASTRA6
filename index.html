@@ -3005,9 +3005,14 @@ function registerOfflineShell(){
     try{ r.update(); }catch(e){}
     if(r.waiting) r.waiting.postMessage('skip-waiting');       // a fresh deploy never waits a reload
   }).catch(function(){});
+  // Reload only when an ALREADY-controlled page changes hands. On a first visit the new
+  // worker takes control straight away — reloading then would throw away whatever the page
+  // was doing (it used to close the sign-in sheet mid-open).
   if(!window._swReloaded){
+    const _wasControlled=!!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange',function(){
-      if(window._swReloaded) return; window._swReloaded=true;
+      if(!_wasControlled||window._swReloaded) return;
+      window._swReloaded=true;
       try{ location.reload(); }catch(e){}
     });
   }
@@ -9794,11 +9799,15 @@ function maybeAutoSignIn() {
   if (OWNER.me || _autoSignInTried) return;
   try { if (sessionStorage.getItem('astra6_signin_seen') === '1') return; } catch (e) {}
   _autoSignInTried = true;
-  try { sessionStorage.setItem('astra6_signin_seen', '1'); } catch (e) {}
   // the sheet is the reliable half of this: it always opens, and it carries Google's own
   // button. (Google's silent one-tap prompt is suppressed by many browsers, so it is not
   // what the door depends on.) One tap on that button is the Google account chooser.
-  setTimeout(function () { if (!OWNER.me) ownerTap(); }, 700);
+  setTimeout(function () {
+    if (OWNER.me) return;
+    ownerTap();
+    // marked only once it is really on screen, so a reload in between cannot swallow it
+    try { sessionStorage.setItem('astra6_signin_seen', '1'); } catch (e) {}
+  }, 700);
 }
 
 /* Google's own one-tap prompt: the account chooser appears without a tap when the
