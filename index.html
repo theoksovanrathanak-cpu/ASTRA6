@@ -1418,16 +1418,15 @@ body[data-view="home"] .wrap{position:relative;overflow:hidden}
 
 /* ---------- the menu ---------- */
 .menu{
-  background-color:var(--panel);
-  background-image:linear-gradient(var(--panel),var(--panel)),
-                   linear-gradient(180deg,var(--edge-1),var(--edge-2) 48%,var(--edge-3));
-  background-origin:border-box;background-clip:padding-box,border-box;
-  border-left:1px solid transparent;
-  /* no backdrop blur here: the sheet is opaque, so the blur only re-sampled the page
-     behind it on every scrolled row (measured 41 ms p90 inside this sheet) */
-  box-shadow:-30px 0 70px -34px rgba(15,23,42,.6),inset 1px 0 0 rgba(255,255,255,.12);
+  background-color:var(--panel-solid);
+  border-left:0;
+  /* flat panel, no edge line: the only separation is the soft shadow behind it.
+     (there used to be a gradient border plus an inset white line here — that was the
+     bright hairline down the drawer edge.) No backdrop blur either: the sheet is
+     opaque, so the blur only re-sampled the page behind it on every scrolled row. */
+  box-shadow:-30px 0 70px -34px rgba(15,23,42,.6);
 }
-[data-theme="dark"] .menu{box-shadow:-30px 0 80px -30px rgba(0,0,0,.9),inset 1px 0 0 rgba(255,255,255,.06)}
+[data-theme="dark"] .menu{box-shadow:-30px 0 80px -30px rgba(0,0,0,.9)}
 .menu-label{display:flex;align-items:center;gap:6px;letter-spacing:.11em}
 .menu-label::before{
   content:"";width:6px;height:6px;border-radius:2px;flex:0 0 6px;
