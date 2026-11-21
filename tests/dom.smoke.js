@@ -40,7 +40,7 @@ setTimeout(() => {
   console.log('boot');
   check('no boot exception', errors.length === 0, errors.slice(0, 3));
   check('the signals card exists', !!doc.getElementById('mysig-section'));
-  check('chart still exists', !!doc.getElementById('oanda_chart'));
+  check('the chart is gone', !doc.getElementById('oanda_chart') && !doc.getElementById('chart-section'));
   check('no timeframe row is left in the menu', !doc.querySelector('#menu-tf-row'));
   check('the passcode screen is gone', !doc.getElementById('lock'));
   check('nothing floats over the chart', ['chart-toolbar','mkt-float','tf-float','chart-stale','offline-card','mob-strip','bnav'].every(id => !doc.getElementById(id)));

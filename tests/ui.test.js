@@ -223,14 +223,13 @@ section('view switching');
 {
   BTNS = ['chart', 'signal', 'all'].map(v => { const b = mkEl('b-' + v); b.dataset.view = v; return b; });
   setView('chart');
-  ok('chart only', document.body.attrs['data-view'] === 'chart' && localStorage.getItem('astra6_lastview') === 'chart');
+  ok('every view request lands on the one page', document.body.attrs['data-view'] === 'home' && localStorage.getItem('astra6_lastview') === 'home');
   ok('the screen name never overwrites the chart options',
      localStorage.getItem('astra6_view') === null || /^\{/.test(localStorage.getItem('astra6_view')));
   setView('signal');
-  ok('a view that no longer exists falls back to the chart', document.body.attrs['data-view'] === 'chart');
+  ok('a view that never existed falls back to home', document.body.attrs['data-view'] === 'home');
   setView('all');
-  ok('so does both', document.body.attrs['data-view'] === 'chart');
-  ok('hint text follows', els['view-hint'].textContent === 'trading chart only');
+  ok('so does that one', document.body.attrs['data-view'] === 'home');
 }
 
 section('the signal card carries the whole plan, not half of it');
@@ -379,12 +378,12 @@ section('nothing opens by itself');
   ok('no chart is built at boot', !/setTimeout\(\(\)=>\{initChart\(\)/.test(html));
   ok('the chart is built when asked for', /if\(!chart && typeof initChart==='function'\) initChart\(\)/.test(html));
   ok('nothing polls the chart while it is closed', /if\(chart\)fetchChart\(currentTF\)/.test(html));
-  ok('hero and chart are hidden on home', /body\[data-view="home"\] #chart-section/.test(css));
+  ok('the old chart screen is gone from the markup', !/id="chart-section"/.test(html) && !/id="oanda_chart"/.test(html));
   ok('footer is hidden on home', /body\[data-view="home"\] \.foot\{display:none\}/.test(css));
   ok('the home screen carries no market tiles', !html.includes('id="home-px-XAUUSD"')
      && !html.includes('id="home-px-EURUSD"') && !html.includes('id="home-px-ES"')
      && !/class="home-tiles"/.test(html));
-  ok('home offers one chart button instead', /class="home-cta"[^>]*onclick="setView\('chart'\)/.test(html));
+  ok('home offers no chart button, because there is no chart', !/class="home-cta"/.test(html));
   // GOLD ONLY: the platform carries one market, by explicit request
   const mktBlock = html.slice(html.indexOf('const MKT={'), html.indexOf('const MKT_GROUPS'));
   ok('the market table holds gold and nothing else', /XAUUSD:/.test(mktBlock)
@@ -396,15 +395,13 @@ section('nothing opens by itself');
   ok('the welcome subtitle names the one market', /gold · xauusd/.test(html) && !/metals · futures|metals · forex/.test(html));
   ok('the page description names gold', /Live gold/.test(html) && !/live metals and futures/i.test(html));
   ok('the welcome has no price header', /body\[data-view="home"\] \.hd \.price-block/.test(html));
-  ok('home still points at menu → Chart', /menu → Chart/.test(html));
-  ok('menu has a Home choice', /data-view="home"/.test(html));
-  ok('Home starts active in the menu', /class="tf-btn active" data-view="home"/.test(html));
+  ok('nothing points at a chart screen any more', !/menu → Chart/.test(html));
+  ok('the drawer carries no screen switch', !/id="view-row"/.test(html) && !/<button[^>]*data-view=/.test(html));
   BTNS = ['home', 'chart', 'signal', 'all'].map(v => { const b = mkEl('b-' + v); b.dataset.view = v; return b; });
   setView('home');
   ok('home view applies', document.body.attrs['data-view'] === 'home');
-  ok('hint says pick a screen', els['view-hint'].textContent === 'pick a screen to open');
   setView('chart');
-  ok('chart is still one click away', document.body.attrs['data-view'] === 'chart');
+  ok('asking for the removed chart screen still lands on home', document.body.attrs['data-view'] === 'home');
   setTabPrice('XAUUSD', 3876.5);
   ok('home tile follows the live price', document.getElementById('home-px-XAUUSD').textContent === '$3876.50',
      document.getElementById('home-px-XAUUSD').textContent);
@@ -652,12 +649,11 @@ section('the drawer stays clean');
      && !/class="price-block"/.test(html));
   ok('sections are divided, not stacked blindly', /\.menu-sec\{[^}]*border-top:1px solid/.test(html));
   ok('the signal list is no longer a drawer ladder', html.indexOf('id="alerts-list"') < 0);
-  const order = ['View', 'Economic calendar', 'Gold fundamentals', 'Trade journal']
+  const order = ['Owner', 'Economic calendar', 'Gold fundamentals', 'Install', 'Trade journal']
     .map(t => menu.indexOf(t));
   ok('the menu reads in a sane order', order.every((v, i) => v > 0 && (i === 0 || v > order[i - 1])), order);
   ok('the drawer no longer offers a strategy switch', menu.indexOf('RENDER') < 0 && menu.indexOf('data-strategy') < 0);
-  ok('the drawer offers home and chart only', menu.indexOf("data-view=\"home\"") > 0 && menu.indexOf("data-view=\"chart\"") > 0
-     && menu.indexOf("setView('signal')") < 0 && menu.indexOf("setView('all')") < 0);
+  ok('the drawer offers no screen switch at all', menu.indexOf("data-view=") < 0 && menu.indexOf('setView(') < 0);
   ok('setTimeframe still finds its buttons', /querySelectorAll\('\[data-tf\]'\)/.test(grab('setTimeframe')));
 }
 
@@ -675,8 +671,8 @@ section('the page says when the data stops');
   ok('gold closes Friday 21:00 UTC', !marketOpenNow('XAUUSD', at('2026-10-30T21:30:00Z')));
   ok('the daily break is closed', !marketOpenNow('XAUUSD', at('2026-10-28T21:30:00Z')));
   ok('the rest of the week is open', marketOpenNow('XAUUSD', at('2026-10-28T12:00:00Z')));
-  ok('the live state is still shown on the chart, not as a price in the header',
-     /id="net-text"/.test(html) || /class="chart-stale"/.test(html) || /id="chart-live"/.test(html));
+  ok('no chart chrome is left to report the live state',
+     !/<[^>]*id="chart-live"/.test(html) && !/<[^>]*class="[^"]*chart-stale/.test(html));
   ok('a closed market is admitted without home tiles', !html.includes('id="home-tag-XAUUSD"')
      && /market closed/.test(grab('fetchChart')));
   ok('a stale clock is retried instead of freezing', /age>10/.test(grab('netWatch')) && /fetchFastPrice\(\)/.test(grab('netWatch')));
@@ -804,8 +800,7 @@ section('the chart behaves like a terminal, not a picture of one');
   ok('zoom buttons move the visible range, never the data', /function zoomBy\(f\)/.test(html)
      && /setVisibleLogicalRange/.test(grab('zoomBy')));
   ok('the chart toolbar is gone', !/id="chart-toolbar"/.test(html));
-  ok('scrolling into history offers a way back to live', /id="chart-live"/.test(html)
-     && /scrollToRealTime/.test(grab('goLive')));
+  ok('there is no chart to scroll, so no live pill either', !/id="chart-live"/.test(html));
   ok('the live pill appears only when the view left the last candle', /n-1-r\.to\)>14/.test(grab('paintLivePill'))
      && /paintLivePill\(\)/.test(html));
   ok('candle width is a stored setting, not a one-off', /function setBarWidth\(dir,reset\)/.test(html)

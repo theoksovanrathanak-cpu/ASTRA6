@@ -881,8 +881,6 @@ body[data-view="signal"] #hero-signal{position:relative}
 .home{display:none}
 body[data-view="home"] .home{display:flex}
 body[data-view="home"] #hero-signal,
-body[data-view="home"] #mysig-section,
-body[data-view="home"] #chart-section,
 body[data-view="home"] .foot{display:none}
 body[data-view="home"] .wrap{
   max-width:none;min-height:calc(var(--app-h) - var(--hd-h));
@@ -2206,11 +2204,7 @@ body::before,[data-theme="dark"] body::before{
   </div>
 
   <div class="menu-sec">
-    <div class="menu-label">View</div>
-    <div class="tf-row" id="view-row">
-      <button class="tf-btn active" data-view="home" onclick="setView('home')">Home</button><button class="tf-btn" data-view="chart" onclick="setView('chart')">Chart</button>
-    </div>
-    <div class="menu-hint" id="view-hint">pick a screen to open</div>
+    <div class="menu-label">Owner</div>
     <button class="menu-lock" id="menu-lock-btn" type="button" onclick="lockNow()" hidden>
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 17l5-5-5-5"/><path d="M20 12H9"/><path d="M13 4H6.5A1.5 1.5 0 0 0 5 5.5v13A1.5 1.5 0 0 0 6.5 20H13"/></svg>
       <span>Sign out</span>
@@ -2300,13 +2294,6 @@ body::before,[data-theme="dark"] body::before{
       <div class="home-title">ASTRA6</div>
       <div class="home-sub">gold · xauusd · live</div>
     </div>
-    <button class="home-cta" type="button" onclick="setView('chart');if(typeof closeMenu==='function')closeMenu()">
-      <span class="cta-ico" aria-hidden="true">
-        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5M4 19h16"/><path d="m7.5 15 4-5 3 3.2 4.2-6.2"/></svg>
-      </span>
-      <span class="cta-t">Open chart</span>
-      <span class="cta-k">menu → Chart</span>
-    </button>
   </section>
 
   <section class="card mysig" id="mysig-section" aria-label="Owner signals">
@@ -2319,33 +2306,6 @@ body::before,[data-theme="dark"] body::before{
     </div>
     <div class="mysig-list" id="mysig-list"><div class="mysig-empty">The owner has not published a signal yet.</div></div>
   </section>
-
-  <section class="card" id="chart-section">
-    <div class="card-hd">
-      <div>
-        <div class="card-title">Price chart</div>
-        <div class="card-note"><span id="chart-tf-label">M1</span> · live</div>
-      </div>
-    </div>
-    <div class="chart-shell">
-      <div id="oanda_chart">Loading chart…</div>
-      <div class="swap-cover" id="swap-cover" aria-hidden="true">
-        <div class="swap-sym" id="swap-sym">—</div>
-        <div class="swap-sub" id="swap-sub">loading</div>
-        <div class="swap-bar"><i></i></div>
-      </div>
-      <button id="chart-live" type="button" hidden onclick="goLive()" aria-label="Return to the live candle">
-        <i></i><span>LIVE</span>
-      </button>
-      <div id="tv-legend"><span class="lg-t" id="lg-sym">XAUUSD</span><span id="lg-tf">M15</span><span class="lg-note" id="lg-note"></span><span id="ind-legend" hidden></span></div>
-    </div>
-    <div class="meta-row">
-      <span>ASTRA6 chart · <span id="chart-info-tf">M1</span> · <span id="chart-candle-count">--</span></span>
-    </div>
-  </section>
-
-
-
 
   <footer class="foot">
     <div class="foot-l">
@@ -3253,7 +3213,7 @@ document.addEventListener('keydown',e=>{
 // ---- view: chart, signal, or both ----
 window._view = 'home';   // nothing opens by itself: the chart is a menu choice
 function setView(v){
-  if(v!=='home'&&v!=='chart')v='chart';            // the drawer only offers these two
+  v='home';                                        // the site is one page: no chart screen left
   window._view=v;
   // its own key: astra6_view holds the chart's JSON options, and writing 'home' into it
   // used to wipe the price-scale preferences on every screen change
@@ -3261,8 +3221,6 @@ function setView(v){
   document.body.setAttribute('data-view',v);
   try{if(typeof paintBnav==='function')paintBnav();}catch(e){}
   document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
-  const hint=document.getElementById('view-hint');
-  if(hint)hint.textContent = v==='home' ? 'pick a screen to open' : 'trading chart only';
   // the chart is built the first time it is asked for, so opening the site draws nothing
   if(v==='chart'){
     const had=!!chart;
