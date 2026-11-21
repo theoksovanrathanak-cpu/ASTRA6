@@ -2014,6 +2014,7 @@ body[data-view="chart"] #mysig-section{margin-bottom:14px}
 .mysig-hd>div:first-child{min-width:0;flex:1 1 180px}
 .mysig-hd>div:last-child{flex:0 0 auto;margin-left:auto}
 .mysig-hd .card-note{overflow-wrap:anywhere}
+.mysig-hd .card-note[hidden]{display:none!important}
 .mysig-count{flex:0 0 auto;font-size:10px;color:var(--muted);border:1px solid var(--line);border-radius:999px;
   padding:3px 9px;white-space:nowrap}
 .mysig-side{display:flex;gap:8px;margin-bottom:10px;max-width:320px}
@@ -9694,12 +9695,11 @@ function ownerChip() {
   if (sec) sec.hidden = !OWNER.me;
   const hint = document.getElementById('owner-menu-hint');
   if (hint) hint.textContent = OWNER.me ? (OWNER.email || '') : '';
+  // the card speaks about the signals, never about who is holding the phone
   const who = document.getElementById('mysig-who');
   if (who) {
-    who.textContent = OWNER.me
-      ? 'signed in as ' + OWNER.email + (OWNER.persistent
-          ? ' · saved on the server' : ' · no disk: a redeploy clears these')
-      : 'published by the owner · everyone reads the same list';
+    who.hidden = !!OWNER.me;
+    who.textContent = OWNER.me ? '' : 'published by the owner · everyone reads the same list';
   }
 }
 

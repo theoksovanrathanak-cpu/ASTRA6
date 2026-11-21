@@ -1154,6 +1154,9 @@ section('signals: read-only on the page, posting lives in the owner menu');
      !/id="mysig-form"/.test(html) && !/id="mysig-entry"/.test(html) && !/id="mysig-post"/.test(html));
   ok('the card is a read-only list of published signals',
      /id="mysig-list"/.test(html) && /published by the owner · everyone reads the same list/.test(html));
+  ok('the card never says who is signed in, or how the disk works',
+     !/signed in as ' \+ OWNER\.email/.test(html) && !/no disk: a redeploy clears these/.test(html)
+     && /who\.hidden = !!OWNER\.me/.test(grab('ownerChip')));
   ok('the owner tools sit in the menu', /id="menu-owner-sec"/.test(html)
      && /openPostSignal\(\)/.test(html) && /openSiteEditor\(\)/.test(html));
   ok('that menu section is hidden until the owner is proved',
