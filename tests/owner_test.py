@@ -133,7 +133,8 @@ class R3:
 
 page = O.signin_page(R3())
 check("the sign-in page carries the client id", "abc.apps.googleusercontent.com" in page or "\"\"" in page)
-check("it names the exact origin to authorise", "https://astra6-real.onrender.com" in page)
+check("the door page keeps its wiring off the screen",
+      "Authorized" not in page and "console.cloud.google" not in page and "GOOGLE_CLIENT_ID" not in page)
 check("it never leaks a doubled brace from the template", "{{" not in page and "}}" not in page)
 check("it is styled, not a bare document", "--bg:#0b0e14" in page and "<style>" in page)
 O.GOOGLE_CLIENT_ID = "abc.apps.googleusercontent.com"

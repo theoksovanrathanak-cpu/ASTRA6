@@ -471,7 +471,7 @@ SIGNIN_PAGE = """<!doctype html><html lang="en"><head><meta charset="utf-8">
  <div class="card">
    <div class="mark">A6</div>
    <h1>ASTRA6 is private</h1>
-   <p>Sign in with the owner Google account to open it.</p>
+   <p>Sign in to continue.</p>
    <div id="g"></div>
    <div id="msg" class="note"></div>
    <form id="kf" __KEY_HIDDEN__ onsubmit="return codeIn(event)" style="margin-top:6px">
@@ -535,13 +535,11 @@ setTimeout(draw, 1200);
 
 def signin_page(request: Request) -> str:
     origin = str(request.base_url).rstrip("/")
+    # the page says nothing about how it is wired; that belongs in the chat, not on the door
     if not GOOGLE_CLIENT_ID:
-        extra = ("<b>No client id is configured on this server.</b> Add GOOGLE_CLIENT_ID in "
-                 "Render → Environment (the public OAuth client id from Google Cloud Console) "
-                 "and reload. Authorized JavaScript origin: <code>" + origin + "</code>")
+        extra = "Sign-in is not connected on this server yet."
     else:
-        extra = ("Only <b>" + OWNER_EMAIL + "</b> can open this site. Authorized origin: "
-                 "<code>" + origin + "</code>")
+        extra = "Only <b>" + OWNER_EMAIL + "</b> can open this site."
     page = SIGNIN_PAGE.replace("{{", "{").replace("}}", "}")   # the template is not an f-string
     page = page.replace("{client_id}", json.dumps(GOOGLE_CLIENT_ID or "")).replace("{extra}", extra)
     page = page.replace("__KEY_READY__", "true" if OWNER_KEY else "false")
