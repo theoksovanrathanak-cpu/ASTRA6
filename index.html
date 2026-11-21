@@ -223,7 +223,7 @@ body.intro-open{overflow:hidden}
 .burger[aria-expanded="true"] span:nth-child(3){transform:translateY(-6px) rotate(-45deg)}
 .scrim{position:fixed;inset:0;background:rgba(2,6,23,.52);opacity:0;pointer-events:none;transition:opacity .18s ease;z-index:70}
 .scrim.on{opacity:1;pointer-events:auto}
-.menu{position:fixed;top:0;right:0;bottom:0;width:min(330px,88vw);background:var(--panel);border-left:1px solid var(--line);
+.menu{position:fixed;top:0;right:0;bottom:0;width:min(330px,88vw);background:var(--panel);border-left:0;
   box-shadow:-16px 0 40px rgba(2,6,23,.22);transform:translateX(102%);transition:transform .22s cubic-bezier(.4,0,.2,1);
   z-index:71;overflow-y:auto;padding:16px 16px 26px;display:flex;flex-direction:column;gap:16px}
 .menu.open{transform:translateX(0)}
@@ -1089,7 +1089,6 @@ body[data-view="chart"] #chart-section .meta-row{display:none}
 body[data-view="chart"] .chart-shell{flex:1 1 auto;min-height:0}
 /* the phone nav is part of the layout, so the chart gives it its own strip instead of
    hiding the pane under it */
-body.has-bnav[data-view="chart"] .wrap{height:calc(var(--app-h) - var(--hd-h) - var(--bnav-h))}
 body[data-view="chart"] #oanda_chart{height:100%;border:0;border-radius:0}
 body[data-view="chart"] #zone-layer,body[data-view="chart"] #smc-layer,body[data-view="chart"] #vwap-layer{inset:0}
 body[data-view="chart"] .hd-in{padding-top:8px;padding-bottom:8px}
@@ -1647,12 +1646,8 @@ body[data-lay="2"] .meta-row,body[data-lay="4"] .meta-row{display:none}
   background:none;border:0;color:var(--muted);font:inherit;font-size:8.5px;font-weight:700;letter-spacing:.2px;cursor:pointer;padding:0}
 #bnav button.on{color:var(--a-violet,#a78bfa)}
 #bnav button.on svg{filter:drop-shadow(0 0 7px rgba(167,139,250,.65))}
-body.has-bnav{--bnav-h:52px}
 /* nothing may hide behind the phone nav: the sheet, the flow card and the meta line
    all stop above it */
-body.has-bnav .sheet-body{padding-bottom:calc(64px + env(safe-area-inset-bottom))}
-body.has-bnav .meta-row{padding-bottom:calc(var(--bnav-h) + env(safe-area-inset-bottom))}
-body.has-bnav #alert-toast,body.has-bnav #app-toast{bottom:calc(var(--bnav-h) + 14px)}
 /* install guide: an arrow that points at the real Share button, not a picture of it */
 .ios-guide{position:fixed;inset:0;z-index:9600;display:none;align-items:flex-end;justify-content:center;
   background:rgba(4,4,10,.72);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);padding:0}
@@ -1710,7 +1705,6 @@ body.has-bnav #alert-toast,body.has-bnav #app-toast{bottom:calc(var(--bnav-h) + 
 .alt-side.down{color:#ef4444}
 .tp-chip.alt-sig,.chip.alt-sig{color:#0b0b12;background:linear-gradient(92deg,#22c55e,#a78bfa 52%,#ef4444);border-color:transparent;font-weight:800}
 .alt-pairs{display:flex;flex-wrap:wrap;gap:4px;padding:1px 2px 7px}
-body.has-bnav .menu{padding-bottom:calc(var(--bnav-h) + 18px)}
 .alt-pairs .tp-chip{font-size:9.5px;padding:5px 7px;letter-spacing:.2px}
 .alt-add{display:flex;flex-wrap:wrap;gap:6px;padding:2px 2px 8px}
 .tp-chip.alt-buy,.chip.alt-buy{color:#052e16;background:rgba(34,197,94,.85);border-color:transparent;font-weight:800}
@@ -2099,8 +2093,6 @@ body[data-view="chart"] #mysig-section{margin-bottom:14px}
 <body data-view="home">
 <script>try{document.body.setAttribute("data-view","home");}catch(e){}</script>
 
-<div id="offline-card" hidden><b class="oc-t">Offline · showing the last real chart</b><span class="oc-s"></span></div>
-
 <div id="cc-fs" role="dialog" aria-modal="true" aria-label="Lesson player" hidden>
   <video id="cc-fs-video" playsinline preload="metadata" onclick="toggleLessonPlay()"></video>
   <div class="cc-fs-hd">
@@ -2200,6 +2192,13 @@ body[data-view="chart"] #mysig-section{margin-bottom:14px}
     <button class="chip" style="width:100%;justify-content:center" onclick="openGoldFundamentals()">Open gold fundamentals</button>
   </div>
 
+  <div class="menu-sec" id="menu-tf-sec">
+    <div class="menu-label">Timeframe</div>
+    <div class="tf-row" id="menu-tf-row">
+      <button class="tf-btn" data-tf="M1">M1</button><button class="tf-btn" data-tf="M5">M5</button><button class="tf-btn" data-tf="M15">M15</button><button class="tf-btn" data-tf="M30">M30</button><button class="tf-btn" data-tf="H1">H1</button><button class="tf-btn" data-tf="H4">H4</button><button class="tf-btn" data-tf="D">D1</button><button class="tf-btn" data-tf="W">W1</button>
+    </div>
+  </div>
+
   <div class="menu-sec" id="menu-owner-sec" hidden>
     <div class="menu-label">Owner</div>
     <div class="menu-hint" id="owner-menu-hint">signed in</div>
@@ -2295,60 +2294,10 @@ body[data-view="chart"] #mysig-section{margin-bottom:14px}
         <div class="swap-sub" id="swap-sub">loading</div>
         <div class="swap-bar"><i></i></div>
       </div>
-      <!-- one market: this is a label that names what is on screen, not a menu -->
-      <span id="mkt-float" class="mkt-float-label" role="note" aria-label="Market: gold, XAUUSD">
-        <span id="mkt-float-sym">XAUUSD</span>
-      </span>
-      <div id="chart-toolbar" role="toolbar" aria-label="Chart">
-        <button type="button" class="ctb" id="ctb-full" onclick="fullscreenChart()" aria-pressed="false" title="Full screen" aria-label="Full screen">
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4H4v5M15 4h5v5M15 20h5v-5M9 20H4v-5"/></svg>
-        </button>
-        <button type="button" class="ctb" onclick="resetZoom()" title="Reset the view" aria-label="Reset the view">
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 9V4h5M20 15v5h-5M15 4h5v5M9 20H4v-5"/></svg>
-        </button>
-        <button type="button" class="ctb" onclick="shotChart()" title="Screenshot the chart" aria-label="Screenshot">
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 8.5h3l1.4-2h7.2L17 8.5h3v10H4z"/><circle cx="12" cy="13" r="3.2"/></svg>
-        </button>
-        <button type="button" class="ctb" onclick="zoomBy(1.3)" title="Zoom out" aria-label="Zoom out">
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l4.5 4.5M7.6 10.5h5.8"/></svg>
-        </button>
-        <button type="button" class="ctb" onclick="zoomBy(0.77)" title="Zoom in" aria-label="Zoom in">
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l4.5 4.5M7.6 10.5h5.8M10.5 7.6v5.8"/></svg>
-        </button>
-      </div>
       <button id="chart-live" type="button" hidden onclick="goLive()" aria-label="Return to the live candle">
         <i></i><span>LIVE</span>
       </button>
-      <div id="tf-float" role="group" aria-label="Chart timeframe">
-        <button class="tf-btn active" data-tf="M1">M1</button><button class="tf-btn" data-tf="M5">M5</button><button class="tf-btn" data-tf="M15">M15</button><button class="tf-btn" data-tf="M30">M30</button><button class="tf-btn" data-tf="H1">H1</button><button class="tf-btn" data-tf="H4">H4</button><button class="tf-btn" data-tf="D">D1</button><button class="tf-btn" data-tf="W">W1</button>
-      </div>
-      <!-- live buyers vs sellers, built from the real quotes the app is reading -->
-      <div id="chart-stale" class="chart-stale" hidden></div>
-      <div id="swap-note" class="swap-note" hidden></div>
       <div id="tv-legend"><span class="lg-t" id="lg-sym">XAUUSD</span><span id="lg-tf">M15</span><span class="lg-note" id="lg-note"></span><span id="ind-legend" hidden></span></div>
-      <button id="full-exit" type="button" hidden onclick="fullscreenChart()" aria-label="Leave full screen" title="Leave full screen">
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h5V4M20 15h-5v5M15 4v5h5M9 20v-5H4"/></svg>
-        <span>exit</span>
-      </button>
-      <!-- the phone nav lives outside the chart shell: contain:layout would otherwise
-           make it position itself against the plot instead of the device -->
-
-    </div>
-    <!-- PHONE ONLY: every chart tool in one row under the chart. Desktop never sees it. -->
-    <div id="mob-strip" role="toolbar" aria-label="Chart tools">
-      <div class="ms-row">
-        <span class="ms-grow" aria-hidden="true"></span>
-        <span class="ms-pair" role="note" aria-label="Market: gold, XAUUSD"><i aria-hidden="true"></i>XAUUSD</span>
-      </div>
-      <div class="ms-row ms-tfs">
-        <button type="button" class="ms-tf" data-tf="M1">M1</button>
-        <button type="button" class="ms-tf" data-tf="M5">M5</button>
-        <button type="button" class="ms-tf" data-tf="M15">M15</button>
-        <button type="button" class="ms-tf" data-tf="M30">M30</button>
-        <button type="button" class="ms-tf" data-tf="H1">H1</button>
-        <button type="button" class="ms-tf" data-tf="H4">H4</button>
-        <button type="button" class="ms-tf" data-tf="D">D1</button>
-      </div>
     </div>
     <div class="meta-row">
       <span>ASTRA6 chart · <span id="chart-info-tf">M1</span> · <span id="chart-candle-count">--</span></span>
@@ -2365,21 +2314,10 @@ body[data-view="chart"] #mysig-section{margin-bottom:14px}
         <div class="foot-d">astra6render@gmail.com</div>
       </div>
     </div>
-    <div class="legal"><a href="https://astra6render.com" style="color:inherit">astra6render.com</a> · free · no sign-in · not financial advice</div>
+    <div class="legal"><a href="https://astra6render.com" style="color:inherit">astra6render.com</a> · not financial advice</div>
   </footer>
 
 </main>
-
-<nav id="bnav" role="navigation" aria-label="Main sections" hidden>
-        <button type="button" data-nav="chart" class="on" onclick="bnavGo('chart')">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 19V5M4 19h16"/><path d="M8 15l4-5 3 3 5-7"/></svg>
-          <span>Chart</span>
-        </button>
-        <button type="button" data-nav="menu" onclick="bnavGo('menu')">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
-          <span>Menu</span>
-        </button>
-      </nav>
 
 
 <script>
@@ -5057,31 +4995,13 @@ function goLive(){
 // bid / ask lines: only when the feed actually sends both numbers
 let _baLines=null,_lastBid=null,_lastAsk=null;
 function paintBidAskLines(bid,ask){
-  _lastBid=(bid==null||bid==='')?null:Number(bid); _lastAsk=(ask==null||ask==='')?null:Number(ask);
-  if(!candleSeries)return;
-  const on=CHART_VIEW.ba&&_lastBid!=null&&_lastAsk!=null&&isFinite(_lastBid)&&isFinite(_lastAsk);
-  try{
-    if(!on){
-      if(_baLines){_baLines.forEach(function(l){try{candleSeries.removePriceLine(l);}catch(e){}});_baLines=null;}
-      return;
-    }
-    if(!_baLines){
-      _baLines=[candleSeries.createPriceLine({price:_lastBid,color:'#f0b90b',lineWidth:1,lineStyle:2,axisLabelVisible:true,title:'BID'}),
-                candleSeries.createPriceLine({price:_lastAsk,color:'#a78bfa',lineWidth:1,lineStyle:2,axisLabelVisible:true,title:'ASK'})];
-    }else{
-      _baLines[0].applyOptions({price:_lastBid});
-      _baLines[1].applyOptions({price:_lastAsk});
-    }
-    // three tags on one pixel of axis is noise: a bid or ask hugging the price keeps its
-    // dotted line but drops its badge until it moves away again
-    try{
-      const yP=candleSeries.priceToCoordinate(lastPrice);
-      const near=function(v){const y=candleSeries.priceToCoordinate(v);return y==null||yP==null||Math.abs(y-yP)<15;};
-      _baLines[0].applyOptions({axisLabelVisible:!near(_lastBid)});
-      _baLines[1].applyOptions({axisLabelVisible:!near(_lastAsk)});
-    }catch(e){}
-  }catch(e){}
+  // the bid/ask ladder and its dashed lines were removed with the other chart gadgets
+  _lastBid=(bid==null||bid==='')?null:Number(bid);
+  _lastAsk=(ask==null||ask==='')?null:Number(ask);
+  if(_baLines&&candleSeries){_baLines.forEach(function(l){try{candleSeries.removePriceLine(l);}catch(e){}});}
+  _baLines=null;
 }
+
 function resetZoom(){
   if(!chart)return;
   const n=lastCandles.length;
@@ -5911,8 +5831,11 @@ try{registerOfflineShell();watchNetwork();}catch(e){}
 function initChart(){try{const c=document.getElementById('oanda_chart');if(!c)return;if(typeof LightweightCharts==='undefined'){c.innerHTML='<div style="padding:20px;text-align:center">Chart lib loading...<br><span style="font-size:10px">Data works in Dashboard • Rebuilt</span></div>';const s=document.createElement('script');s.src='/static/vendor/lightweight-charts.js';s.onload=()=>{createChart();fetchChart(currentTF);};s.onerror=()=>{c.innerHTML='<div style="padding:20px;text-align:center">Chart CDN blocked in preview (normal)<br>Data works in Dashboard<br>Chart feed reconnecting • price above is LIVE</div>';};document.head.appendChild(s);return;}createChart();fetchChart(currentTF);}catch(e){console.log('initChart err',e);}}
 function createChart(){try{const c=document.getElementById('oanda_chart');if(!c||typeof LightweightCharts==='undefined')return;if(chart)return;c.innerHTML='';c.style.display='block';c.style.alignItems='stretch';c.style.justifyContent='flex-start';const _ch=c.clientHeight||420;const _p=chartPalette();
     const _opts=tvChartOptions();_opts.width=c.clientWidth;_opts.height=_ch;
+    // no crosshair: the dashed lines that hung over the candles were the last thing on the
+    // plot that was not a candle
+    _opts.crosshair={mode:2,vertLine:{visible:false},horzLine:{visible:false}};
     chart=LightweightCharts.createChart(c,_opts);
-    candleSeries=chart.addCandlestickSeries({upColor:_p.bodyUp,downColor:_p.bodyDn,borderVisible:true,borderUpColor:_p.up,borderDownColor:_p.dn,wickUpColor:_p.wickUp,wickDownColor:_p.wickDn,priceLineWidth:1,lastValueVisible:true,lastValueColor:_p.text,priceLineStyle:2});
+    candleSeries=chart.addCandlestickSeries({upColor:_p.bodyUp,downColor:_p.bodyDn,borderVisible:true,borderUpColor:_p.up,borderDownColor:_p.dn,wickUpColor:_p.wickUp,wickDownColor:_p.wickDn,priceLineVisible:false,lastValueVisible:false});
     chart.subscribeCrosshairMove(param=>{let bar=null;try{bar=param.seriesData&&param.seriesData.get(candleSeries);}catch(e){}updateLegend(bar,param.time);});new ResizeObserver(()=>{if(chart){chart.applyOptions({width:c.clientWidth,height:c.clientHeight||420});scheduleZoneDraw();}}).observe(c);chart.timeScale().subscribeVisibleLogicalRangeChange(()=>{try{motionTrack();}catch(e){}scheduleZoneDraw();try{scheduleDraw();}catch(e){}try{paintLivePill();}catch(e){}});try{if(typeof initChartTools==='function')initChartTools();}catch(e){console.log('tools err',e);}try{applyPriceScale();}catch(e){}console.log('chart created rebuilt');}catch(e){console.log('createChart err',e);}}
 function setTimeframe(tf){
   setTimeout(function(){try{if(window._lay>1)mvRefresh();}catch(e){}},60);tf=tfNorm(tf);currentTF=tf;if(typeof closeMenu==='function')closeMenu();
@@ -6804,34 +6727,8 @@ function clearVolumeLevels(){
   _volLines=[];
 }
 function drawVolumeLevels(d){
-  const sg=(d&&d.signal)||{};
-  const want=(sg.type==='BUY'||sg.type==='SELL');
-  const key=want?[sg.type,sg.entry,sg.sl,sg.tp1,sg.tp2].join('|'):'';
-  if(window._volLineKey===key){return;}
-  window._volLineKey=key;
+  // the automatic strategy was removed, so nothing draws its entry, stop and targets any more
   clearVolumeLevels();
-  if(!want||!candleSeries||!candleSeries.createPriceLine) return;
-  // the lines on the chart quote the same numbers as the alert in the menu, so an
-  // entry/SL/TP can never read one way in the ladder and another way on the chart
-  let _lv={entry:sg.entry,sl:sg.sl,tp1:sg.tp1,tp2:sg.tp2};
-  try{
-    const lt=(typeof latestTrade==='function')?latestTrade(currentSymbol):null;
-    if(lt && lt.type===sg.type && (sg.type==='BUY'||sg.type==='SELL')){
-      _lv={entry:lt.entry,sl:lt.sl,tp1:lt.tp1,tp2:lt.tp2};
-    }
-  }catch(e){}
-  sg.entry=_lv.entry; sg.sl=_lv.sl; sg.tp1=_lv.tp1; sg.tp2=_lv.tp2;
-  const add=(price,color,title,style)=>{
-    if(price==null) return;
-    try{
-      _volLines.push(candleSeries.createPriceLine({price:Number(price),color,lineWidth:1,
-        lineStyle:style,axisLabelVisible:true,title}));
-    }catch(e){}
-  };
-  add(sg.entry,'#64748b','entry '+sg.type,2);
-  add(sg.sl,'#ef4444','SL',0);
-  add(sg.tp1,'#10b981','TP1',1);
-  add(sg.tp2,'#059669','TP2',1);
 }
 
 function drawVolume(){
@@ -7997,7 +7894,7 @@ function paintBnav(){
   const ph=(window.innerWidth||0)<=720;
   const before=document.body.classList.contains('has-bnav');
   b.hidden=!ph||document.body.getAttribute('data-view')!=='chart';
-  document.body.classList.toggle('has-bnav',ph);
+  document.body.classList.remove('has-bnav');   // the phone bar was removed; nothing reserves its space
   if(before!==ph||!b.hidden){setTimeout(function(){try{relayoutChart();}catch(e){}},40);}
 }
 

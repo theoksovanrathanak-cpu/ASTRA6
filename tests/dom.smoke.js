@@ -41,7 +41,8 @@ setTimeout(() => {
   check('no boot exception', errors.length === 0, errors.slice(0, 3));
   check('the signals card exists', !!doc.getElementById('mysig-section'));
   check('chart still exists', !!doc.getElementById('oanda_chart'));
-  check('timeframe row still there', !!doc.querySelector('#tf-float [data-tf="M5"]'));
+  check('timeframe row lives in the menu now', !!doc.querySelector('#menu-tf-row [data-tf="M5"]'));
+  check('nothing floats over the chart', ['chart-toolbar','mkt-float','tf-float','chart-stale','offline-card','mob-strip','bnav'].every(id => !doc.getElementById(id)));
 
   console.log('removed surfaces');
   for (const id of ['alerts-panel', 'tv-rail', 'draw-layer', 'ind-panel', 'chart-menu',

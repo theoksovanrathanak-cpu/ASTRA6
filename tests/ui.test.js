@@ -207,18 +207,13 @@ section('hamburger menu');
   ok('scroll locked', document.body.style.overflow === 'hidden');
   toggleMenu();
   ok('closes', !menu.classList.contains('open') && document.body.style.overflow === '');
-  ok('the market picker sits on the chart, not in the drawer',
-     html.indexOf('id="mkt-float"') > html.indexOf('id="chart-section"')
-     && html.indexOf('id="market-switch"') < 0
-     && /function renderMarketSwitch/.test(html));
+  ok('there is no market picker or market label on the chart', !/id="mkt-float"/.test(html) && !/id="mkt-pop"/.test(html));
   ok('the drawer no longer sells phone alerts', !/Alerts on your phone/.test(html) && html.indexOf('id="tg-state"') < 0);
   ok('the drawer no longer carries links', !/menu-label">Links</.test(html));
   ok('the drawer has no signal list', html.indexOf('id="alerts-list"') < 0);
   ok('timeframes stay off the drawer', html.indexOf('id="tf-buttons"') < 0);
-  ok('timeframes sit on the chart itself',
-     html.indexOf('id="tf-float"') > html.indexOf('id="chart-section"') &&
-     html.indexOf('id="tf-float"') < html.indexOf('</main>'));
-  ok('all eight timeframes are on the chart', (html.slice(html.indexOf('id="tf-float"'), html.indexOf('</div>', html.indexOf('id="tf-float"'))).match(/data-tf=/g) || []).length === 8);
+  ok('timeframes are no longer on the chart', !/id="tf-float"/.test(html));
+  ok('all eight timeframes are in the menu instead', ['M1','M5','M15','M30','H1','H4','D','W'].every(t => html.includes('data-tf="' + t + '"')));
   ok('alerts are gone: no card on the chart', !html.includes('id="alert-float"')
      && !/class="alert-float"/.test(html));
   ok('front page has no ladder', !html.slice(html.indexOf('<main'), html.indexOf('</main>')).includes('alerts-list'));
@@ -448,8 +443,7 @@ bad=[n for n,okv in checks if not okv]
 print('OK' if not bad else 'FAIL '+','.join(bad))
 "`).toString().trim();
   ok('stops sit just past the cluster, targets stay near', out === 'OK', out);
-  ok('the chart levels quote the ladder numbers', /latestTrade\(currentSymbol\)/.test(grab('drawVolumeLevels')) &&
-     /sg\.entry=_lv\.entry/.test(grab('drawVolumeLevels')));
+  ok('the automatic strategy draws nothing on the chart any more', /the automatic strategy was removed/.test(grab('drawVolumeLevels')));
 }
 
 section('calendar and news are separate');
@@ -645,7 +639,7 @@ section('calendar shows actual, forecast and previous');
 section('the drawer stays clean');
 {
   const menu = html.slice(html.indexOf('<aside class="menu"'), html.indexOf('</aside>'));
-  ok('no timeframe row inside the menu', !/data-tf=/.test(menu));
+  ok('the old market picker is unreachable from the page', !/onclick="toggleMarketPicker/.test(html));
   ok('the timeframe bar floats over the chart', /#tf-float\{[^}]*position:absolute/.test(html));
   ok('it scrolls sideways on a phone', /#tf-float\{[^}]*overflow-x:auto/.test(html));
   // the chart's own quote line moved into the header, so no pill covers the candles
@@ -692,7 +686,7 @@ section('the page says when the data stops');
   ok('the watchdog runs on a timer', /setInterval\(netWatch,2000\)/.test(html));
   ok('failed calls are counted for the chip', /_netFails\+\+/.test(grab('fetchFastPrice')));
   ok('the chart measures its own candles', /candlesLate\(age,currentTF,currentSymbol\)/.test(grab('setCandleAge')));
-  ok('the chart carries a staleness pill', html.includes('id="chart-stale"'));
+  ok('the staleness pill and the market-closed label are gone', !/id="chart-stale"/.test(html));
   // 1356 minutes = the gold outage of 30 Oct
   ok('a paused gold feed is flagged while the market is open', candlesLate(1356, 'M15', 'XAUUSD', new Date('2026-10-30T12:00:00Z').getTime()) === true);
   ok('two fresh bars are not flagged', candlesLate(12, 'M15', 'XAUUSD', new Date('2026-10-30T12:00:00Z').getTime()) === false);
@@ -757,8 +751,7 @@ section('the market picker and the alert card live on the chart');
     global.currentSymbol = was;
   }
 {
-  ok('a picker button floats on the chart', /#mkt-float\{[^}]*position:absolute/.test(html)
-     && html.indexOf('id="mkt-float"') > html.indexOf('id="chart-section"'));
+  ok('no picker button floats on the chart', !/id="mkt-float"/.test(html));
   // round 23: the market catalogue is gone - one market, and no list of any
   ok('there is no market catalogue to open', !html.includes('id="mkt-pop"'));
   ok('the popover is built from ten markets', /MKT_GROUPS\.forEach/.test(grab('renderMarketSwitch')));
@@ -810,7 +803,7 @@ section('the chart behaves like a terminal, not a picture of one');
   // zoom and follow
   ok('zoom buttons move the visible range, never the data', /function zoomBy\(f\)/.test(html)
      && /setVisibleLogicalRange/.test(grab('zoomBy')));
-  ok('both zoom buttons are on the chart', /zoomBy\(1\.3\)/.test(html) && /zoomBy\(0\.77\)/.test(html));
+  ok('the chart toolbar is gone', !/id="chart-toolbar"/.test(html));
   ok('scrolling into history offers a way back to live', /id="chart-live"/.test(html)
      && /scrollToRealTime/.test(grab('goLive')));
   ok('the live pill appears only when the view left the last candle', /n-1-r\.to\)>14/.test(grab('paintLivePill'))
@@ -820,9 +813,9 @@ section('the chart behaves like a terminal, not a picture of one');
 
   // bid / ask lines are only ever drawn from real numbers
   const ba = grab('paintBidAskLines');
-  ok('bid and ask get their own dotted lines', /createPriceLine\(\{price:_lastBid/.test(ba) && /title:'BID'/.test(ba));
-  ok('no feed numbers means no bid/ask lines', /if\(!on\)\{/.test(ba) && /removePriceLine/.test(ba));
-  ok('three labels on one axis pixel are avoided', /axisLabelVisible:!near\(_lastBid\)/.test(ba));
+  ok('bid and ask draw no lines', !/createPriceLine/.test(grab('paintBidAskLines')));
+  ok('bid/ask numbers are recorded but never drawn', /_lastBid=/.test(grab('paintBidAskLines')));
+  ok('there is no axis label left to crowd', !/title:'BID'/.test(grab('paintBidAskLines')));
   ok('a new series takes its old price lines with it', /_baLines=null;/.test(grab('rebuildMainSeries')));
 }
 
@@ -1083,8 +1076,7 @@ print('|'.join([rej['type'], rej.get('style') or '-', rejh['type'], base['type']
     const sw = require('fs').readFileSync(path.join(root,'sw.js'),'utf8');
     return /pathname\.startsWith\('\/api\/'\)/.test(sw) && /never caches/.test(sw) || /would be a lie/.test(sw);
   })());
-  ok('offline keeps the last real chart and says how old it is', /id="offline-card"/.test(html)
-     && /Offline · last real data only/.test(html) && /last real quote:/.test(html) && /window\._lastRealAt/.test(html));
+  ok('no offline card is drawn over the chart', !/id="offline-card"/.test(html));
   ok('offline is decided by real failures, not just the browser flag', /const dead=\(navigator\.onLine===false\)\|\|\(_netFails>=2\)/.test(html));
   ok('the clips answer byte ranges, so a phone can scrub them', (() => {
     const s = require('fs').readFileSync(path.join(root,'main.py'),'utf8');
@@ -1113,8 +1105,7 @@ print('|'.join([rej['type'], rej.get('style') or '-', rejh['type'], base['type']
      !/onclick="setZoneStyle\(\{preset:'clean'\}\)"/.test(html) && !/id="mz-presets"/.test(html));
   ok('the readout prints entry, stop and both targets', /flow-k">SL<\/span>/.test(html) && /flow-k">TP2<\/span>/.test(html));
   ok('forex pairs are gone from the market table', !/'EUR\/USD'/.test(html) && !/'USD\/JPY'/.test(html) && !/'GBP\/USD'/.test(html));
-  ok('the market chip is a label, not a picker', /<span id="mkt-float"/.test(html)
-     && !/<button id="mkt-float"[^>]*onclick="toggleMarketPicker/.test(html));
+  ok('the market chip is gone too', !/id="mkt-float"/.test(html));
   ok('the groups are derived from what is actually on the site',
      /const MKT_GROUPS=Array\.from\(new Set\(Object\.keys\(MKT\)/.test(html));
   ok('forex is still gone from the market table',
@@ -1127,8 +1118,8 @@ print('|'.join([rej['type'], rej.get('style') or '-', rejh['type'], base['type']
   const strip = (_si >= 0 && _sj > _si) ? html.slice(_si, _sj) : '';
   ok('the phone strip carries no chart views or indicators',
      !/togglePanel\('chart-menu'\)/.test(strip) && !/togglePanel\('ind-panel'\)/.test(strip));
-  ok('the phone strip carries every timeframe', ['M1','M5','M15','M30','H1','H4','D'].every(t => strip.includes('data-tf="' + t + '"')));
-  ok('the phone strip names the market', /ms-pair/.test(strip) && /XAUUSD/.test(strip));
+  ok('the phone tool strip is gone', !/id="mob-strip"/.test(html));
+  ok('the phone bottom bar is gone as well', !/id="bnav"/.test(html));
   ok('the phone strip shows no generated signal', !/id="ms-sig"/.test(strip) && !/openFlowCard\(\)/.test(strip));
   ok('the strip is painted from the live read, not from a guess',
      /function paintMobStrip\(\)/.test(html) && /window\._volume/.test(grab('paintMobStrip')));
