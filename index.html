@@ -2224,7 +2224,7 @@ body::before,[data-theme="dark"] body::before{
     <button class="menu-x" onclick="closeMenu()" aria-label="Close">×</button>
   </div>
 
-  <div class="menu-sec">
+  <div class="menu-sec" id="menu-owner-row" hidden>
     <div class="menu-label">Owner</div>
     <button class="menu-lock" id="menu-lock-btn" type="button" onclick="lockNow()" hidden>
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 17l5-5-5-5"/><path d="M20 12H9"/><path d="M13 4H6.5A1.5 1.5 0 0 0 5 5.5v13A1.5 1.5 0 0 0 6.5 20H13"/></svg>
@@ -9673,6 +9673,8 @@ function ownerChip() {
   }
   const lockBtn = document.getElementById('menu-lock-btn');
   if (lockBtn) lockBtn.hidden = !OWNER.signedIn;
+  const ownerRow = document.getElementById('menu-owner-row');
+  if (ownerRow) ownerRow.hidden = !OWNER.signedIn;
   // the posting and customising tools exist in the menu, and only for the owner
   const sec = document.getElementById('menu-owner-sec');
   if (sec) sec.hidden = !OWNER.me;
