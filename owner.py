@@ -34,6 +34,9 @@ from pydantic import BaseModel
 
 OWNER_EMAIL = (os.environ.get("OWNER_EMAIL") or "theoksovanrathanak@gmail.com").strip().lower()
 GOOGLE_CLIENT_ID = (os.environ.get("GOOGLE_CLIENT_ID") or "").strip()
+# Owner code: a long passphrase the owner alone holds. It is the second door, used
+# until the Google client id exists. Set OWNER_KEY in the environment; empty = door shut.
+OWNER_KEY = (os.environ.get("OWNER_KEY") or "").strip()
 SESSION_DAYS = 30
 
 _LOCK = threading.Lock()
@@ -179,7 +182,8 @@ def require_owner(request: Request) -> str:
 
 # ----------------------------------------------------------------- shapes
 class LoginBody(BaseModel):
-    credential: str
+    credential: Optional[str] = None
+    key: Optional[str] = None
 
 
 class SignalBody(BaseModel):
@@ -256,12 +260,30 @@ def owner_me(request: Request):
     email = read_session(request)
     return {"owner": bool(email), "email": email or None, "owner_email": OWNER_EMAIL,
             "google_ready": bool(GOOGLE_CLIENT_ID), "client_id": GOOGLE_CLIENT_ID or None,
+            "key_ready": bool(OWNER_KEY),
             "persistent": persistent()}
 
 
 @router.post("/api/owner/login")
 def owner_login(body: LoginBody, request: Request, response: Response):
-    who = verify_google(body.credential)
+    """Two doors, one identity: the owner code, or a verified owner Gmail.
+
+    Both end in the same signed session cookie carrying OWNER_EMAIL, so every
+    write route stays exactly as strict as before. Nothing here lets a visitor in.
+    """
+    if (body.key or "").strip():
+        if not OWNER_KEY:
+            raise HTTPException(status_code=400, detail={
+                "error": "key_off", "how": "OWNER_KEY is not set on this server."})
+        if not hmac.compare_digest((body.key or "").strip(), OWNER_KEY):
+            _key_guard(request)
+            raise HTTPException(status_code=401, detail={"error": "wrong_key"})
+        who = {"email": OWNER_EMAIL, "name": "Owner"}
+    else:
+        if not (body.credential or "").strip():
+            raise HTTPException(status_code=400, detail={
+                "error": "no_credential", "how": "Send a Google credential or the owner code."})
+        who = verify_google(body.credential)
     token = make_session(who["email"])
     response.set_cookie(COOKIE, token, max_age=SESSION_DAYS * 86400, httponly=True,
                         samesite="lax", secure=(request.url.scheme == "https"), path="/")
@@ -391,6 +413,26 @@ def site_put(body: Dict[str, Any], request: Request):
     return {"ok": True, "site": cur, "persistent": persistent()}
 
 # ----------------------------------------------------------------- the door
+_KEY_FAILS: Dict[str, list] = {}
+_KEY_LOCK = threading.Lock()
+
+
+def _key_guard(request: Request) -> None:
+    """Six wrong codes in a quarter of an hour from one address and the door rests.
+
+    A long code is already unguessable; this just stops a machine from hammering it.
+    """
+    ip = (request.client.host if request.client else "?") or "?"
+    now = time.time()
+    with _KEY_LOCK:
+        hits = [t for t in _KEY_FAILS.get(ip, []) if now - t < 900]
+        hits.append(now)
+        _KEY_FAILS[ip] = hits
+        if len(hits) > 6:
+            raise HTTPException(status_code=429, detail={
+                "error": "too_many", "how": "Too many wrong codes. Wait 15 minutes."})
+
+
 def login_required() -> bool:
     """True when the site is meant to sit behind the owner sign-in.
 
@@ -432,6 +474,14 @@ SIGNIN_PAGE = """<!doctype html><html lang="en"><head><meta charset="utf-8">
    <p>Sign in with the owner Google account to open it.</p>
    <div id="g"></div>
    <div id="msg" class="note"></div>
+   <form id="kf" __KEY_HIDDEN__ onsubmit="return codeIn(event)" style="margin-top:6px">
+     <input id="kc" type="password" autocomplete="current-password" placeholder="Owner code"
+       style="width:100%;padding:11px 13px;border-radius:11px;border:1px solid var(--line);
+       background:#0d1219;color:var(--ink);font-size:14px;text-align:center">
+     <button type="submit" style="width:100%;margin-top:8px;padding:11px;border-radius:11px;border:0;
+       background:var(--brand);color:#fff;font-weight:800;font-size:14px;cursor:pointer">
+       Open with the owner code</button>
+   </form>
    <div class="note">{extra}</div>
  </div>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -452,6 +502,25 @@ async function onCredential(r) {{
     location.reload();
   }} catch (e) {{ msg.textContent = 'Network error: ' + e.message; }}
 }}
+async function codeIn(e) {{
+  e.preventDefault();
+  const msg = document.getElementById('msg');
+  msg.textContent = 'checking…';
+  try {{
+    const r = await fetch('/api/owner/login', {{ method:'POST', credentials:'same-origin',
+      headers:{{'Content-Type':'application/json'}},
+      body: JSON.stringify({{ key: document.getElementById('kc').value }}) }});
+    if (!r.ok) {{
+      const d = await r.json().catch(()=>({{}}));
+      const det = (d && d.detail) || {{}};
+      msg.textContent = det.how || det.error || 'That code is not right.';
+      return false;
+    }}
+    location.reload();
+  }} catch (err) {{ msg.textContent = 'Network error: ' + err.message; }}
+  return false;
+}}
+if (__KEY_READY__) {{ const f = document.getElementById('kf'); if (f) f.hidden = false; }}
 function draw() {{
   if (!window.google || !google.accounts || !CLIENT_ID) return;
   google.accounts.id.initialize({{ client_id: CLIENT_ID, callback: onCredential }});
@@ -474,4 +543,6 @@ def signin_page(request: Request) -> str:
         extra = ("Only <b>" + OWNER_EMAIL + "</b> can open this site. Authorized origin: "
                  "<code>" + origin + "</code>")
     page = SIGNIN_PAGE.replace("{{", "{").replace("}}", "}")   # the template is not an f-string
-    return page.replace("{client_id}", json.dumps(GOOGLE_CLIENT_ID or "")).replace("{extra}", extra)
+    page = page.replace("{client_id}", json.dumps(GOOGLE_CLIENT_ID or "")).replace("{extra}", extra)
+    page = page.replace("__KEY_READY__", "true" if OWNER_KEY else "false")
+    return page.replace("__KEY_HIDDEN__", "" if OWNER_KEY else "hidden")

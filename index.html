@@ -2967,10 +2967,20 @@ function registerOfflineShell(){
   if(!('serviceWorker' in navigator)) return;
   // a file:// or embedded preview has no worker scope; nothing to do there
   if(location.protocol!=='https:'&&location.hostname!=='127.0.0.1'&&location.hostname!=='localhost') return;
-  navigator.serviceWorker.register('/sw.js',{scope:'/'}).then(function(r){
+  // updateViaCache:'none' — the worker itself is never served from the HTTP cache, so a
+  // deploy is seen on the next visit instead of some hours later. When a new worker takes
+  // over, the page reloads once so the chart chrome can never linger from an older build.
+  navigator.serviceWorker.register('/sw.js',{scope:'/',updateViaCache:'none'}).then(function(r){
     _swReady=true;
+    try{ r.update(); }catch(e){}
     if(r.waiting) r.waiting.postMessage('skip-waiting');       // a fresh deploy never waits a reload
   }).catch(function(){});
+  if(!window._swReloaded){
+    navigator.serviceWorker.addEventListener('controllerchange',function(){
+      if(window._swReloaded) return; window._swReloaded=true;
+      try{ location.reload(); }catch(e){}
+    });
+  }
 }
 function _offlineCard(on){
   const el=document.getElementById('offline-card');
@@ -9580,7 +9590,7 @@ async function publishFromSheet() {
    read the published signals and can keep a private one on their own device, but only the
    signed-in owner can publish or change the site.                                        */
 const OWNER = { me: false, email: null, ready: false, client_id: null, persistent: false,
-                site: null, signals: [] };
+                keyReady: false, site: null, signals: [] };
 
 function ownerChip() {
   const chip = document.getElementById('owner-chip');
@@ -9706,6 +9716,7 @@ async function ownerBoot() {
     OWNER.me = !!me.owner; OWNER.email = me.email; OWNER.ready = !!me.google_ready;
     window.__ownerMe = OWNER.me;
     OWNER.client_id = me.client_id; OWNER.persistent = !!me.persistent;
+    OWNER.keyReady = !!me.key_ready;
   } catch (e) { console.log('owner me', e); }
   try { applySite((await (await fetch('/api/site')).json()).site); } catch (e) { console.log('site', e); }
   try {
@@ -9718,28 +9729,70 @@ async function ownerBoot() {
 /* ---- sign-in: a Google button in a sheet ---- */
 function ownerTap() {
   if (OWNER.me) { ownerChip(); toggleMenu(); return; }
+  const origin = (location.origin || '').replace(/\/$/, '');
+  const codeBlock = OWNER.keyReady
+    ? '<div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line)">' +
+      '<div style="font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;' +
+      'color:var(--muted);margin-bottom:8px">Owner code</div>' +
+      '<input id="owner-key" type="password" autocomplete="current-password" placeholder="Paste the owner code" ' +
+      'style="width:100%;padding:11px 13px;border-radius:11px;border:1px solid var(--line);' +
+      'background:var(--bg);color:var(--ink);font-size:14px;text-align:center">' +
+      '<button type="button" onclick="ownerKeyLogin()" style="width:100%;margin-top:8px;padding:11px;' +
+      'border-radius:11px;border:0;background:var(--brand);color:#fff;font-weight:800;font-size:13.5px;' +
+      'cursor:pointer">Sign in as owner</button>' +
+      '<div id="owner-key-msg" style="font-size:11px;color:var(--muted);margin-top:8px"></div></div>'
+    : '';
   if (!OWNER.ready || !OWNER.client_id) {
-    const origin = (location.origin || '').replace(/\/$/, '');
     openSheet('Owner sign in',
       '<div style="font-size:12.5px;line-height:1.65;color:var(--muted)">' +
-      '<p><b style="color:var(--ink)">Google sign-in has no client id on this server yet.</b> ' +
-      'That is the only missing piece — the button below cannot do anything without it.</p>' +
-      '<p>1 · <a href="https://console.cloud.google.com/apis/credentials/oauthclient" target="_blank" ' +
-      'rel="noopener" style="color:var(--brand)">Create an OAuth client ID</a> → type <b>Web application</b>.</p>' +
-      '<p>2 · Authorized JavaScript origin — paste exactly this:<br>' +
-      '<code style="display:inline-block;margin-top:4px;padding:3px 7px;border-radius:6px;' +
-      'background:var(--line);color:var(--ink)">' + origin + '</code></p>' +
-      '<p>3 · Copy the id ending in <b>.apps.googleusercontent.com</b> and send it in the chat. ' +
-      'I set it as <b>GOOGLE_CLIENT_ID</b>, redeploy, and this button starts working.</p>' +
-      '<p>Owner address: <b>' + (OWNER.email || 'theoksovanrathanak@gmail.com') + '</b></p></div>');
+      (OWNER.keyReady
+        ? '<p><b style="color:var(--ink)">Use the owner code below to publish.</b> ' +
+          'Google sign-in switches on the moment a client id is set on the server.</p>'
+        : '<p><b style="color:var(--ink)">Google sign-in has no client id on this server yet.</b> ' +
+          'That is the only missing piece — the button below cannot do anything without it.</p>' +
+          '<p>1 · <a href="https://console.cloud.google.com/apis/credentials/oauthclient" target="_blank" ' +
+          'rel="noopener" style="color:var(--brand)">Create an OAuth client ID</a> → type <b>Web application</b>.</p>' +
+          '<p>2 · Authorized JavaScript origin — paste exactly this:<br>' +
+          '<code style="display:inline-block;margin-top:4px;padding:3px 7px;border-radius:6px;' +
+          'background:var(--line);color:var(--ink)">' + origin + '</code></p>' +
+          '<p>3 · Copy the id ending in <b>.apps.googleusercontent.com</b> and send it in the chat. ' +
+          'I set it as <b>GOOGLE_CLIENT_ID</b>, redeploy, and this button starts working.</p>') +
+      '<p>Owner address: <b>' + (OWNER.email || 'theoksovanrathanak@gmail.com') + '</b></p>' +
+      codeBlock + '</div>');
     return;
   }
   openSheet('Owner sign in',
     '<div style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.5">' +
     'Sign in with the owner Gmail. Only that address can publish or change the site.</div>' +
     '<div class="gbtn" id="gbtn"></div>' +
-    '<div id="glgn-msg" style="font-size:11px;color:var(--muted);margin-top:10px"></div>');
+    '<div id="glgn-msg" style="font-size:11px;color:var(--muted);margin-top:10px"></div>' + codeBlock);
   googleButton();
+}
+
+async function ownerKeyLogin() {
+  const box = document.getElementById('owner-key');
+  const msg = document.getElementById('owner-key-msg');
+  const key = box ? box.value.trim() : '';
+  if (!key) { if (msg) msg.textContent = 'Type the owner code first.'; return; }
+  if (msg) msg.textContent = 'checking…';
+  try {
+    const r = await fetch('/api/owner/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin', body: JSON.stringify({ key: key })
+    });
+    const d = await r.json().catch(function () { return {}; });
+    if (!r.ok) {
+      const det = (d && d.detail) || {};
+      if (msg) msg.textContent = det.how || (det.error || 'That code is not right.').replace(/_/g, ' ');
+      return;
+    }
+    OWNER.me = true; OWNER.email = d.email; OWNER.persistent = !!d.persistent;
+    window.__ownerMe = true;
+    closeSheet(); ownerChip(); await ownerBoot();
+    try { toast('Signed in as owner'); } catch (e) {}
+  } catch (e) {
+    if (msg) msg.textContent = 'Network error: ' + e.message;
+  }
 }
 
 function googleButton() {
