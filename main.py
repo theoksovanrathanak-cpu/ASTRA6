@@ -3439,6 +3439,7 @@ def telegram_alert_status():
 
 @app.post("/api/telegram/test")
 def telegram_alert_test():
+    return {"status": "removed", "reason": "Automatic signal alerts were removed from ASTRA6."}
     try:
         import push as PUSH
         if not PUSH.configured():
@@ -3453,6 +3454,7 @@ def telegram_alert_test():
 
 @app.post("/api/telegram/unsubscribe")
 def telegram_alert_unsubscribe(chat_id: str = ""):
+    return {"status": "removed", "subscribers": 0}
     try:
         import push as PUSH
         if chat_id:
@@ -5687,19 +5689,9 @@ except Exception as _ew:
     print("edge warm thread:", _ew)
 
 
-def push_loop():
-    time.sleep(45)          # let the app finish booting before the first scan
-    while True:
-        try:
-            push_scan_once()
-        except Exception as e:
-            print("push loop", e)
-        time.sleep(60)
-
-try:
-    threading.Thread(target=push_loop, daemon=True, name="phone-push").start()
-except Exception as _pe:
-    print("push thread:", _pe)
+# The automatic signal push was removed: nothing on this server decides a trade and
+# posts it to a chat. push_scan_once() is left in place for the one-shot endpoint but
+# no thread calls it. Signals now come from the person, not the app.
 
 # === phone push: the card on the lock screen, while the app is shut ===
 def _push_quote(sym):
@@ -5861,10 +5853,8 @@ def _fund_watch():
         time.sleep(120)
 
 
-try:
-    threading.Thread(target=_fund_watch, daemon=True, name="fund-watch").start()
-except Exception as _fw:
-    print("fund watch thread:", _fw)
+# The gold-fundamentals phone notification is removed too - it was another automatic
+# message into the same chat. The reading itself is still on demand via _push_fund.
 
 
 def _push_read(sym):

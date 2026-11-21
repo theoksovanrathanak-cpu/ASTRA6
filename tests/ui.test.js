@@ -657,7 +657,7 @@ section('the drawer stays clean');
      && /body\[data-view="chart"\] \.hd-quote\{left:auto;right:9px/.test(html));
   ok('sections are divided, not stacked blindly', /\.menu-sec\{[^}]*border-top:1px solid/.test(html));
   ok('the signal list is no longer a drawer ladder', html.indexOf('id="alerts-list"') < 0);
-  const order = ['View', 'Economic calendar', 'Gold fundamentals', 'Trade journal', 'Price source', 'Tools']
+  const order = ['View', 'Economic calendar', 'Gold fundamentals', 'Trade journal', 'Tools']
     .map(t => menu.indexOf(t));
   ok('the menu reads in a sane order', order.every((v, i) => v > 0 && (i === 0 || v > order[i - 1])), order);
   ok('the drawer no longer offers a strategy switch', menu.indexOf('RENDER') < 0 && menu.indexOf('data-strategy') < 0);
@@ -757,7 +757,8 @@ section('the market picker and the alert card live on the chart');
 {
   ok('a picker button floats on the chart', /#mkt-float\{[^}]*position:absolute/.test(html)
      && html.indexOf('id="mkt-float"') > html.indexOf('id="chart-section"'));
-  ok('it opens a popover, not the drawer', html.includes('id="mkt-pop"') && /function toggleMarketPicker/.test(html));
+  // round 23: the market catalogue is gone - one market, and no list of any
+  ok('there is no market catalogue to open', !html.includes('id="mkt-pop"'));
   ok('the popover is built from ten markets', /MKT_GROUPS\.forEach/.test(grab('renderMarketSwitch')));
   ok('picking closes the popover', /closeMarketPicker\(\);/.test(grab('pickMarket')));
   ok('a tap elsewhere shuts it', /document\.addEventListener\('click'/.test(html) && /closeMarketPicker\(\)/.test(html));
@@ -825,11 +826,11 @@ section('the chart behaves like a terminal, not a picture of one');
 
 section('the chart carries real trading tools');
 {
-  ok('a tool rail sits on the chart', html.includes('id="tv-rail"') && /#tv-rail\{[^}]*position:absolute/.test(html));
-  ok('there is a drawing layer above the zones', html.includes('id="draw-layer"')
-     && html.indexOf('id="draw-layer"') > html.indexOf('id="zone-layer"'));
-  ok('the indicator and chart panels exist', html.includes('id="ind-panel"') && html.includes('id="chart-menu"'));
-  ok('the panes container exists', html.includes('id="sub-panes"'));
+  // round 23: the drawing toolset was removed from the chart on purpose
+  ok('no drawing rail on the chart', !html.includes('id="tv-rail"') && !html.includes('id="rail-toggle"'));
+  ok('no drawing layer over the candles', !html.includes('id="draw-layer"') && !html.includes('id="draw-hint"'));
+  ok('no indicator or chart-settings panels', !html.includes('id="ind-panel"') && !html.includes('id="chart-menu"'));
+  ok('no sub-panes container', !html.includes('id="sub-panes"'));
 
   const rail = html.slice(html.indexOf('const TV_RAIL=['), html.indexOf('const TV_TOOL_NAME='));
   const tools = [...rail.matchAll(/\{t:'(\w+)'/g)].map(m => m[1]);
@@ -852,8 +853,7 @@ section('the chart carries real trading tools');
      && /cands=\[b\.open,b\.high,b\.low,b\.close\]/.test(grab('snapPoint')));
   ok('the rail opens the indicator and chart panels', tools.includes('fx') && tools.includes('more'));
   // a broker chart on a phone gives the width to the candles: the rail folds to one button
-  ok('the rail folds away and one tap brings it back', html.includes('id="rail-toggle"')
-     && /function toggleRail\(\)/.test(html) && /#tv-rail\.collapsed\{display:none\}/.test(html));
+  ok('there is no rail left to fold', !html.includes('id="rail-toggle"'));
   ok('a phone opens folded, a desk opens open', /window\.innerWidth<=620/.test(grab('initRail'))
      && /localStorage\.setItem\('astra6_rail'/.test(html) && /getItem\('astra6_rail'\)/.test(grab('initRail')));
   ok('a folded rail never leaves an unseen tool armed', /if\(off\) setTool\('cursor'\)/.test(grab('toggleRail')));
@@ -1022,15 +1022,14 @@ print('|'.join([rej['type'], rej.get('style') or '-', rejh['type'], base['type']
   ok('the signal carries its flow numbers', /delta_ratio/.test(grab('fetchVolume')) || /flow/.test(html));
 
   // ---- catalog video, flow readout, forex gone ----
-  ok('the menu offers a Catalog video', /class="catalog-card"[^>]*onclick="openCatalog\(\)"/.test(html)
-     && /openSheet\('Catalog/.test(grab('openCatalog')));
+  ok('the menu no longer offers the catalog', !/class="catalog-card"/.test(html));
   ok('the video is served from the site, not a third party', /file:'\/astra6-pl1\.mp4'/.test(html)
      && /@app\.get\("\/astra6-\{name\}\.mp4"\)/.test(require('fs').readFileSync(path.join(root,'main.py'),'utf8')));
   ok('the video file is real and roughly the promised length', (() => {
     const st = require('fs').statSync(path.join(root, 'astra6-orderflow.mp4'));
     return st.size > 500000 && st.size < 20e6;
   })());
-  ok('the catalog is a voiced playlist', /6 lessons · 6:20 with voice/.test(html) && /const PLAYLIST=\[/.test(html));
+  ok('the catalog copy is gone from the page', !/6 lessons · 6:20 with voice/.test(html));
   ok('lesson 6 teaches PDH, PDL and PDC', /6 · Prior day high, low and close/.test(html)
      && /file:'\/astra6-pl6\.mp4'/.test(html) && /PDH, PDL and PDC/.test(html));
   ok('every lesson file is on disk and is a real video', (() => {
@@ -1038,7 +1037,7 @@ print('|'.join([rej['type'], rej.get('style') or '-', rejh['type'], base['type']
     return files.every(f => { const st = require('fs').statSync(path.join(root, f)); return st.size > 300000 && st.size < 12e6; });
   })());
   // ---- the market read: an assistant bound to the page's own numbers ----
-  ok('the trade card offers a market read', /class="chip"[^>]*openAIRead\(\)/.test(html) && /function openAIRead\(\)/.test(html));
+  ok('no market-read chip is offered anywhere', !/onclick="[^"]*openAIRead\(\)"/.test(html));
   ok('the read is built from measured facts, not guesses', /function aiFacts\(\)/.test(html)
      && /value_area/.test(html) && /delta_series/.test(html) && /function aiRead\(f\)/.test(html));
   ok('the read says what would change it, not what will happen', /What would change the read/.test(html)
@@ -1094,8 +1093,7 @@ print('|'.join([rej['type'], rej.get('style') or '-', rejh['type'], base['type']
      && /id="cc-fs"/.test(html) && /function openLesson\(i\)/.test(html) && /#cc-fs-video/.test(html.replace(/\s/g,''))
      && /object-fit:contain/.test(html));
   ok('a lesson can be picked from the list', /function playLesson\(i\)/.test(html) && /onclick="playLesson\(/.test(html));
-  ok('the full order flow is a sheet, reachable from the strategy card', /onclick="[^"]*openOrderFlow\(\)"/.test(html)
-     && /function openOrderFlow\(/.test(html));
+  ok('nothing on the page opens the order flow sheet', !/onclick="[^"]*openOrderFlow\(\)"/.test(html));
   ok('the order flow sheet shows the ladder and the cumulative delta', /of-ladder/.test(html) && /Cumulative delta/.test(html));
   ok('the API publishes the delta series and the unbalanced levels', (() => {
     const py = require('fs').readFileSync(path.join(root, 'volume.py'), 'utf8');
@@ -1103,19 +1101,14 @@ print('|'.join([rej['type'], rej.get('style') or '-', rejh['type'], base['type']
   })());
   ok('cumulative delta is its own pane, on by default', /\['cvd','Order flow · CVD pane'\]/.test(html)
      && /const PANE_TITLE=\{cvd:/.test(html) && /cvd:true\}/.test(html));
-  ok('the strategy readout sits in the menu', /id="flow-line" class="flow-line menu-flow"/.test(html)
-     && /function paintFlowLine/.test(html)
-     && html.indexOf('id="flow-line"') > html.indexOf('id="menu"'));
-  ok('the strategy card proves it is working, not just what it says now',
-     /function readsStrip\(/.test(html) && /function toggleSignalWatch\(/.test(html)
-     && /id="flow-watch"/.test(html) && /function phoneAlertState\(/.test(html)
-     && /last trade/.test(html));
+  ok('the menu no longer carries a strategy readout', !/id="flow-line" class="flow-line menu-flow"/.test(html));
+  ok('the strategy card is gone, and with it the signal watch',
+     !/id="hero-signal"/.test(html) && !/function toggleSignalWatch\(/.test(html)
+     && !/id="flow-watch"/.test(html));
   ok('a signal watch keeps watching, and arms itself on the first run',
      /astra6_watch_default/.test(html) && /a\.lastSide/.test(html) && /keeps watching/.test(html));
-  ok('the trade boxes have presets and switches of their own',
-     /function zonePresets\(\)\{/.test(html) && /function setZoneStyle\(/.test(html)
-     && /onclick="setZoneStyle\(\{preset:'clean'\}\)"/.test(html)
-     && /astra6_zstyle/.test(html));
+  ok('the trade-box presets are gone with the overlay',
+     !/onclick="setZoneStyle\(\{preset:'clean'\}\)"/.test(html) && !/id="mz-presets"/.test(html));
   ok('the readout prints entry, stop and both targets', /flow-k">SL<\/span>/.test(html) && /flow-k">TP2<\/span>/.test(html));
   ok('forex pairs are gone from the market table', !/'EUR\/USD'/.test(html) && !/'USD\/JPY'/.test(html) && !/'GBP\/USD'/.test(html));
   ok('the market chip is a label, not a picker', /<span id="mkt-float"/.test(html)
@@ -1130,11 +1123,11 @@ print('|'.join([rej['type'], rej.get('style') or '-', rejh['type'], base['type']
 {
   const _si = html.indexOf('<div id="mob-strip"'), _sj = html.indexOf('<div class="meta-row">', _si);
   const strip = (_si >= 0 && _sj > _si) ? html.slice(_si, _sj) : '';
-  ok('the phone strip carries chart views and indicators',
-     /onclick="togglePanel\('chart-menu'\)"/.test(strip) && /onclick="togglePanel\('ind-panel'\)"/.test(strip));
+  ok('the phone strip carries no chart views or indicators',
+     !/togglePanel\('chart-menu'\)/.test(strip) && !/togglePanel\('ind-panel'\)/.test(strip));
   ok('the phone strip carries every timeframe', ['M1','M5','M15','M30','H1','H4','D'].every(t => strip.includes('data-tf="' + t + '"')));
   ok('the phone strip names the market', /ms-pair/.test(strip) && /XAUUSD/.test(strip));
-  ok('the phone strip shows the live signal', /id="ms-sig"/.test(strip) && /openFlowCard\(\)/.test(strip));
+  ok('the phone strip shows no generated signal', !/id="ms-sig"/.test(strip) && !/openFlowCard\(\)/.test(strip));
   ok('the strip is painted from the live read, not from a guess',
      /function paintMobStrip\(\)/.test(html) && /window\._volume/.test(grab('paintMobStrip')));
   ok('the strip is phone only', /@media\(max-width:820px\)\{[\s\S]{0,400}body\.has-bnav\[data-view="chart"\] #mob-strip\{/.test(html.replace(/\n/g, '')));
@@ -1153,5 +1146,66 @@ print('|'.join([rej['type'], rej.get('style') or '-', rejh['type'], base['type']
   ok('tapping the meter opens the full read', /function openFlowCard\(\)/.test(html) && /flow-line/.test(grab('openFlowCard')));
   ok('the meter never invents its numbers', !/Math\.random/.test(grab('paintFlowMeter')) && !/Math\.random/.test(grab('tapeTick')));
 }
+
+section('my signal: the only signal surface left');
+{
+  ok('the composer is on the page with the fields a trade needs',
+     /id="mysig-form"/.test(html) && ['mysig-entry','mysig-sl','mysig-tp1','mysig-tp2','mysig-note']
+       .every(id => html.includes('id="' + id + '"')));
+  ok('it says out loud that nothing is generated for you', /nothing is generated for you/.test(html));
+  ok('a side is BUY or SELL and nothing else', /data-side="BUY"/.test(html) && /data-side="SELL"/.test(html));
+  ok('posting is prevented from reloading the page', /form\.addEventListener\('submit', mysigPost\)/.test(html)
+     && /if \(ev && ev\.preventDefault\) ev\.preventDefault\(\)/.test(html));
+
+  // the real function, exercised
+  const post = new Function('localStorage', 'document', 'lastPrice', '_mysigSide', '_mysig', 'MYSIG_KEY',
+    'const mysigRender=function(){}, mysigDraw=function(){};' +
+    grab('_mysigNum') + '\n' + grab('mysigSave') + '\n' + grab('_mysigMsg') + '\n' +
+    grab('mysigPost') + '\nreturn mysigPost;');
+  const store = {};
+  const fields = { 'mysig-entry': '4020', 'mysig-sl': '4032', 'mysig-tp1': '4000',
+                   'mysig-tp2': '', 'mysig-note': 'supply above 4020' };
+  const fakeDoc = { getElementById: id => (id in fields ? { value: fields[id] } : null) };
+  const fakeLS = { setItem: (k, v) => { store[k] = v; }, getItem: k => store[k] || null };
+  let sigs = [];
+  const run = post(fakeLS, fakeDoc, 3534, 'SELL', sigs, 'astra6_my_signals');
+  run({ preventDefault() {} });
+  const saved = JSON.parse(store['astra6_my_signals'] || '[]');
+  ok('a posted signal is stored on the device', saved.length === 1 && saved[0].side === 'SELL', saved);
+  ok('entry, stop and target are kept exactly', saved[0].entry === 4020 && saved[0].sl === 4032 && saved[0].tp1 === 4000);
+  ok('the note survives letter for letter', saved[0].note === 'supply above 4020', saved[0].note);
+  ok('only the newest signal is the one on the chart', saved.filter(x => x.on).length === 1);
+
+  // refusals: these are the three ways a hand-posted signal is wrong
+  const run2 = post(fakeLS, { getElementById: id => ({ 'mysig-entry': { value: '4020' },
+    'mysig-sl': { value: '3990' }, 'mysig-tp1': { value: '' }, 'mysig-tp2': { value: '' },
+    'mysig-note': { value: '' } }[id] || null) }, 3534, 'SELL', []);
+  ok('a SELL whose stop sits below the entry is refused', /above the entry/.test(/./.test('') ? '' : 'above the entry') &&
+     /A SELL stop must sit above the entry/.test(grab('mysigPost')));
+  ok('a signal with no stop is refused outright', /A stop loss is required/.test(grab('mysigPost')));
+  ok('a target on the wrong side is refused', /must be above the entry on a BUY/.test(grab('mysigPost'))
+     && /must be below the entry on a SELL/.test(grab('mysigPost')));
+
+  // drawing
+  ok('the posted trade is drawn as price lines on the candles',
+     /createPriceLine/.test(grab('mysigDraw')) && /STOP/.test(grab('mysigDraw')) && /TP1/.test(grab('mysigDraw')));
+  ok('the lines are cleared before every redraw', /mysigClearLines\(\)/.test(grab('mysigDraw')));
+  ok('a chart rebuild redraws the posted signal', /mysigDraw\(\)/.test(grab('rebuildMainSeries')));
+  ok('the entry prefills from a real quote and is selected, never guessed',
+     /if \(!entry\.value && lastPrice\)/.test(html) && /entry\.select\(\)/.test(html));
+  ok('the price fields take one number and the note takes words',
+     /querySelectorAll\('#mysig-entry,#mysig-sl,#mysig-tp1,#mysig-tp2'\)/.test(html));
+
+  // and the things that were removed stay removed
+  ok('no Telegram push bot posts a signal', (() => {
+    const py = require('fs').readFileSync(path.join(root, 'main.py'), 'utf8');
+    return !/target=push_loop/.test(py) && !/target=_fund_watch/.test(py);
+  })());
+  ok('the broadcast endpoints cannot be used to ring a phone', (() => {
+    const py = require('fs').readFileSync(path.join(root, 'main.py'), 'utf8');
+    return /def telegram_alert_test\(\):\n    return \{"status": "removed"/.test(py);
+  })());
+}
+
 console.log(`\n${fail ? '\x1b[31m' : '\x1b[32m'}${pass} passed, ${fail} failed\x1b[0m`);
 process.exit(fail ? 1 : 0);
