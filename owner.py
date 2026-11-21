@@ -88,7 +88,15 @@ def _write(name: str, value: Any) -> None:
 
 
 def _secret() -> bytes:
-    """A secret that outlives a restart when the data directory does."""
+    """The key that signs session cookies.
+
+    It must survive a deploy, or every signed-in phone is silently signed out the moment
+    the site restarts (the free plan has no disk, so a file on disk is wiped). SESSION_SECRET
+    in the environment is the durable answer; the file is only a fallback for local runs.
+    """
+    env = (os.environ.get("SESSION_SECRET") or "").strip()
+    if env:
+        return env.encode()
     path = os.path.join(data_dir(), "session_secret")
     if os.path.exists(path):
         try:

@@ -9613,7 +9613,17 @@ async function publishFromSheet() {
     closeSheet();
     try { toast('Published ' + row.side + ' at ' + row.entry); } catch (e) {}
   } catch (e) {
-    psMsg('Not published: ' + e.message, 'bad');
+    const why = String(e.message || '');
+    if (/owner_only|owner only/i.test(why)) {
+      psMsg('Only ' + (OWNER.email || 'the owner account') + ' can publish. Sign in with the owner Gmail.', 'bad');
+      return;
+    }
+    if (/sign_in_first|sign in first/i.test(why)) {
+      psMsg('Your sign-in expired. Sign in again, then publish.', 'bad');
+      setTimeout(function () { try { closeSheet(); ownerTap(); } catch (x) {} }, 900);
+      return;
+    }
+    psMsg('Not published: ' + why, 'bad');
   }
 }
 /* ===================== owner: Gmail sign-in, publishing, site settings =====================
