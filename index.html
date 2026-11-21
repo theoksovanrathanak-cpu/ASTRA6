@@ -2059,6 +2059,32 @@ body[data-view="chart"] #mysig-section{margin-bottom:14px}
   border:1px solid var(--line);background:transparent;color:var(--muted)}
 .mrow .ma button:hover{color:var(--ink);border-color:var(--brand)}
 @media(max-width:560px){.mysig-grid span,.mysig-note span{font-size:9px}}
+
+/* ---------- owner: chip, banner, editor ---------- */
+.owner-chip{margin-left:auto;margin-right:8px;border:1px solid var(--line);background:transparent;
+  color:var(--muted);font-size:10.5px;font-weight:800;letter-spacing:.04em;padding:7px 11px;
+  border-radius:999px;cursor:pointer;white-space:nowrap;max-width:44vw;overflow:hidden;text-overflow:ellipsis}
+.owner-chip.on{color:#0b0e14;background:linear-gradient(150deg,#f5b642,#e39c1f);border-color:transparent}
+.owner-banner{position:sticky;top:0;z-index:60;padding:8px 14px;font-size:11.5px;line-height:1.45}
+.owner-banner[data-tone="info"]{background:color-mix(in srgb,var(--brand) 16%,var(--surface));color:var(--ink)}
+.owner-banner[data-tone="warn"]{background:#4a3a12;color:#fcd34d}
+.owner-banner[data-tone="up"]{background:#0e3a2a;color:#86efac}
+.mysig-who{font-size:10.5px;color:var(--muted);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.mysig-who b{color:var(--ink)}
+.mysig-who button{border:1px solid var(--line);background:transparent;color:var(--muted);
+  font-size:10px;font-weight:800;padding:3px 8px;border-radius:6px;cursor:pointer}
+.gbtn{min-height:40px;display:flex;align-items:center}
+.ob-row{display:flex;gap:8px;align-items:center;margin:9px 0;font-size:12px;color:var(--ink)}
+.ob-row label{flex:0 0 110px;color:var(--muted);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase}
+.ob-row input[type=text],.ob-row input[type=number],.ob-row select{flex:1;min-width:0;font:12px ui-monospace,monospace;
+  padding:8px 9px;border-radius:8px;border:1px solid var(--line);background:var(--field,var(--surface));color:var(--ink)}
+.ob-row input[type=color]{width:44px;height:30px;border:1px solid var(--line);border-radius:7px;background:transparent}
+.ob-sec{margin:16px 0 8px;font-size:10px;font-weight:900;letter-spacing:.1em;color:var(--a-violet,#a78bfa);text-transform:uppercase}
+.ob-save{width:100%;justify-content:center;margin-top:12px}
+.mrow .mst{font-size:9px;font-weight:800;letter-spacing:.05em;padding:2px 6px;border-radius:5px;
+  background:var(--line);color:var(--muted);text-transform:uppercase}
+.mrow .mst.tp1,.mrow .mst.tp2{background:#0e3a2a;color:#86efac}
+.mrow .mst.stopped{background:#3a1518;color:#fca5a5}
 </style>
 
 <!-- The chart engine is 156 KB. It used to sit in the middle of the document, so nothing
@@ -2150,12 +2176,17 @@ body[data-view="chart"] #mysig-section{margin-bottom:14px}
       <span class="hd-now mono" id="hd-now"><span id="hd-sym">XAUUSD</span> · <span id="live-time">--:--:--</span></span>
     </div>
 
+    <button class="owner-chip" id="owner-chip" type="button" onclick="ownerTap()"
+            aria-label="Owner sign in"><span id="owner-chip-t">Sign in</span></button>
+
     <button class="burger" id="burger" onclick="toggleMenu()" aria-label="Menu" aria-expanded="false" aria-controls="menu">
       <span></span><span></span><span></span>
     </button>
   </div>
   <button class="event-live" id="event-live" type="button" hidden onclick="openCalendar()"></button>
 </header>
+
+<div class="owner-banner" id="owner-banner" hidden role="status"></div>
 
 <div class="scrim" id="scrim" onclick="closeMenu()"></div>
 
@@ -2272,6 +2303,8 @@ body[data-view="chart"] #mysig-section{margin-bottom:14px}
       <div class="mysig-count mono" id="mysig-count">0 posted</div>
     </div>
 
+    <div class="mysig-who" id="mysig-who"></div>
+
     <form id="mysig-form" autocomplete="off">
       <div class="mysig-side" role="group" aria-label="Side">
         <button type="button" class="mside buy on" data-side="BUY">BUY</button>
@@ -2286,6 +2319,7 @@ body[data-view="chart"] #mysig-section{margin-bottom:14px}
       <label class="mysig-note"><span>Note</span><input id="mysig-note" maxlength="120" placeholder="why this trade"></label>
       <div class="mysig-actions">
         <button type="submit" class="btn btn-dark btn-sm" id="mysig-post">Post signal</button>
+        <button type="button" class="btn btn-sm" id="mysig-site" hidden onclick="openSiteEditor()">Customize site</button>
         <span class="mysig-msg" id="mysig-msg" role="status" aria-live="polite"></span>
       </div>
     </form>
@@ -9654,6 +9688,21 @@ function mysigPost(ev) {
     if (up && !(t > entry)) return _mysigMsg(name + ' must be above the entry on a BUY.', 'bad');
     if (!up && !(t < entry)) return _mysigMsg(name + ' must be below the entry on a SELL.', 'bad');
   }
+  if (window.__ownerMe) {
+    // signed in: this signal goes to the server so every visitor sees it
+    _mysigMsg('publishing…');
+    publishSignal({ side: side, entry: entry, sl: sl, tp1: tp1, tp2: tp2, note: note })
+      .then(function (row) {
+        ['mysig-entry', 'mysig-sl', 'mysig-tp1', 'mysig-tp2', 'mysig-note'].forEach(function (id) {
+          const el = document.getElementById(id); if (el) el.value = '';
+        });
+        OWNER.signals = [row].concat(OWNER.signals || []);
+        signalsRender();
+        _mysigMsg('Published ' + row.side + ' at ' + row.entry + ' — every visitor sees it.', 'good');
+      })
+      .catch(function (e) { _mysigMsg('Not published: ' + e.message, 'bad'); });
+    return false;
+  }
   const sig = { id: 's' + Date.now(), side: side, entry: entry, sl: sl,
                 tp1: tp1, tp2: tp2, note: note, at: Date.now(), on: true };
   _mysig.unshift(sig);
@@ -9702,39 +9751,11 @@ function mysigDraw() {
   });
 }
 function mysigRender() {
-  const list = document.getElementById('mysig-list');
-  const count = document.getElementById('mysig-count');
-  if (count) count.textContent = _mysig.length + ' posted';
-  if (!list) { mysigDraw(); return; }
-  if (!_mysig.length) {
-    list.innerHTML = '<div class="mysig-empty">Nothing posted yet. Your signals appear here and draw on the chart.</div>';
-    mysigDraw(); return;
-  }
-  const esc = function (t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) {
-    return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); };
-  const time = function (t) {
-    try { return new Date(t).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); }
-    catch (e) { return ''; }
-  };
-  list.innerHTML = _mysig.map(function (x) {
-    const parts = ['entry <b>' + x.entry + '</b>', 'stop ' + x.sl];
-    if (x.tp1 != null) parts.push('tp1 ' + x.tp1);
-    if (x.tp2 != null) parts.push('tp2 ' + x.tp2);
-    const sub = [x.note ? esc(x.note) : '', time(x.at)].filter(Boolean).join(' · ');
-    return '<div class="mrow' + (x.on ? ' on' : '') + '">' +
-      '<span class="mb ' + (x.side === 'BUY' ? 'buy' : 'sell') + '">' + x.side + '</span>' +
-      '<span class="mmid">' +
-        '<span class="mv">' + parts.join(' · ') + '</span>' +
-        (sub ? '<span class="mn">' + sub + '</span>' : '') +
-      '</span>' +
-      '<span class="ma">' +
-        '<button type="button" onclick="mysigPick(\'' + x.id + '\')">' + (x.on ? 'hide' : 'chart') + '</button>' +
-        '<button type="button" onclick="mysigDelete(\'' + x.id + '\')" aria-label="Delete">✕</button>' +
-      '</span>' +
-    '</div>';
-  }).join('');
-  mysigDraw();
+  // one list on the page: what the owner published, plus (for a visitor) their own
+  // private drafts. Two renderers used to fight over this element.
+  try { signalsRender(); } catch (e) { console.log('render', e); }
 }
+
 (function mysigInit() {
   const form = document.getElementById('mysig-form');
   if (form) form.addEventListener('submit', mysigPost);
@@ -9787,6 +9808,359 @@ function mysigRender() {
     }
   });
 })();
+
+
+/* ===================== owner: Gmail sign-in, publishing, site settings =====================
+   The owner is one address. Google proves it; this page never sees a password. Visitors
+   read the published signals and can keep a private one on their own device, but only the
+   signed-in owner can publish or change the site.                                        */
+const OWNER = { me: false, email: null, ready: false, client_id: null, persistent: false,
+                site: null, signals: [] };
+
+function ownerChip() {
+  const chip = document.getElementById('owner-chip');
+  const label = document.getElementById('owner-chip-t');
+  if (!chip || !label) return;
+  if (OWNER.me) {
+    chip.classList.add('on');
+    label.textContent = (OWNER.email || 'owner').split('@')[0];
+    chip.title = OWNER.email + ' — signed in';
+  } else {
+    chip.classList.remove('on');
+    label.textContent = 'Sign in';
+    chip.title = 'Owner sign in with Google';
+  }
+  const who = document.getElementById('mysig-who');
+  if (who) {
+    who.innerHTML = OWNER.me
+      ? 'signed in as <b>' + OWNER.email + '</b>' +
+        (OWNER.persistent ? ' · signals are saved on the server'
+                          : ' · the server has no disk, so a redeploy clears them') +
+        ' <button type="button" onclick="ownerSignOut()">sign out</button>'
+      : '<button type="button" onclick="ownerTap()">Sign in as the owner to publish</button>';
+  }
+  const site = document.getElementById('mysig-site');
+  if (site) site.hidden = !OWNER.me;
+  const post = document.getElementById('mysig-post');
+  if (post) post.textContent = OWNER.me ? 'Publish signal' : 'Post signal';
+  const note = document.querySelector('#mysig-form + *');
+}
+
+/* ---- what the owner can change, applied for everyone ---- */
+function applySite(site) {
+  if (!site) return;
+  OWNER.site = site;
+  try {
+    const t = document.querySelector('.brand-name');
+    if (t && site.title) t.textContent = site.title;
+    const sub = document.getElementById('brand-sub');
+    if (sub && site.tagline) sub.textContent = site.tagline;
+    if (site.title) document.title = site.title + ' · XAUUSD';
+    if (site.accent) {
+      document.documentElement.style.setProperty('--brand', site.accent);
+      document.documentElement.style.setProperty('--accent', site.accent);
+    }
+    if (site.signal_style) {
+      document.documentElement.style.setProperty('--mysig-buy', site.signal_style.buy);
+      document.documentElement.style.setProperty('--mysig-sell', site.signal_style.sell);
+      const b = document.querySelector('.mside.buy.on'), sl = document.querySelector('.mside.sell.on');
+      if (b) b.style.background = site.signal_style.buy;
+      if (sl) sl.style.background = site.signal_style.sell;
+    }
+    const ban = document.getElementById('owner-banner');
+    if (ban) {
+      const text = (site.banner && site.banner.text) || '';
+      ban.hidden = !text;
+      ban.textContent = text;
+      ban.setAttribute('data-tone', (site.banner && site.banner.tone) || 'info');
+    }
+    if (site.sections) {
+      const map = { calendar: 'Economic calendar', fundamentals: 'Gold fundamentals',
+                    journal: 'Trade journal', tools: 'Tools' };
+      Array.prototype.forEach.call(document.querySelectorAll('#menu .menu-sec'), function (sec) {
+        const lab = sec.querySelector('.menu-label');
+        if (!lab) return;
+        const key = Object.keys(map).filter(function (k) { return map[k] === lab.textContent.trim(); })[0];
+        if (key) sec.hidden = !site.sections[key];
+      });
+    }
+  } catch (e) { console.log('applySite', e); }
+}
+
+function ownerFmt(v) {
+  const d = (OWNER.site && OWNER.site.signal_style && OWNER.site.signal_style.decimals);
+  const n = Number(v);
+  if (!isFinite(n)) return '--';
+  return n.toFixed(d == null ? 2 : d);
+}
+
+/* ---- the published list, newest first, readable by everyone ---- */
+function signalsRender() {
+  const list = document.getElementById('mysig-list');
+  const count = document.getElementById('mysig-count');
+  const rows = OWNER.signals || [];
+  const esc = function (t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) {
+    return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); };
+  const when = function (t) { try { return new Date((t || 0) * 1000).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; } };
+  const tps = (OWNER.site && OWNER.site.signal_style && OWNER.site.signal_style.tps != null)
+    ? OWNER.site.signal_style.tps : 2;
+  const serverRows = rows.map(function (x) {
+    const parts = ['entry <b>' + ownerFmt(x.entry) + '</b>', 'stop ' + ownerFmt(x.sl)];
+    if (tps >= 1 && x.tp1 != null) parts.push('tp1 ' + ownerFmt(x.tp1));
+    if (tps >= 2 && x.tp2 != null) parts.push('tp2 ' + ownerFmt(x.tp2));
+    if (tps >= 3 && x.tp3 != null) parts.push('tp3 ' + ownerFmt(x.tp3));
+    const sub = [x.note ? esc(x.note) : '', when(x.at)].filter(Boolean).join(' · ');
+    const status = String(x.status || 'open');
+    return '<div class="mrow">' +
+      '<span class="mb ' + (x.side === 'BUY' ? 'buy' : 'sell') + '">' + x.side + '</span>' +
+      '<span class="mmid">' +
+        '<span class="mv">' + parts.join(' · ') + '</span>' +
+        (sub ? '<span class="mn">' + sub + '</span>' : '') +
+      '</span>' +
+      '<span class="mst ' + status.replace(/[^a-z0-9]/g, '') + '">' + esc(status) + '</span>' +
+      (OWNER.me ? '<span class="ma">' +
+        '<button type="button" onclick="advanceSignal(\'' + x.id + '\')">next</button>' +
+        '<button type="button" onclick="deleteSignal(\'' + x.id + '\')" aria-label="Delete">✕</button>' +
+      '</span>' : '') +
+    '</div>';
+  });
+  // a visitor can still keep a trade of their own: it is labelled so it can never be
+  // mistaken for something the owner published
+  const localRows = (!OWNER.me && typeof _mysig !== 'undefined' && _mysig.length)
+    ? _mysig.map(function (x) {
+        const parts = ['entry <b>' + ownerFmt(x.entry) + '</b>', 'stop ' + ownerFmt(x.sl)];
+        if (x.tp1 != null) parts.push('tp1 ' + ownerFmt(x.tp1));
+        if (x.tp2 != null) parts.push('tp2 ' + ownerFmt(x.tp2));
+        return '<div class="mrow">' +
+          '<span class="mb ' + (x.side === 'BUY' ? 'buy' : 'sell') + '">' + x.side + '</span>' +
+          '<span class="mmid"><span class="mv">' + parts.join(' · ') + '</span>' +
+          '<span class="mn">' + (x.note ? esc(x.note) + ' · ' : '') + when(x.at / 1000) + '</span></span>' +
+          '<span class="mst">private</span>' +
+          '<span class="ma"><button type="button" onclick="mysigDelete(\'' + x.id + '\')" aria-label="Delete">✕</button></span>' +
+        '</div>';
+      }) : [];
+  if (count) {
+    count.textContent = rows.length + ' published' + (localRows.length ? ' · ' + localRows.length + ' private' : '');
+  }
+  if (!list) return;
+  if (!serverRows.length && !localRows.length) {
+    list.innerHTML = '<div class="mysig-empty">' + (OWNER.me
+      ? 'Nothing published yet. Post a signal and every visitor sees it.'
+      : 'The owner has not published a signal yet. You can keep one privately below.') + '</div>';
+    return;
+  }
+  list.innerHTML = serverRows.concat(localRows).join('');
+}
+
+async function ownerBoot() {
+  try {
+    const me = await (await fetch('/api/owner/me', { credentials: 'same-origin' })).json();
+    OWNER.me = !!me.owner; OWNER.email = me.email; OWNER.ready = !!me.google_ready;
+    window.__ownerMe = OWNER.me;
+    OWNER.client_id = me.client_id; OWNER.persistent = !!me.persistent;
+  } catch (e) { console.log('owner me', e); }
+  try { applySite((await (await fetch('/api/site')).json()).site); } catch (e) { console.log('site', e); }
+  try {
+    const d = await (await fetch('/api/signals')).json();
+    OWNER.signals = (d && d.signals) || [];
+  } catch (e) { console.log('signals', e); }
+  ownerChip(); signalsRender();
+  try { mysigRender(); } catch (e) {}
+}
+
+/* ---- sign-in: a Google button in a sheet ---- */
+function ownerTap() {
+  if (OWNER.me) { openSiteEditor(); return; }
+  if (!OWNER.ready || !OWNER.client_id) {
+    openSheet('Owner sign in',
+      '<div style="font-size:12.5px;line-height:1.6;color:var(--muted)">' +
+      '<p>Google sign-in is not configured on this server yet.</p>' +
+      '<p>Set <b>GOOGLE_CLIENT_ID</b> in Render → Environment to the public OAuth client id ' +
+      'from Google Cloud Console, then reload this page. The owner address is ' +
+      '<b>' + (OWNER.email || 'theoksovanrathanak@gmail.com') + '</b>.</p>' +
+      '<p>Until then you can still keep a private signal on this device — it just is not published.</p></div>');
+    return;
+  }
+  openSheet('Owner sign in',
+    '<div style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.5">' +
+    'Sign in with the owner Gmail. Only that address can publish or change the site.</div>' +
+    '<div class="gbtn" id="gbtn"></div>' +
+    '<div id="glgn-msg" style="font-size:11px;color:var(--muted);margin-top:10px"></div>');
+  googleButton();
+}
+
+function googleButton() {
+  const mount = document.getElementById('gbtn');
+  if (!mount) return;
+  const draw = function () {
+    try {
+      google.accounts.id.initialize({ client_id: OWNER.client_id, callback: googleCredential,
+                                      auto_select: false, cancel_on_tap_outside: true });
+      google.accounts.id.renderButton(mount, { theme: 'filled_black', size: 'large',
+                                               text: 'signin_with', shape: 'pill', width: 260 });
+    } catch (e) {
+      mount.innerHTML = '<span style="font-size:11.5px;color:#fca5a5">Google could not load: ' + e.message + '</span>';
+    }
+  };
+  if (window.google && google.accounts && google.accounts.id) { draw(); return; }
+  const s = document.createElement('script');
+  s.src = 'https://accounts.google.com/gsi/client';
+  s.async = true; s.defer = true;
+  s.onload = draw;
+  s.onerror = function () {
+    mount.innerHTML = '<span style="font-size:11.5px;color:#fca5a5">accounts.google.com is blocked here.</span>';
+  };
+  document.head.appendChild(s);
+}
+
+async function googleCredential(resp) {
+  const msg = document.getElementById('glgn-msg');
+  if (!resp || !resp.credential) { if (msg) msg.textContent = 'Google returned nothing.'; return; }
+  if (msg) msg.textContent = 'checking with Google…';
+  try {
+    const r = await fetch('/api/owner/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin', body: JSON.stringify({ credential: resp.credential })
+    });
+    const d = await r.json();
+    if (!r.ok) {
+      const why = (d && d.detail) || {};
+      if (msg) msg.textContent = why.error === 'not_the_owner'
+        ? 'That Google account is not the owner of this site.'
+        : (why.error || 'Sign-in failed.') + (why.how ? ' — ' + why.how : '');
+      return;
+    }
+    OWNER.me = true; OWNER.email = d.email; OWNER.persistent = !!d.persistent;
+    window.__ownerMe = true;
+    closeSheet(); ownerChip(); await ownerBoot();
+    try { toast('Signed in as ' + d.email); } catch (e) {}
+  } catch (e) {
+    if (msg) msg.textContent = 'Network error: ' + e.message;
+  }
+}
+
+async function ownerSignOut() {
+  try { await fetch('/api/owner/logout', { method: 'POST', credentials: 'same-origin' }); } catch (e) {}
+  OWNER.me = false; OWNER.email = null; window.__ownerMe = false;
+  ownerChip(); signalsRender(); try { mysigRender(); } catch (e) {}
+  try { toast('Signed out'); } catch (e) {}
+}
+
+/* ---- publishing ---- */
+async function publishSignal(payload) {
+  const r = await fetch('/api/signals', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin', body: JSON.stringify(payload)
+  });
+  const d = await r.json().catch(function () { return {}; });
+  if (!r.ok) {
+    const why = (d && d.detail) || {};
+    throw new Error(why.error ? String(why.error).replace(/_/g, ' ') : 'the server refused it');
+  }
+  return d.signal;
+}
+
+async function deleteSignal(id) {
+  if (!OWNER.me) return;
+  if (!confirm('Delete this published signal?')) return;
+  try {
+    await fetch('/api/signals/' + encodeURIComponent(id), { method: 'DELETE', credentials: 'same-origin' });
+    OWNER.signals = OWNER.signals.filter(function (x) { return x.id !== id; });
+    signalsRender();
+  } catch (e) { try { toast('Delete failed'); } catch (e2) {} }
+}
+
+async function advanceSignal(id) {
+  if (!OWNER.me) return;
+  const order = ['open', 'tp1 hit', 'tp2 hit', 'stopped', 'closed'];
+  const cur = (OWNER.signals.filter(function (x) { return x.id === id; })[0] || {}).status || 'open';
+  const next = order[(order.indexOf(cur) + 1) % order.length];
+  try {
+    const r = await fetch('/api/signals/' + encodeURIComponent(id), {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin', body: JSON.stringify({ status: next })
+    });
+    if (!r.ok) throw new Error('refused');
+    const d = await r.json();
+    OWNER.signals = OWNER.signals.map(function (x) { return x.id === id ? d.signal : x; });
+    signalsRender();
+  } catch (e) { try { toast('Could not change the status'); } catch (e2) {} }
+}
+
+/* ---- the site editor ---- */
+function openSiteEditor() {
+  if (!OWNER.me) { ownerTap(); return; }
+  const s = OWNER.site || {};
+  const ss = s.signal_style || {};
+  const sec = s.sections || {};
+  const row = function (label, inner) {
+    return '<div class="ob-row"><label>' + label + '</label>' + inner + '</div>';
+  };
+  const on = function (v) { return v ? ' checked' : ''; };
+  openSheet('Owner',
+    '<div class="ob-sec">Identity</div>' +
+    row('Title', '<input type="text" id="ob-title" maxlength="28" value="' + (s.title || 'ASTRA6') + '">') +
+    row('Tagline', '<input type="text" id="ob-tagline" maxlength="48" value="' + (s.tagline || '') + '">') +
+    row('Accent', '<input type="color" id="ob-accent" value="' + (s.accent || '#2962ff') + '">' +
+        '<input type="text" id="ob-accent-t" value="' + (s.accent || '#2962ff') + '" style="max-width:110px">') +
+    row('Theme', '<select id="ob-theme"><option value="dark"' + (s.theme === 'dark' ? ' selected' : '') +
+        '>dark</option><option value="light"' + (s.theme === 'light' ? ' selected' : '') + '>light</option></select>') +
+    '<div class="ob-sec">Banner</div>' +
+    row('Message', '<input type="text" id="ob-banner" maxlength="160" placeholder="empty hides it" value="' +
+        ((s.banner && s.banner.text) || '').replace(/"/g, '&quot;') + '">') +
+    row('Tone', '<select id="ob-banner-tone">' +
+        ['info', 'warn', 'up'].map(function (t) {
+          return '<option value="' + t + '"' + (((s.banner && s.banner.tone) === t) ? ' selected' : '') + '>' + t + '</option>';
+        }).join('') + '</select>') +
+    '<div class="ob-sec">Sections in the menu</div>' +
+    row('Calendar', '<input type="checkbox" id="ob-calendar"' + on(sec.calendar !== false) + '>') +
+    row('Fundamentals', '<input type="checkbox" id="ob-fundamentals"' + on(sec.fundamentals !== false) + '>') +
+    row('Journal', '<input type="checkbox" id="ob-journal"' + on(sec.journal !== false) + '>') +
+    row('Tools', '<input type="checkbox" id="ob-tools"' + on(sec.tools !== false) + '>') +
+    '<div class="ob-sec">Signal card</div>' +
+    row('Buy colour', '<input type="color" id="ob-buy" value="' + (ss.buy || '#12b981') + '">') +
+    row('Sell colour', '<input type="color" id="ob-sell" value="' + (ss.sell || '#f4525f') + '">') +
+    row('Decimals', '<select id="ob-decimals">' + [0, 1, 2, 3, 4].map(function (d) {
+        return '<option value="' + d + '"' + ((ss.decimals === d) ? ' selected' : '') + '>' + d + '</option>';
+      }).join('') + '</select>') +
+    row('Targets shown', '<select id="ob-tps">' + [0, 1, 2, 3].map(function (d) {
+        return '<option value="' + d + '"' + ((ss.tps === d) ? ' selected' : '') + '>TP1–TP' + d + '</option>';
+      }).join('') + '</select>') +
+    '<div id="ob-msg" style="font-size:11px;color:var(--muted);margin-top:8px"></div>' +
+    '<button class="btn btn-dark btn-sm ob-save" type="button" onclick="saveSite()">Save for everyone</button>');
+  const acc = document.getElementById('ob-accent'), accT = document.getElementById('ob-accent-t');
+  if (acc && accT) {
+    acc.addEventListener('input', function () { accT.value = acc.value; });
+    accT.addEventListener('input', function () { if (/^#[0-9a-f]{6}$/i.test(accT.value)) acc.value = accT.value; });
+  }
+}
+
+async function saveSite() {
+  const g = function (id) { const e = document.getElementById(id); return e ? e.value : null; };
+  const c = function (id) { const e = document.getElementById(id); return !!(e && e.checked); };
+  const body = {
+    title: g('ob-title'), tagline: g('ob-tagline'), accent: g('ob-accent'), theme: g('ob-theme'),
+    banner: { text: g('ob-banner'), tone: g('ob-banner-tone') },
+    sections: { calendar: c('ob-calendar'), fundamentals: c('ob-fundamentals'),
+                journal: c('ob-journal'), tools: c('ob-tools') },
+    signal_style: { buy: g('ob-buy'), sell: g('ob-sell'),
+                    decimals: Number(g('ob-decimals')), tps: Number(g('ob-tps')) }
+  };
+  const msg = document.getElementById('ob-msg');
+  try {
+    const r = await fetch('/api/site', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin', body: JSON.stringify(body) });
+    const d = await r.json();
+    if (!r.ok) throw new Error((d && d.detail && d.detail.error) || 'refused');
+    applySite(d.site); signalsRender();
+    if (msg) msg.textContent = 'Saved. Every visitor sees it now.';
+    try { toast('Site updated'); } catch (e) {}
+  } catch (e) {
+    if (msg) msg.textContent = 'Could not save: ' + e.message;
+  }
+}
+
+document.addEventListener('DOMContentLoaded', function () { setTimeout(function () { try { ownerBoot(); } catch (e) { console.log(e); } }, 350); });
 
 </script>
 

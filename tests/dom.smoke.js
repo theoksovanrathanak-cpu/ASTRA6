@@ -66,8 +66,11 @@ setTimeout(() => {
   const saved = JSON.parse(window.localStorage.getItem('astra6_my_signals') || '[]');
   check('signal stored', saved.length === 1 && saved[0].side === 'SELL', saved);
   check('entry/sl/tp kept', saved[0] && saved[0].entry === 4000 && saved[0].sl === 4010 && saved[0].tp1 === 3980);
-  check('listed on the page', /SELL/.test(doc.getElementById('mysig-list').innerHTML));
-  check('count updated', doc.getElementById('mysig-count').textContent === '1 posted');
+  check('listed on the page, labelled private', /SELL/.test(doc.getElementById('mysig-list').innerHTML)
+        && /private/.test(doc.getElementById('mysig-list').innerHTML));
+  check('the count separates published from private',
+        doc.getElementById('mysig-count').textContent === '0 published · 1 private',
+        doc.getElementById('mysig-count').textContent);
   check('form cleared', doc.getElementById('mysig-entry').value === '');
 
   console.log('refusals');
@@ -87,8 +90,40 @@ setTimeout(() => {
   const id = JSON.parse(window.localStorage.getItem('astra6_my_signals'))[0].id;
   window.mysigDelete(id);
   check('deleted from storage', JSON.parse(window.localStorage.getItem('astra6_my_signals')).length === 0);
-  check('empty state shown', /Nothing posted yet/.test(doc.getElementById('mysig-list').innerHTML));
+  check('empty state shown', /has not published a signal yet/.test(doc.getElementById('mysig-list').innerHTML));
 
+
+  console.log('owner surfaces');
+  check('the sign-in chip is in the header', !!doc.getElementById('owner-chip'));
+  check('the banner slot exists and starts empty', !!doc.getElementById('owner-banner') && doc.getElementById('owner-banner').hidden);
+  check('the site editor can be built', typeof window.openSiteEditor === 'function');
+  // applySite is the whole customisation path: run it and read the page back
+  window.applySite({ title: 'GOLD DESK', tagline: 'one market', accent: '#ff8800', theme: 'dark',
+                     banner: { text: 'London open', tone: 'warn' }, sections: { calendar: false, journal: false },
+                     signal_style: { buy: '#00ff00', sell: '#ff0000', decimals: 1, tps: 3 } });
+  check('a saved title reaches the brand', doc.querySelector('.brand-name').textContent === 'GOLD DESK');
+  check('a saved accent becomes the page accent',
+        window.getComputedStyle(doc.documentElement).getPropertyValue('--brand').trim() === '#ff8800');
+  check('a saved banner is shown with its tone',
+        !doc.getElementById('owner-banner').hidden && doc.getElementById('owner-banner').textContent === 'London open'
+        && doc.getElementById('owner-banner').getAttribute('data-tone') === 'warn');
+  check('a section the owner hid disappears from the menu',
+        Array.from(doc.querySelectorAll('#menu .menu-sec'))
+          .some(sec => sec.querySelector('.menu-label') && sec.querySelector('.menu-label').textContent.trim() === 'Economic calendar'
+                       && sec.hidden));
+  check('decimals from the owner are used for prices', window.ownerFmt(3560.44) === '3560.4');
+
+  console.log('published signals');
+  // OWNER is a const at script scope, so it is not a window property: reach it through eval
+  window.eval('OWNER.signals = [' +
+    '{id:"a1",side:"SELL",entry:3560,sl:3572,tp1:3540,tp2:3520,note:"supply",at:1763000000,status:"open"},' +
+    '{id:"a2",side:"BUY",entry:3500,sl:3490,tp1:3520,note:"",at:1762900000,status:"tp1 hit"}]');
+  window.signalsRender();
+  const listHtml = doc.getElementById('mysig-list').innerHTML;
+  check('published signals are listed', /SELL/.test(listHtml) && /BUY/.test(listHtml));
+  check('the count is the published count', doc.getElementById('mysig-count').textContent.indexOf('2 published') === 0);
+  check('a status is shown on each row', /open/.test(listHtml) && /tp1 hit/.test(listHtml));
+  check('a visitor gets no delete control', !/deleteSignal/.test(listHtml));
   console.log('\n' + (process.exitCode ? 'DOM SMOKE FAILED' : 'DOM SMOKE PASSED'));
   dom.window.close();
   process.exit(process.exitCode || 0);

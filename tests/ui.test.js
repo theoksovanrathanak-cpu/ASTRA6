@@ -1207,5 +1207,51 @@ section('my signal: the only signal surface left');
   })());
 }
 
+
+section('owner: gmail sign-in, publishing, site settings');
+{
+  ok('the owner chip is in the header', /id="owner-chip"/.test(html) && /onclick="ownerTap\(\)"/.test(html));
+  ok('sign-in is Google only - no password field exists anywhere',
+     /accounts\.google\.com\/gsi\/client/.test(html) && !/type="password"/.test(html));
+  ok('the Google credential is posted to the owner endpoint, same-origin',
+     /fetch\('\/api\/owner\/login'/.test(html) && /credentials: 'same-origin'/.test(grab('googleCredential')));
+  ok('a non-owner account is told plainly that it is not the owner',
+     /That Google account is not the owner of this site/.test(html));
+  ok('without a client id the page says what to set instead of failing silently',
+     /GOOGLE_CLIENT_ID/.test(grab('ownerTap')) && /google_not_configured/.test(
+        require('fs').readFileSync(path.join(root,'owner.py'),'utf8')));
+
+  ok('publishing goes to the server, not to local storage',
+     /fetch\('\/api\/signals'/.test(grab('publishSignal')) && /method: 'POST'/.test(grab('publishSignal')));
+  ok('a visitor cannot reach the publish path at all', /if \(window\.__ownerMe\)/.test(grab('mysigPost')));
+  ok('the owner can move a signal through its states',
+     /const order = \['open', 'tp1 hit', 'tp2 hit', 'stopped', 'closed'\]/.test(grab('advanceSignal')));
+  ok('the owner can delete a published signal', /method: 'DELETE'/.test(grab('deleteSignal')));
+  ok('a visitor private trade is labelled private, never mistaken for a published one',
+     /mst">private/.test(html));
+
+  ok('the site editor covers identity, banner, sections and the signal card',
+     ['ob-title','ob-tagline','ob-accent','ob-theme','ob-banner','ob-calendar','ob-fundamentals',
+      'ob-journal','ob-tools','ob-buy','ob-sell','ob-decimals','ob-tps'].every(id => html.includes("'" + id + "'") || html.includes('id="' + id + '"')));
+  ok('settings are saved for everyone through the owner endpoint',
+     /fetch\('\/api\/site'/.test(grab('saveSite')) && /method: 'PUT'/.test(grab('saveSite')));
+  ok('the page applies the saved title, accent, banner and sections',
+     /document\.documentElement\.style\.setProperty\('--brand'/.test(grab('applySite'))
+     && /ban\.hidden = !text/.test(grab('applySite'))
+     && /sec\.hidden = !site\.sections\[key\]/.test(grab('applySite')));
+
+  // the server side of the same rule
+  const py = require('fs').readFileSync(path.join(root, 'owner.py'), 'utf8');
+  ok('every write on the server checks the owner session',
+     /def signals_post[\s\S]{0,120}require_owner\(request\)/.test(py)
+     && /def signals_patch[\s\S]{0,120}require_owner\(request\)/.test(py)
+     && /def signals_delete[\s\S]{0,120}require_owner\(request\)/.test(py)
+     && /def site_put[\s\S]{0,120}require_owner\(request\)/.test(py));
+  ok('the session cookie is http-only, lax and signed', /httponly=True/.test(py)
+     && /samesite="lax"/.test(py) && /hmac\.new\(_secret\(\)/.test(py));
+  ok('only the owner address is let in', /email != OWNER_EMAIL or not verified/.test(py));
+  ok('a tampered cookie cannot be forged', /hmac\.compare_digest/.test(py));
+}
+
 console.log(`\n${fail ? '\x1b[31m' : '\x1b[32m'}${pass} passed, ${fail} failed\x1b[0m`);
 process.exit(fail ? 1 : 0);

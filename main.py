@@ -64,6 +64,13 @@ load_dotenv()
 
 app = FastAPI(title="ASTRA6 Elite")
 
+# owner publishing: Gmail sign-in, the owner's signals, and the site settings
+try:
+    from owner import router as owner_router
+    app.include_router(owner_router)
+except Exception as _own:
+    print("owner router:", _own)
+
 # GoCharting SDK served from our own origin (SDK lazy-loads ./vendor/* chunks)
 try:
     import os as _os
