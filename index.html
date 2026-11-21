@@ -2079,6 +2079,74 @@ body[data-view="chart"] #mysig-section{margin-bottom:14px}
   background:var(--line);color:var(--muted);text-transform:uppercase}
 .mrow .mst.tp1,.mrow .mst.tp2{background:#0e3a2a;color:#86efac}
 .mrow .mst.stopped{background:#3a1518;color:#fca5a5}
+
+/* =====================================================================
+   NAVY SKIN — the whole page takes the colour of the app mark:
+   #0c121f with white. Green/red candles stay: a colour that carries a
+   number is information, not decoration.
+   ===================================================================== */
+:root,[data-theme="dark"]{
+  --bg:#0c121f; --surface:#121a2b; --line:#1f2a3d; --line-soft:#182131;
+  --ink:#e9eff9; --ink-2:#a9b7cb; --muted:#7e8ca2;
+  --hd-bg:rgba(12,18,31,.92); --tint-end:#121a2b; --pill:#1e293c; --hold-bg:#141d2d;
+  --up:#2f9e7c; --down:#d2544f; --hold:#8b9ab0;
+  --up-bg:rgba(47,158,124,.10); --down-bg:rgba(210,84,79,.10);
+  --a-gold:#cfdcee; --a-gold-2:#eaf1fb;
+  --a-violet:#93a9c7; --a-violet-2:#c6d5e8;
+  --a-cyan:#a9bdd6; --a-cyan-2:#dde8f6;
+  --a-pink:#94a4bb; --a-lime:#a9bdd6;
+  --edge-1:rgba(207,220,238,.28); --edge-2:rgba(147,169,199,.24); --edge-3:rgba(96,120,152,.24);
+  --panel:rgba(18,26,43,.97); --panel-solid:#121a2b; --panel-glass:rgba(18,26,43,.9);
+  --wash:linear-gradient(158deg,rgba(207,220,238,.05),rgba(147,169,199,.05) 48%,rgba(96,120,152,.05));
+  --shadow:0 1px 2px rgba(0,0,0,.45),0 14px 34px -18px rgba(0,0,0,.9);
+  --brand:#8fa9c9;
+}
+body::before,[data-theme="dark"] body::before{
+  background:
+    radial-gradient(34vmax 34vmax at 12% 2%,rgba(39,58,88,.50),transparent 66%),
+    radial-gradient(30vmax 30vmax at 92% 4%,rgba(24,37,58,.55),transparent 64%),
+    radial-gradient(36vmax 36vmax at 84% 96%,rgba(28,44,68,.40),transparent 66%),
+    radial-gradient(26vmax 26vmax at 8% 96%,rgba(16,25,41,.55),transparent 64%);
+  filter:blur(28px);
+}
+/* the mark: navy tile, white A — identical to the home-screen icon */
+.brand-mark,.home-mark,.lock-mark,.ig-icon{
+  background:#0c121f!important;background-image:none!important;color:#fff!important;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.13),0 12px 26px -16px rgba(0,0,0,.95)!important;
+  transform:none!important;font-weight:800!important;letter-spacing:.02em!important;
+}
+.brand-mark:hover{transform:none!important}
+.brand-name,[data-theme="dark"] .brand-name{
+  background:linear-gradient(102deg,#ffffff 32%,#c7d5e9 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.home-cta{
+  background:linear-gradient(102deg,#ffffff,#ccd9ea)!important;color:#0c121f!important;
+  box-shadow:0 14px 28px -16px rgba(0,0,0,.9),inset 0 1px 0 rgba(255,255,255,.6)!important;
+}
+.home-cta:hover{box-shadow:0 18px 32px -16px rgba(0,0,0,.95)!important}
+.home-cta .cta-k{background:rgba(12,18,31,.10)!important;color:#0c121f!important}
+[data-theme="dark"] .tf-btn.active,[data-theme="dark"] .sym-btn.active,
+[data-theme="dark"] .btn-dark{
+  background:#26364e!important;border-color:#31445f!important;color:#fff!important;
+}
+
+/* the hero aura was a spinning rainbow; the mark is monochrome, so it is a navy glow */
+.home::before,[data-theme="dark"] .home::before{
+  opacity:.8!important;filter:blur(34px)!important;animation:none!important;
+  background:radial-gradient(circle at 50% 40%,rgba(58,86,124,.85),rgba(28,43,66,.62) 46%,transparent 72%)!important;
+}
+.home-mark-wrap::before,[data-theme="dark"] .home-mark-wrap::before{
+  background:radial-gradient(circle at 50% 50%,rgba(62,92,134,.55),transparent 72%)!important;
+}
+/* a shorthand background resets background-clip, so the text fill must be set as an image */
+.home-title,[data-theme="dark"] .home-title{
+  background-image:linear-gradient(112deg,#ffffff 26%,#c3d2e7 100%)!important;
+  -webkit-background-clip:text!important;background-clip:text!important;
+  color:transparent!important;
+}
+/* [hidden] is not enough on a flex chip — the same trap as .menu-sec */
+.menu-lock[hidden]{display:none!important}
 </style>
 
 <!-- The chart engine is 156 KB. It used to sit in the middle of the document, so nothing
@@ -2106,36 +2174,10 @@ body[data-view="chart"] #mysig-section{margin-bottom:14px}
   <div class="cc-fs-prog" aria-hidden="true"><i id="cc-fs-fill"></i></div>
 </div>
 
-<div id="lock" role="dialog" aria-modal="true" aria-label="ASTRA6 is locked" hidden>
-  <div class="lock-card">
-    <div class="lock-mark">A6</div>
-    <div class="lock-title" id="lock-title">ASTRA6 is locked</div>
-    <div class="lock-sub" id="lock-sub">This device only. Your journal and settings never leave it.</div>
-
-    <button class="lock-bio" id="lock-biobtn" type="button" hidden onclick="lkBioUnlock()">
-      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><circle cx="9" cy="10.5" r=".9" fill="currentColor" stroke="none"/><circle cx="15" cy="10.5" r=".9" fill="currentColor" stroke="none"/><path d="M9 14.5c.9.7 1.9 1 3 1s2.1-.3 3-1"/></svg>
-      <span id="lock-bio-t">Unlock with Face ID</span>
-    </button>
-
-    <div class="lock-offer" id="lock-offer" hidden>
-      <button class="lock-bio" type="button" onclick="lkEnableBio()" id="lock-offer-bio">Enable Face ID</button>
-      <button class="lock-link" type="button" onclick="lkUnlock()">Not now</button>
-    </div>
-
-    <div class="lock-dots" id="lock-dots"><i></i><i></i><i></i><i></i></div>
-    <div class="lock-msg" id="lock-msg"></div>
-    <div class="lock-pad" id="lock-pad"></div>
-
-    <button class="lock-link" id="lock-alt" type="button" hidden onclick="lkUsePin()">Use my 4-digit PIN</button>
-    <button class="lock-reset" type="button" onclick="lkReset()">Forgot it? Reset the lock (erases this device's saved data)</button>
-  </div>
-</div>
-
-
 <header class="hd">
   <div class="hd-in hd-clean">
     <div class="brand">
-      <div class="brand-mark">A6</div>
+      <div class="brand-mark">A</div>
       <div>
         <div class="brand-name">ASTRA6</div>
         <div class="brand-sub" id="brand-sub">Gold · Metals</div>
@@ -2169,9 +2211,9 @@ body[data-view="chart"] #mysig-section{margin-bottom:14px}
       <button class="tf-btn active" data-view="home" onclick="setView('home')">Home</button><button class="tf-btn" data-view="chart" onclick="setView('chart')">Chart</button>
     </div>
     <div class="menu-hint" id="view-hint">pick a screen to open</div>
-    <button class="menu-lock" type="button" onclick="lockNow()">
-      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="9.5" rx="2.4"/><path d="M8.2 10.5V8a3.8 3.8 0 0 1 7.6 0v2.5"/></svg>
-      <span>Lock ASTRA6</span>
+    <button class="menu-lock" id="menu-lock-btn" type="button" onclick="lockNow()" hidden>
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 17l5-5-5-5"/><path d="M20 12H9"/><path d="M13 4H6.5A1.5 1.5 0 0 0 5 5.5v13A1.5 1.5 0 0 0 6.5 20H13"/></svg>
+      <span>Sign out</span>
     </button>
   </div>
 
@@ -2189,13 +2231,6 @@ body[data-view="chart"] #mysig-section{margin-bottom:14px}
       <div class="fund-row"><span class="fund-x">reading the news…</span></div>
     </div>
     <button class="chip" style="width:100%;justify-content:center" onclick="openGoldFundamentals()">Open gold fundamentals</button>
-  </div>
-
-  <div class="menu-sec" id="menu-tf-sec">
-    <div class="menu-label">Timeframe</div>
-    <div class="tf-row" id="menu-tf-row">
-      <button class="tf-btn" data-tf="M1">M1</button><button class="tf-btn" data-tf="M5">M5</button><button class="tf-btn" data-tf="M15">M15</button><button class="tf-btn" data-tf="M30">M30</button><button class="tf-btn" data-tf="H1">H1</button><button class="tf-btn" data-tf="H4">H4</button><button class="tf-btn" data-tf="D">D1</button><button class="tf-btn" data-tf="W">W1</button>
-    </div>
   </div>
 
   <div class="menu-sec" id="menu-owner-sec" hidden>
@@ -2236,7 +2271,7 @@ body[data-view="chart"] #mysig-section{margin-bottom:14px}
 <div class="ios-guide" id="ios-guide" aria-hidden="true" role="dialog" aria-label="Add ASTRA6 to the Home Screen">
   <div class="ig-card">
     <button class="ig-x" onclick="closeInstallGuide()" aria-label="Close">×</button>
-    <div class="ig-icon">A6</div>
+    <div class="ig-icon">A</div>
     <div class="ig-t">Add ASTRA6 to your Home Screen</div>
     <div class="ig-s" id="ig-sub">Three taps, once. After this it opens full screen, with no browser bars.</div>
     <div class="ig-steps" id="ig-steps"></div>
@@ -2260,7 +2295,7 @@ body[data-view="chart"] #mysig-section{margin-bottom:14px}
 <main class="wrap">
 
   <section class="home" id="home-view">
-    <div class="home-mark-wrap"><div class="home-mark">A6</div></div>
+    <div class="home-mark-wrap"><div class="home-mark">A</div></div>
     <div>
       <div class="home-title">ASTRA6</div>
       <div class="home-sub">gold · xauusd · live</div>
@@ -2578,15 +2613,7 @@ function lkUnlock(){
     }catch(e){}
   },40);
 }
-function lockNow(){
-  try{ if(typeof endIntro==='function') endIntro(); }catch(e){}
-  clearTimeout(window._introAutoT);
-  if(typeof closeMenu==='function')closeMenu();
-  if(typeof closeSheet==='function')closeSheet();
-  try{sessionStorage.removeItem(LK.sess);}catch(e){}
-  _lkHasBio=!!lkGet(LK.cred);
-  lkOpen(lkGet(LK.pin)?'verify':'setup');
-}
+function lockNow(){ ownerSignOut(); }   // "lock" means: sign the owner out
 function lkReset(){
   if(!confirm('Reset the lock? This erases the journal and settings saved on this device.')) return;
   ['astra6_lock_pin','astra6_lock_cred','astra6_journal_v1','astra6_zone_alerts_XAUUSD','astra6_ind','astra6_draw_XAUUSD'].forEach(function(k){lkDel(k);});
@@ -2595,12 +2622,10 @@ function lkReset(){
   _lkHasBio=false; lkOpen('setup');
 }
 (function lkBoot(){
-  const el=document.getElementById('lock'); if(!el) return;
-  let open=false;
-  try{open=sessionStorage.getItem(LK.sess)==='1';}catch(e){}
-  _lkHasBio=!!lkGet(LK.cred);
-  if(open){ el.hidden=true; document.body.classList.remove('locked'); return; }
-  lkOpen(lkGet(LK.pin)?'verify':'setup');
+  // No device passcode any more. The door is the owner's Google account, and the
+  // sign-in sheet opens by itself on the first visit (see maybeAutoSignIn).
+  const el=document.getElementById('lock'); if(el) el.hidden=true;
+  document.body.classList.remove('locked');
 })();
 
 // ---- 3D welcome: once per browser session, never blocks for long ----
@@ -9629,15 +9654,19 @@ function ownerChip() {
   const label = document.getElementById('owner-chip-t');
   if (chip && label) {
     if (OWNER.me) {
+      // once the owner is in, the button has nothing left to do: it goes away
       chip.classList.add('on');
-      label.textContent = (OWNER.email || 'owner').split('@')[0];
-      chip.title = OWNER.email + ' — owner';
+      chip.hidden = true;
+      label.textContent = 'Sign in';
     } else {
       chip.classList.remove('on');
+      chip.hidden = false;
       label.textContent = 'Sign in';
-      chip.title = 'Owner sign in with Google';
+      chip.title = 'Sign in with the owner Google account';
     }
   }
+  const lockBtn = document.getElementById('menu-lock-btn');
+  if (lockBtn) lockBtn.hidden = !OWNER.me;
   // the posting and customising tools exist in the menu, and only for the owner
   const sec = document.getElementById('menu-owner-sec');
   if (sec) sec.hidden = !OWNER.me;
@@ -9756,6 +9785,44 @@ async function ownerBoot() {
     OWNER.signals = (d && d.signals) || [];
   } catch (e) { console.log('signals', e); }
   ownerChip(); signalsRender(); drawSignalLines();
+  maybeAutoSignIn();
+}
+
+/* ---- the door opens by itself ---- */
+let _autoSignInTried = false;
+function maybeAutoSignIn() {
+  if (OWNER.me || _autoSignInTried) return;
+  try { if (sessionStorage.getItem('astra6_signin_seen') === '1') return; } catch (e) {}
+  _autoSignInTried = true;
+  try { sessionStorage.setItem('astra6_signin_seen', '1'); } catch (e) {}
+  setTimeout(function () {
+    if (OWNER.me) return;
+    if (OWNER.ready && OWNER.client_id) oneTap();
+    else ownerTap();
+  }, 700);
+}
+
+/* Google's own one-tap prompt: the account chooser appears without a tap when the
+   browser already knows the owner. Falls back to the sheet, which is one tap. */
+function oneTap() {
+  const start = function () {
+    try {
+      google.accounts.id.initialize({ client_id: OWNER.client_id, callback: googleCredential,
+                                      auto_select: true, cancel_on_tap_outside: true });
+      google.accounts.id.prompt(function () {});
+      setTimeout(function () {
+        const m = document.getElementById('glgn-msg');
+        if (!OWNER.me && m) ownerTap();
+      }, 2600);
+    } catch (e) { ownerTap(); }
+  };
+  if (window.google && google.accounts && google.accounts.id) { start(); return; }
+  const s2 = document.createElement('script');
+  s2.src = 'https://accounts.google.com/gsi/client';
+  s2.async = true; s2.defer = true;
+  s2.onload = start;
+  s2.onerror = function () { ownerTap(); };
+  document.head.appendChild(s2);
 }
 
 /* ---- sign-in: a Google button in a sheet ---- */

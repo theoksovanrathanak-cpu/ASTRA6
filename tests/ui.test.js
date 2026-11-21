@@ -213,7 +213,7 @@ section('hamburger menu');
   ok('the drawer has no signal list', html.indexOf('id="alerts-list"') < 0);
   ok('timeframes stay off the drawer', html.indexOf('id="tf-buttons"') < 0);
   ok('timeframes are no longer on the chart', !/id="tf-float"/.test(html));
-  ok('all eight timeframes are in the menu instead', ['M1','M5','M15','M30','H1','H4','D','W'].every(t => html.includes('data-tf="' + t + '"')));
+  ok('the menu carries no timeframe row any more', !/menu-tf-sec/.test(html) && !/id="menu-tf-row"/.test(html));
   ok('alerts are gone: no card on the chart', !html.includes('id="alert-float"')
      && !/class="alert-float"/.test(html));
   ok('front page has no ladder', !html.slice(html.indexOf('<main'), html.indexOf('</main>')).includes('alerts-list'));
@@ -640,8 +640,8 @@ section('the drawer stays clean');
 {
   const menu = html.slice(html.indexOf('<aside class="menu"'), html.indexOf('</aside>'));
   ok('the old market picker is unreachable from the page', !/onclick="toggleMarketPicker/.test(html));
-  ok('the timeframe bar floats over the chart', /#tf-float\{[^}]*position:absolute/.test(html));
-  ok('it scrolls sideways on a phone', /#tf-float\{[^}]*overflow-x:auto/.test(html));
+  ok('no timeframe control floats over the chart', !/id="tf-float"/.test(html));
+  ok('and none sits in the drawer either', !/menu-tf-sec/.test(html) && !/id="menu-tf-row"/.test(html));
   // the chart's own quote line moved into the header, so no pill covers the candles
   ok('there is no price or candle readout left on the page',
      !/id="hd-quote"/.test(html) && !/id="price"/.test(html) && !/id="lg-ohlc"/.test(html)
@@ -965,21 +965,17 @@ section('one strategy, one price, more tools');
     return Math.abs(f.up[39] - 100) < 1e-9 && Math.abs(f.dn[39] - 100) < 1e-9;
   })());
 
-  // ---- the device lock: OS face check + 4-digit PIN fallback ----
-  const lcss = html.slice(html.indexOf('<style>'), html.indexOf('</style>'));
-  ok('a lock screen covers the site', /<div id="lock"[^>]*role="dialog"[^>]*aria-modal="true"/.test(html));
-  ok('the lock has four PIN dots and a keypad', /id="lock-dots">(<i><\/i>){4}/.test(html)
-     && /id="lock-pad"/.test(html));
-  ok('a locked body hides the app', /body\.locked \.hd,body\.locked \.wrap/.test(lcss));
-  ok('the menu can lock the site again', /class="menu-lock"[^>]*onclick="lockNow\(\)"/.test(html));
-  ok('face check is a platform authenticator, user verified', /authenticatorAttachment:'platform'/.test(html)
-     && /userVerification:'required'/.test(html));
-  ok('the face check only asks, it never opens a camera', !/getUserMedia|video\.play|FaceDetector/.test(html));
-  ok('the PIN is stored as a salted hash, never as digits', /salt:salt,h:await lkMakeHash\(pin,salt\)/.test(html)
-     && /crypto\.subtle\.digest\('SHA-256'/.test(html));
-  ok('a device without a face check still gets in by PIN', /lkBioReady\(\).*lkOpen\('offer'\)|if\(await lkBioReady\(\)\)\{ lkOpen\('offer'\); return; \}/.test(html));
-  ok('locking again drops the session pass', /sessionStorage\.removeItem\(LK\.sess\)/.test(html));
-  ok('the session pass is what keeps it open', /sessionStorage\.setItem\(LK\.sess,'1'\)/.test(html));
+  // ---- the door is the owner's Google account, not a device passcode ----
+  ok('the 4-digit passcode screen is gone', !/<div id="lock"|id="lock-dots"|id="lock-pad"/.test(html));
+  ok('nothing asks for a PIN on boot', !/lkOpen\(lkGet\(LK\.pin\)/.test(html));
+  ok('the sign-in sheet opens by itself', /function maybeAutoSignIn\(\)/.test(html)
+     && /if \(OWNER\.ready && OWNER\.client_id\) oneTap\(\)/.test(html));
+  ok('one tap asks Google for the owner account', /google\.accounts\.id\.prompt\(/.test(html)
+     && /google\.accounts\.id\.initialize\(\{ client_id: OWNER\.client_id/.test(html));
+  ok('the sign-in button is hidden once the owner is in', /chip\.hidden = true/.test(html)
+     && /chip\.hidden = false/.test(html));
+  ok('the old lock row now signs the owner out', /id="menu-lock-btn"[^>]*onclick="lockNow\(\)"/.test(html)
+     && /function lockNow\(\)\{ ownerSignOut\(\); \}/.test(html));
 
   // ---- order flow: the value edge decides, not the VWAP side ----
   const { execSync: ex2 } = require('child_process');
