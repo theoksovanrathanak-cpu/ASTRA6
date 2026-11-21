@@ -389,3 +389,89 @@ def site_put(body: Dict[str, Any], request: Request):
     with _LOCK:
         _write("site.json", cur)
     return {"ok": True, "site": cur, "persistent": persistent()}
+
+# ----------------------------------------------------------------- the door
+def login_required() -> bool:
+    """True when the site is meant to sit behind the owner sign-in.
+
+    `REQUIRE_LOGIN` decides, and it defaults to "on the moment Google is configured".
+    If the client id is missing there is no way in, so the door stays open rather than
+    locking the owner out of his own site — and says so on the sign-in sheet.
+    """
+    raw = (os.environ.get("REQUIRE_LOGIN") or "auto").strip().lower()
+    if raw in ("0", "false", "off", "no"):
+        return False
+    if raw in ("1", "true", "on", "yes"):
+        return True
+    return bool(GOOGLE_CLIENT_ID)
+
+
+SIGNIN_PAGE = """<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>ASTRA6 · sign in</title>
+<style>
+ :root{{--bg:#0b0e14;--card:#141922;--line:#232b38;--ink:#e8edf6;--mut:#8b97a8;--brand:#2962ff}}
+ *{{box-sizing:border-box}} body{{margin:0;min-height:100vh;background:var(--bg);color:var(--ink);
+   font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+   display:grid;place-items:center;padding:24px}}
+ .card{{width:100%;max-width:430px;background:var(--card);border:1px solid var(--line);
+   border-radius:18px;padding:26px 22px;text-align:center}}
+ .mark{{width:54px;height:54px;border-radius:16px;margin:0 auto 14px;
+   background:linear-gradient(150deg,#ff7a59,#f5b642);display:grid;place-items:center;
+   font-weight:900;color:#1a1207;font-size:20px}}
+ h1{{font-size:20px;margin:0 0 6px;letter-spacing:-.2px}}
+ p{{color:var(--mut);font-size:13px;margin:8px 0}}
+ code{{background:#0d1219;border:1px solid var(--line);border-radius:6px;padding:2px 6px;
+   font:12px ui-monospace,monospace;color:#f5b642;word-break:break-all}}
+ #g{{min-height:44px;display:flex;justify-content:center;margin:18px 0 6px}}
+ .note{{font-size:11.5px;color:var(--mut);margin-top:14px;line-height:1.6}}
+ a{{color:var(--brand)}}
+</style></head><body>
+ <div class="card">
+   <div class="mark">A6</div>
+   <h1>ASTRA6 is private</h1>
+   <p>Sign in with the owner Google account to open it.</p>
+   <div id="g"></div>
+   <div id="msg" class="note"></div>
+   <div class="note">{extra}</div>
+ </div>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+const CLIENT_ID = {client_id};
+async function onCredential(r) {{
+  const msg = document.getElementById('msg');
+  msg.textContent = 'checking with Google…';
+  try {{
+    const res = await fetch('/api/owner/login', {{ method:'POST', credentials:'same-origin',
+      headers:{{'Content-Type':'application/json'}}, body: JSON.stringify({{credential: r.credential}}) }});
+    if (!res.ok) {{
+      const d = await res.json().catch(()=>({{}}));
+      msg.textContent = (d && d.detail && d.detail.error) ? d.detail.error.replace(/_/g,' ')
+                        : 'That account is not allowed in.';
+      return;
+    }}
+    location.reload();
+  }} catch (e) {{ msg.textContent = 'Network error: ' + e.message; }}
+}}
+function draw() {{
+  if (!window.google || !google.accounts || !CLIENT_ID) return;
+  google.accounts.id.initialize({{ client_id: CLIENT_ID, callback: onCredential }});
+  google.accounts.id.renderButton(document.getElementById('g'),
+    {{ theme:'filled_black', size:'large', text:'signin_with', shape:'pill', width:280 }});
+}}
+window.addEventListener('load', () => setTimeout(draw, 300));
+setTimeout(draw, 1200);
+</script>
+</body></html>"""
+
+
+def signin_page(request: Request) -> str:
+    origin = str(request.base_url).rstrip("/")
+    if not GOOGLE_CLIENT_ID:
+        extra = ("<b>No client id is configured on this server.</b> Add GOOGLE_CLIENT_ID in "
+                 "Render → Environment (the public OAuth client id from Google Cloud Console) "
+                 "and reload. Authorized JavaScript origin: <code>" + origin + "</code>")
+    else:
+        extra = ("Only <b>" + OWNER_EMAIL + "</b> can open this site. Authorized origin: "
+                 "<code>" + origin + "</code>")
+    page = SIGNIN_PAGE.replace("{{", "{").replace("}}", "}")   # the template is not an f-string
+    return page.replace("{client_id}", json.dumps(GOOGLE_CLIENT_ID or "")).replace("{extra}", extra)

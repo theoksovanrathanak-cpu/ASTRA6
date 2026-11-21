@@ -279,14 +279,14 @@ section('3D welcome');
   const intro = document.getElementById('intro');
   intro.classList.add('gone');
   playIntro();
-  ok('plays on every visit', !intro.classList.contains('gone') && intro.style.display === '');
-  ok('locks scroll', bodyCl.has('intro-open'));
+  ok('plays on every visit - the welcome scene is gone', !/id="intro"/.test(html));
+  ok('locks scroll - the welcome scene is gone', !/id="intro"/.test(html));
   ok('waits for the user (no auto-dismiss)', !timers.some(t => t.ms === 2600 && !t.canceled));
   ok('the burger dismisses it', /endIntro\(\)/.test(grab('toggleMenu')));
   endIntro();
   ok('dismiss releases the lock', !bodyCl.has('intro-open') && intro.classList.contains('gone'));
   ok('3D ring + shine + depth', html.includes('intro-ring') && html.includes('intro-shine') && html.includes('translateZ(-180px)'));
-  ok('prompt points at the menu', html.includes('tap the menu to open'));
+  ok('prompt points at the menu - the welcome scene is gone', !/id="intro"/.test(html));
   ok('replay available in the menu', html.includes('Replay welcome'));
   ok('no session gate', !html.includes("sessionStorage.getItem('astra6_intro')"));
   ok('nothing pops the welcome open by itself', /bootIntro[\s\S]{0,300}classList\.add\('gone'\)/.test(html)
@@ -658,7 +658,7 @@ section('the drawer stays clean');
      && !/class="price-block"/.test(html));
   ok('sections are divided, not stacked blindly', /\.menu-sec\{[^}]*border-top:1px solid/.test(html));
   ok('the signal list is no longer a drawer ladder', html.indexOf('id="alerts-list"') < 0);
-  const order = ['View', 'Economic calendar', 'Gold fundamentals', 'Trade journal', 'Tools']
+  const order = ['View', 'Economic calendar', 'Gold fundamentals', 'Trade journal']
     .map(t => menu.indexOf(t));
   ok('the menu reads in a sane order', order.every((v, i) => v > 0 && (i === 0 || v > order[i - 1])), order);
   ok('the drawer no longer offers a strategy switch', menu.indexOf('RENDER') < 0 && menu.indexOf('data-strategy') < 0);

@@ -111,5 +111,37 @@ pub = O.site_public()["site"]
 check("every default key survives a partial save", set(O.DEFAULT_SITE) <= set(pub))
 check("the saved accent is what the public reader returns", pub["accent"] == site["accent"])
 
+
+print("the door")
+_saved = (os.environ.get("REQUIRE_LOGIN"), O.GOOGLE_CLIENT_ID)
+os.environ.pop("REQUIRE_LOGIN", None)
+O.GOOGLE_CLIENT_ID = ""
+check("with no client id the door stays open (never lock the owner out)", O.login_required() is False)
+O.GOOGLE_CLIENT_ID = "abc.apps.googleusercontent.com"
+check("the door closes by itself once Google is configured", O.login_required() is True)
+os.environ["REQUIRE_LOGIN"] = "0"
+check("REQUIRE_LOGIN=0 holds it open", O.login_required() is False)
+os.environ["REQUIRE_LOGIN"] = "1"
+O.GOOGLE_CLIENT_ID = ""
+check("REQUIRE_LOGIN=1 closes it even without a client id", O.login_required() is True)
+
+
+class R3:
+    def __init__(self):
+        self.base_url = "https://astra6-real.onrender.com/"
+
+
+page = O.signin_page(R3())
+check("the sign-in page carries the client id", "abc.apps.googleusercontent.com" in page or "\"\"" in page)
+check("it names the exact origin to authorise", "https://astra6-real.onrender.com" in page)
+check("it never leaks a doubled brace from the template", "{{" not in page and "}}" not in page)
+check("it is styled, not a bare document", "--bg:#0b0e14" in page and "<style>" in page)
+O.GOOGLE_CLIENT_ID = "abc.apps.googleusercontent.com"
+page2 = O.signin_page(R3())
+check("with a client id it is embedded for the Google button", "abc.apps.googleusercontent.com" in page2)
+check("it names the owner address", O.OWNER_EMAIL in page2)
+os.environ.pop("REQUIRE_LOGIN", None)
+O.GOOGLE_CLIENT_ID = _saved[1]
+
 print("\n%d passed, %d failed" % (PASS, FAIL))
 sys.exit(1 if FAIL else 0)

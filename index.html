@@ -2140,24 +2140,6 @@ body[data-view="chart"] #mysig-section{margin-bottom:14px}
   </div>
 </div>
 
-<div id="intro" role="dialog" aria-label="Welcome to ASTRA6">
-  <div class="intro-stage">
-    <div class="intro-floor" aria-hidden="true"></div>
-    <div class="intro-orb" aria-hidden="true"></div>
-    <div class="intro-ring"></div>
-    <div class="intro-mark"><span>A6</span><i class="intro-shine"></i></div>
-    <div class="intro-title">WELCOME TO <b>ASTRA</b></div>
-    <div class="intro-sub">gold · xauusd</div>
-    <div class="intro-hi" id="intro-hi">welcome back</div>
-    <div class="intro-bar"><i></i></div>
-    <div class="intro-tap">
-      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
-      <span>tap the menu to open</span>
-      <svg class="intro-arrow" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M9 7h8v8"/></svg>
-    </div>
-  </div>
-  <button class="intro-skip" id="intro-skip" aria-label="Open the menu">Open menu</button>
-</div>
 
 <header class="hd">
   <div class="hd-in hd-clean">
@@ -2243,17 +2225,6 @@ body[data-view="chart"] #mysig-section{margin-bottom:14px}
       <div><b class="mono" id="jn-r">0.0R</b><span>total R</span></div>
     </div>
     <button class="chip" style="width:100%;justify-content:center" onclick="openJournal()">Open journal</button>
-  </div>
-
-  <div class="menu-sec">
-    <div class="menu-label">Tools</div>
-    <div class="menu-btns">
-      <button class="chip" id="refresh-btn" onclick="fetchDashboard();closeMenu()">Refresh</button>
-      <button class="chip" onclick="toggleTheme()" aria-label="Switch theme"><svg id="theme-ico" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg><span>Theme</span></button>
-      <button class="chip" id="sound-btn" onclick="toggleSound()">Sound</button>
-      <button class="chip" onclick="closeMenu();playIntro()">Replay welcome</button>
-      <label class="chip" style="gap:6px"><span class="dot" id="market-dot"></span><span id="market-status">LIVE</span></label>
-    </div>
   </div>
 
   </aside>
@@ -2690,59 +2661,9 @@ function lkReset(){
 })();
 
 // ---- 3D welcome: once per browser session, never blocks for long ----
-function endIntro(){
-  const el=document.getElementById('intro');
-  if(!el||el.classList.contains('gone'))return;
-  clearTimeout(window._introTimer);
-  document.body.classList.remove('intro-open');
-  el.classList.add('gone');
-  setTimeout(()=>{if(el.classList.contains('gone'))el.style.display='none';},650);
-  // the chart sized itself while hidden behind the intro; re-measure now
-  setTimeout(()=>{try{const c=document.getElementById('oanda_chart');
-    if(c&&typeof chart!=='undefined'&&chart) chart.applyOptions({width:c.clientWidth,height:c.clientHeight||420});
-    if(typeof scheduleZoneDraw==='function') scheduleZoneDraw();
-  }catch(e){}},80);
-}
-// Plays on every fresh page load - clicking the site link should always open on it.
-// (It used to be gated to once per browser session, so a second visit showed nothing.)
-function playIntro(mode){
-  const el=document.getElementById('intro');
-  if(!el)return;
-  // a locked device gets the lock pad, never a greeting on top of it
-  const lkEl=document.getElementById('lock');
-  if(document.body.classList.contains('locked')||(lkEl&&lkEl.hidden===false)) return;
-  el.classList.remove('gone');
-  el.style.display='';
-  // restart the animations from the top
-  const stage=el.querySelector('.intro-stage');
-  if(stage){stage.style.animation='none';void stage.offsetWidth;stage.style.animation='';}
-  const mark=el.querySelector('.intro-mark');
-  if(mark){mark.style.animation='none';void mark.offsetWidth;mark.style.animation='';}
-  clearTimeout(window._introTimer);
-  document.body.classList.add('intro-open');
-  const after=!!(mode==='unlock');
-  window._introAfterUnlock=after;
-  el.classList.toggle('unlock-mode',after);
-  const hi=document.getElementById('intro-hi');
-  if(hi){ hi.style.display=after?'':'none'; if(after)hi.textContent='session unlocked'; }
-  try{ if(typeof introParallax==='function') introParallax(el,after); }catch(e){}
-  // the copy depends on why the welcome is up: an unlocked session is going into the chart,
-  // a first visit is going into the menu
-  const tapTxt=el.querySelector('.intro-tap span');
-  if(tapTxt)tapTxt.textContent=after?'welcome back — opening gold':'tap the menu to open';
-  const skip=document.getElementById('intro-skip');
-  if(skip){
-    skip.textContent=after?'Open chart':'Open menu';
-    skip.setAttribute('aria-label',after?'Open the chart':'Open the menu');
-    skip.onclick=()=>{endIntro(); try{ after?setView('chart'):openMenu(); }catch(e){}};
-  }
-  el.onclick=(e)=>{if(e.target===el){endIntro(); try{ if(after)setView('chart'); }catch(e){}}};
-  // the welcome is a greeting, not a gate: on unlock it slides away by itself
-  clearTimeout(window._introAutoT);
-  if(after) window._introAutoT=setTimeout(function(){
-    if(!el.classList.contains('gone')){ endIntro(); try{ setView('chart'); }catch(e){} }
-  },3400);
-}
+function endIntro(){ /* the welcome scene was removed: nothing to close */ }
+function playIntro(mode){ /* removed with the scene - it was the circle over the chart */ }
+
 // A slow, pointer/tilt parallax so the welcome reads as a 3D scene rather than a flat card.
 // One transform per frame at most, stopped the moment the panel closes, never while the
 // user has asked for reduced motion.

@@ -3524,7 +3524,15 @@ def health():
     return {"status": "ok", "name": "ASTRA6", "uptime": "24/7", "timestamp": time.time(), "message": "Elite 85%+ 5-layer AI+Finance+TradingView+Vibe v1.3","ai":"pythonidae+financedb+tradingview+vibe","version":"ai-5layer-1.3"}
 
 @app.get("/", response_class=HTMLResponse)
-def home():
+def home(request: Request):
+    # the door: with REQUIRE_LOGIN on, only a proved owner session sees the app
+    try:
+        import owner as _owner
+        if _owner.login_required() and not _owner.read_session(request):
+            return HTMLResponse(content=_owner.signin_page(request),
+                                headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"})
+    except Exception as _gate:
+        print("login gate:", _gate)
     # always serve the freshest build - a cached page is why a new feature can look "missing"
     return HTMLResponse(content=open("index.html", encoding="utf-8").read(),
                         headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
