@@ -2292,7 +2292,6 @@ body::before,[data-theme="dark"] body::before{
     <div class="home-mark-wrap"><div class="home-mark">A</div></div>
     <div>
       <div class="home-title">ASTRA6</div>
-      <div class="home-sub">gold · xauusd · live</div>
     </div>
   </section>
 
@@ -9609,7 +9608,7 @@ document.addEventListener('DOMContentLoaded', function () {
   if (el) el.textContent = 'build ' + ASTRA6_BUILD;
 });
 
-const OWNER = { me: false, email: null, ready: false, client_id: null, persistent: false,
+const OWNER = { me: false, signedIn: false, email: null, ready: false, client_id: null, persistent: false,
                 keyReady: false, site: null, signals: [] };
 
 function ownerChip() {
@@ -9621,15 +9620,20 @@ function ownerChip() {
       chip.classList.add('on');
       chip.hidden = true;
       label.textContent = 'Sign in';
+    } else if (OWNER.signedIn) {
+      chip.classList.remove('on');
+      chip.hidden = false;
+      label.textContent = (OWNER.email || 'account').split('@')[0];
+      chip.title = OWNER.email + ' — signed in';
     } else {
       chip.classList.remove('on');
       chip.hidden = false;
       label.textContent = 'Sign in';
-      chip.title = 'Sign in with the owner Google account';
+      chip.title = 'Sign in with Google';
     }
   }
   const lockBtn = document.getElementById('menu-lock-btn');
-  if (lockBtn) lockBtn.hidden = !OWNER.me;
+  if (lockBtn) lockBtn.hidden = !OWNER.signedIn;
   // the posting and customising tools exist in the menu, and only for the owner
   const sec = document.getElementById('menu-owner-sec');
   if (sec) sec.hidden = !OWNER.me;
@@ -9737,8 +9741,9 @@ function signalsRender() {
 async function ownerBoot() {
   try {
     const me = await (await fetch('/api/owner/me', { credentials: 'same-origin' })).json();
-    OWNER.me = !!me.owner; OWNER.email = me.email; OWNER.ready = !!me.google_ready;
-    window.__ownerMe = OWNER.me;
+    OWNER.me = !!me.owner; OWNER.signedIn = !!me.signed_in || !!me.owner;
+    OWNER.email = me.email; OWNER.ready = !!me.google_ready;
+    window.__ownerMe = OWNER.me; window.__signedIn = OWNER.signedIn;
     OWNER.client_id = me.client_id; OWNER.persistent = !!me.persistent;
     OWNER.keyReady = !!me.key_ready;
   } catch (e) { console.log('owner me', e); }
@@ -9754,14 +9759,14 @@ async function ownerBoot() {
 /* ---- the door opens by itself ---- */
 let _autoSignInTried = false;
 function maybeAutoSignIn() {
-  if (OWNER.me || _autoSignInTried) return;
+  if (OWNER.signedIn || OWNER.me || _autoSignInTried) return;
   try { if (sessionStorage.getItem('astra6_signin_seen') === '1') return; } catch (e) {}
   _autoSignInTried = true;
   // the sheet is the reliable half of this: it always opens, and it carries Google's own
   // button. (Google's silent one-tap prompt is suppressed by many browsers, so it is not
   // what the door depends on.) One tap on that button is the Google account chooser.
   setTimeout(function () {
-    if (OWNER.me) return;
+    if (OWNER.signedIn || OWNER.me) return;
     ownerTap();
     // marked only once it is really on screen, so a reload in between cannot swallow it
     try { sessionStorage.setItem('astra6_signin_seen', '1'); } catch (e) {}
@@ -9794,6 +9799,16 @@ function oneTap() {
 /* ---- sign-in: a Google button in a sheet ---- */
 function ownerTap() {
   if (OWNER.me) { ownerChip(); toggleMenu(); return; }
+  if (OWNER.signedIn) {
+    openSheet('Account',
+      '<div style="font-size:12.5px;line-height:1.7;color:var(--muted)">' +
+      '<p>Signed in as <b style="color:var(--ink)">' + (OWNER.email || '') + '</b>.</p>' +
+      '<p>Only the owner account can publish signals or change the site.</p></div>' +
+      '<button type="button" onclick="ownerSignOut()" style="width:100%;margin-top:14px;padding:11px;' +
+      'border-radius:11px;border:1px solid var(--line);background:var(--surface);color:var(--ink);' +
+      'font-weight:800;font-size:13.5px;cursor:pointer">Sign out</button>');
+    return;
+  }
   openSheet('Sign in',
     '<div id="gbtn" style="display:flex;justify-content:center;margin:10px 0 6px"></div>' +
     '<div id="glgn-msg" style="font-size:11.5px;color:var(--muted);margin-top:10px;text-align:center"></div>');
@@ -9849,10 +9864,11 @@ async function ownerKeyLogin() {
       if (msg) msg.textContent = det.how || (det.error || 'That code is not right.').replace(/_/g, ' ');
       return;
     }
-    OWNER.me = true; OWNER.email = d.email; OWNER.persistent = !!d.persistent;
-    window.__ownerMe = true;
+    OWNER.me = !!d.owner; OWNER.signedIn = true;
+    OWNER.email = d.email; OWNER.persistent = !!d.persistent;
+    window.__ownerMe = OWNER.me; window.__signedIn = true;
     closeSheet(); ownerChip(); await ownerBoot();
-    try { toast('Signed in as owner'); } catch (e) {}
+    try { toast(OWNER.me ? 'Signed in as the owner' : 'Signed in'); } catch (e) {}
   } catch (e) {
     if (msg) msg.textContent = 'Network error: ' + e.message;
   }
@@ -9899,10 +9915,11 @@ async function googleCredential(resp) {
         : (why.error || 'Sign-in failed.') + (why.how ? ' — ' + why.how : '');
       return;
     }
-    OWNER.me = true; OWNER.email = d.email; OWNER.persistent = !!d.persistent;
-    window.__ownerMe = true;
+    OWNER.me = !!d.owner; OWNER.signedIn = true;
+    OWNER.email = d.email; OWNER.persistent = !!d.persistent;
+    window.__ownerMe = OWNER.me; window.__signedIn = true;
     closeSheet(); ownerChip(); await ownerBoot();
-    try { toast('Signed in as ' + d.email); } catch (e) {}
+    try { toast(OWNER.me ? 'Signed in as the owner' : 'Signed in as ' + d.email); } catch (e) {}
   } catch (e) {
     if (msg) msg.textContent = 'Network error: ' + e.message;
   }
@@ -9910,7 +9927,8 @@ async function googleCredential(resp) {
 
 async function ownerSignOut() {
   try { await fetch('/api/owner/logout', { method: 'POST', credentials: 'same-origin' }); } catch (e) {}
-  OWNER.me = false; OWNER.email = null; window.__ownerMe = false;
+  OWNER.me = false; OWNER.signedIn = false; OWNER.email = null;
+  window.__ownerMe = false; window.__signedIn = false;
   ownerChip(); signalsRender(); drawSignalLines();
   try { toast('Signed out'); } catch (e) {}
 }

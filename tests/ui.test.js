@@ -392,7 +392,7 @@ section('nothing opens by itself');
   ok('the picker cannot open', /if\(ONE_MARKET\)\{ if\(ev&&ev\.preventDefault\)ev\.preventDefault\(\); return; \}/.test(grab('toggleMarketPicker')));
   ok('old watchlists and alerts for other pairs are pruned on boot', /function pruneSymbols\(\)/.test(html)
      && /pruneSymbols\(\);/.test(html) && /SITE_SYMBOL/.test(html));
-  ok('the welcome subtitle names the one market', /gold · xauusd/.test(html) && !/metals · futures|metals · forex/.test(html));
+  ok('the welcome carries no market line any more', !/class="home-sub"/.test(html));
   ok('the page description names gold', /Live gold/.test(html) && !/live metals and futures/i.test(html));
   ok('the welcome has no price header', /body\[data-view="home"\] \.hd \.price-block/.test(html));
   ok('nothing points at a chart screen any more', !/menu → Chart/.test(html));
@@ -964,7 +964,7 @@ section('one strategy, one price, more tools');
   ok('the 4-digit passcode screen is gone', !/<div id="lock"|id="lock-dots"|id="lock-pad"/.test(html));
   ok('nothing asks for a PIN on boot', !/lkOpen\(lkGet\(LK\.pin\)/.test(html));
   ok('the sign-in sheet opens by itself', /function maybeAutoSignIn\(\)/.test(html)
-     && /setTimeout\(function \(\) \{\s*if \(OWNER\.me\) return;\s*ownerTap\(\);/.test(html));
+     && /setTimeout\(function \(\) \{\s*if \(OWNER\.signedIn \|\| OWNER\.me\) return;\s*ownerTap\(\);/.test(html));
   ok('a first visit is not reloaded under the sheet', /const _wasControlled=!!navigator\.serviceWorker\.controller/.test(html));
   ok('one tap asks Google for the owner account', /google\.accounts\.id\.prompt\(/.test(html)
      && /google\.accounts\.id\.initialize\(\{ client_id: OWNER\.client_id/.test(html));

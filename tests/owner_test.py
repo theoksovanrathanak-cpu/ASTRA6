@@ -56,8 +56,10 @@ class FakeReq:
 
 check("a good session reads back as the owner", O.read_session(FakeReq(tok)) == O.OWNER_EMAIL)
 check("a tampered session is rejected", O.read_session(FakeReq(tok[:-1] + ("a" if tok[-1] != "a" else "b"))) is None)
-check("a session for any other address is rejected",
-      O.read_session(FakeReq(O.make_session("attacker@gmail.com"))) is None)
+check("any signed-in Google address reads back, but only the owner may publish",
+      O.read_session(FakeReq(O.make_session("visitor@gmail.com"))) == "visitor@gmail.com"
+      and raises(lambda: O.require_owner(FakeReq(O.make_session("visitor@gmail.com"))), 403)
+      and O.require_owner(FakeReq(O.make_session(O.OWNER_EMAIL))) == O.OWNER_EMAIL)
 check("no cookie means no owner", O.read_session(FakeReq()) is None)
 check("require_owner raises 401 without a session", raises(lambda: O.require_owner(FakeReq()), 401))
 
@@ -140,7 +142,7 @@ check("it is styled, not a bare document", "--bg:#0b0e14" in page and "<style>" 
 O.GOOGLE_CLIENT_ID = "abc.apps.googleusercontent.com"
 page2 = O.signin_page(R3())
 check("with a client id it is embedded for the Google button", "abc.apps.googleusercontent.com" in page2)
-check("it names the owner address", O.OWNER_EMAIL in page2)
+check("the door asks for a Google account, not a password", "Sign in with your Google account" in page2)
 os.environ.pop("REQUIRE_LOGIN", None)
 O.GOOGLE_CLIENT_ID = _saved[1]
 

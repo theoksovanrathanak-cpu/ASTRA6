@@ -130,8 +130,9 @@ def verify_google(credential: str) -> Dict[str, Any]:
         raise HTTPException(status_code=401, detail={"error": "wrong_audience", "aud": aud})
     email = str(info.get("email") or "").strip().lower()
     verified = str(info.get("email_verified")).lower() in ("true", "1")
-    if email != OWNER_EMAIL or not verified:
-        raise HTTPException(status_code=403, detail={"error": "not_the_owner", "email": email})
+    # any verified Google account may sign in; only OWNER_EMAIL may publish or edit
+    if not email or not verified:
+        raise HTTPException(status_code=403, detail={"error": "email_not_verified"})
     try:
         exp = int(info.get("exp") or 0)
     except Exception:
@@ -139,7 +140,7 @@ def verify_google(credential: str) -> Dict[str, Any]:
     if exp and exp < time.time():
         raise HTTPException(status_code=401, detail={"error": "token_expired"})
     return {"email": email, "sub": info.get("sub"), "name": info.get("name"),
-            "picture": info.get("picture")}
+            "picture": info.get("picture"), "owner": email == OWNER_EMAIL}
 
 
 # ----------------------------------------------------------------- session cookie
@@ -169,14 +170,16 @@ def read_session(request: Request) -> Optional[str]:
         return None
     if int(d.get("x") or 0) < time.time():
         return None
-    email = str(d.get("e") or "").lower()
-    return email if email == OWNER_EMAIL else None
+    return str(d.get("e") or "").lower() or None
 
 
 def require_owner(request: Request) -> str:
+    """Signed in is not enough: publishing and editing belong to OWNER_EMAIL only."""
     email = read_session(request)
     if not email:
-        raise HTTPException(status_code=401, detail={"error": "owner_only"})
+        raise HTTPException(status_code=401, detail={"error": "sign_in_first"})
+    if email != OWNER_EMAIL:
+        raise HTTPException(status_code=403, detail={"error": "owner_only", "email": email})
     return email
 
 
@@ -258,7 +261,8 @@ router = APIRouter()
 @router.get("/api/owner/me")
 def owner_me(request: Request):
     email = read_session(request)
-    return {"owner": bool(email), "email": email or None, "owner_email": OWNER_EMAIL,
+    return {"owner": bool(email) and email == OWNER_EMAIL, "signed_in": bool(email),
+            "email": email or None, "owner_email": OWNER_EMAIL,
             "google_ready": bool(GOOGLE_CLIENT_ID), "client_id": GOOGLE_CLIENT_ID or None,
             "key_ready": bool(OWNER_KEY),
             "persistent": persistent()}
@@ -287,8 +291,8 @@ def owner_login(body: LoginBody, request: Request, response: Response):
     token = make_session(who["email"])
     response.set_cookie(COOKIE, token, max_age=SESSION_DAYS * 86400, httponly=True,
                         samesite="lax", secure=(request.url.scheme == "https"), path="/")
-    return {"owner": True, "email": who["email"], "name": who.get("name"),
-            "picture": who.get("picture"), "persistent": persistent()}
+    return {"owner": bool(who.get("owner")), "signed_in": True, "email": who["email"],
+            "name": who.get("name"), "picture": who.get("picture"), "persistent": persistent()}
 
 
 @router.post("/api/owner/logout")
@@ -539,7 +543,7 @@ def signin_page(request: Request) -> str:
     if not GOOGLE_CLIENT_ID:
         extra = "Sign-in is not connected on this server yet."
     else:
-        extra = "Only <b>" + OWNER_EMAIL + "</b> can open this site."
+        extra = "Sign in with your Google account to continue."
     page = SIGNIN_PAGE.replace("{{", "{").replace("}}", "}")   # the template is not an f-string
     page = page.replace("{client_id}", json.dumps(GOOGLE_CLIENT_ID or "")).replace("{extra}", extra)
     page = page.replace("__KEY_READY__", "true" if OWNER_KEY else "false")
