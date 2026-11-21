@@ -9795,11 +9795,10 @@ function maybeAutoSignIn() {
   try { if (sessionStorage.getItem('astra6_signin_seen') === '1') return; } catch (e) {}
   _autoSignInTried = true;
   try { sessionStorage.setItem('astra6_signin_seen', '1'); } catch (e) {}
-  setTimeout(function () {
-    if (OWNER.me) return;
-    if (OWNER.ready && OWNER.client_id) oneTap();
-    else ownerTap();
-  }, 700);
+  // the sheet is the reliable half of this: it always opens, and it carries Google's own
+  // button. (Google's silent one-tap prompt is suppressed by many browsers, so it is not
+  // what the door depends on.) One tap on that button is the Google account chooser.
+  setTimeout(function () { if (!OWNER.me) ownerTap(); }, 700);
 }
 
 /* Google's own one-tap prompt: the account chooser appears without a tap when the
