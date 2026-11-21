@@ -2271,8 +2271,8 @@ body::before,[data-theme="dark"] body::before{
   <div class="menu-sec">
     <div class="menu-label">Alerts</div>
     <button class="chip" id="push-btn" style="width:100%;justify-content:center"
-            onclick="closeMenu();pushEnable()">Signal alerts on this phone</button>
-    <div class="menu-hint" id="push-note">One card with the same numbers the owner published — even when the app is shut.</div>
+            onclick="closeMenu();pushEnable()">Signal alerts on this device</button>
+    <div class="menu-hint" id="push-note">One card with the same numbers the owner published — on another tab, on the lock screen, or with the app shut.</div>
   </div>
 
   <div class="menu-sec" id="menu-install-sec">
@@ -8003,7 +8003,7 @@ function pushStateText(){
   if(!pushSupported())return 'This browser cannot receive push notifications.';
   if(pushState==='on')return 'On — the card arrives even with the app closed.';
   if(pushState==='denied')return 'Blocked in the browser settings. Allow notifications for this site, then try again.';
-  return 'Off — alerts only ring while this tab is open.';
+  return 'Off — the card only shows while you are looking at this tab.';
 }
 async function pushEnable(){
   if(!pushSupported()){toast('This browser has no push support');return;}
@@ -9882,8 +9882,60 @@ function signalAlertShow(sig) {
   requestAnimationFrame(function () { el.classList.add('on'); });
   signalSay(sig);
   clearTimeout(_saHideT);
-  _saHideT = setTimeout(signalAlertHide, 30000);
+  _saHideT = setTimeout(signalAlertHide, document.hidden ? 600000 : 30000);
 }
+
+/* ---- away from the page: the same card, as a system notification ----
+   No subscription needed: if this browser has already allowed notifications, a signal
+   that lands while the tab is in the background still reaches the person holding it. */
+let _saPending = null;
+
+function saCardText(sig) {
+  const side = String(sig.side || '').toUpperCase();
+  const bits = [];
+  if (sig.entry != null) bits.push('entry ' + saNum(sig.entry));
+  if (sig.sl != null) bits.push('SL ' + saNum(sig.sl));
+  [['tp1', 1], ['tp2', 2], ['tp3', 3]].forEach(function (p) {
+    if (sig[p[0]] != null) bits.push('TP' + p[1] + ' ' + saNum(sig[p[0]]));
+  });
+  const note = sig.note ? String(sig.note).trim().slice(0, 80) : '';
+  return {
+    title: side ? 'ASTRA6 · ' + side + ' XAUUSD' : 'ASTRA6 · new signal',
+    body: (bits.join(' · ') + (note ? ' · ' + note : '')) || 'the owner published a signal',
+    tag: 'astra6-signal-' + (sig.id || 'new')
+  };
+}
+
+async function signalAwayCard(sig) {
+  try {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return false;
+    const reg = await navigator.serviceWorker.ready;
+    const c = saCardText(sig);
+    await reg.showNotification(c.title, {
+      body: c.body, icon: '/icon-192.png', badge: '/icon-192.png',
+      tag: c.tag, renotify: true, requireInteraction: true, silent: false,
+      vibrate: [80, 40, 80],
+      timestamp: (Number(sig.at) || Math.floor(Date.now() / 1000)) * 1000,
+      data: { url: '/?src=signal', sym: 'XAUUSD', kind: 'signal', id: sig.id || '' }
+    });
+    return true;
+  } catch (e) { return false; }
+}
+
+/* back on the page: the card they missed is waiting, numbers and voice */
+document.addEventListener('visibilitychange', function () {
+  if (document.hidden) return;
+  if (_saPending) {
+    const sig = _saPending;
+    _saPending = null;
+    signalAlertShow(sig);
+    return;
+  }
+  if (_saShowing) {                       // it was on screen the whole time they were away
+    clearTimeout(_saHideT);
+    _saHideT = setTimeout(signalAlertHide, 30000);
+  }
+});
 
 function signalAlertHide() {
   const el = document.getElementById('sig-alert');
@@ -9914,7 +9966,14 @@ async function signalWatch() {
     if (!booted || !fresh.length) return;
     const now = Math.floor(Date.now() / 1000);
     const hot = fresh.filter(function (x) { return (now - Number(x.at || 0)) < 900; });
-    if (hot.length) signalAlertShow(hot[0]);
+    if (!hot.length) return;
+    if (document.hidden) {
+      _saPending = hot[0];            // shown the moment they come back
+      signalAwayCard(hot[0]);         // and on the desktop or the lock screen right now
+      return;
+    }
+    _saPending = null;
+    signalAlertShow(hot[0]);
   } catch (e) {}
 }
 

@@ -1194,6 +1194,22 @@ section('signals: read-only on the page, posting lives in the owner menu');
   ok('an edit is checked before it is sent, like a new signal',
      /A BUY stop must sit below the entry/.test(grab('saveEditSignal'))
      && /is on the wrong side of the entry/.test(grab('saveEditSignal')));
+  ok('a signal that lands while the tab is hidden becomes a system card', /async function signalAwayCard\(sig\)/.test(html)
+     && /Notification\.permission !== 'granted'/.test(grab('signalAwayCard'))
+     && /showNotification\(c\.title/.test(grab('signalAwayCard'))
+     && /'astra6-signal-' \+ \(sig\.id/.test(grab('saCardText')));
+  ok('the away card carries the same numbers and the same tag as the server push',
+     /entry ' \+ saNum\(sig\.entry\)/.test(grab('saCardText')) && /TP' \+ p\[1\]/.test(grab('saCardText'))
+     && /tag: 'astra6-signal-'/.test(grab('saCardText')));
+  ok('the watcher hands a hidden-tab signal to the system card and keeps it for the return',
+     /if \(document\.hidden\) \{[\s\S]*?_saPending = hot\[0\][\s\S]*?signalAwayCard\(hot\[0\]\)/.test(grab('signalWatch')));
+  ok('coming back to the tab shows the card they missed, with the voice',
+     /if \(_saPending\) \{[\s\S]*?signalAlertShow\(sig\)/.test(html));
+  ok('a card nobody is looking at does not time out in 30 seconds',
+     /document\.hidden \? 600000 : 30000/.test(grab('signalAlertShow')));
+  ok('the alerts toggle talks about every device, not just a phone',
+     /Signal alerts on this device/.test(html) && !/Signal alerts on this phone/.test(html)
+     && /on another tab, on the lock screen, or with the app shut/.test(html));
   ok('the flow meter is gone from the chart', !/id="flow-meter"/.test(html));
   ok('no copy still promises alerts the app cannot send',
      !/alerts ring with the app closed/.test(html) && !/journal, alerts and drawings/.test(html));
