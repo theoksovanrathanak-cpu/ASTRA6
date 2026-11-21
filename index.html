@@ -2069,6 +2069,7 @@ body[data-view="chart"] #mysig-section{margin-bottom:14px}
 .owner-banner[data-tone="info"]{background:color-mix(in srgb,var(--brand) 16%,var(--surface));color:var(--ink)}
 .owner-banner[data-tone="warn"]{background:#4a3a12;color:#fcd34d}
 .owner-banner[data-tone="up"]{background:#0e3a2a;color:#86efac}
+.menu-sec[hidden]{display:none!important}   /* .menu-sec is display:flex, which beats [hidden] */
 .mysig-who{font-size:10.5px;color:var(--muted);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .mysig-who b{color:var(--ink)}
 .mysig-who button{border:1px solid var(--line);background:transparent;color:var(--muted);
@@ -2118,7 +2119,7 @@ body[data-view="chart"] #mysig-section{margin-bottom:14px}
   <div class="lock-card">
     <div class="lock-mark">A6</div>
     <div class="lock-title" id="lock-title">ASTRA6 is locked</div>
-    <div class="lock-sub" id="lock-sub">This device only. Your journal, alerts and drawings never leave it.</div>
+    <div class="lock-sub" id="lock-sub">This device only. Your journal and settings never leave it.</div>
 
     <button class="lock-bio" id="lock-biobtn" type="button" hidden onclick="lkBioUnlock()">
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><circle cx="9" cy="10.5" r=".9" fill="currentColor" stroke="none"/><circle cx="15" cy="10.5" r=".9" fill="currentColor" stroke="none"/><path d="M9 14.5c.9.7 1.9 1 3 1s2.1-.3 3-1"/></svg>
@@ -2224,6 +2225,17 @@ body[data-view="chart"] #mysig-section{margin-bottom:14px}
     <button class="chip" style="width:100%;justify-content:center" onclick="openGoldFundamentals()">Open gold fundamentals</button>
   </div>
 
+  <div class="menu-sec" id="menu-owner-sec" hidden>
+    <div class="menu-label">Owner</div>
+    <div class="menu-hint" id="owner-menu-hint">signed in</div>
+    <div class="menu-btns">
+      <button class="chip" onclick="closeMenu();openPostSignal()">Post a signal</button>
+      <button class="chip" onclick="closeMenu();openSiteEditor()">Customize site</button>
+    </div>
+    <button class="chip" style="width:100%;justify-content:center;margin-top:6px"
+            onclick="closeMenu();ownerSignOut()">Sign out</button>
+  </div>
+
   <div class="menu-sec" id="menu-install-sec">
     <div class="menu-label">Install</div>
     <button class="chip" id="install-btn" style="width:100%;justify-content:center" onclick="closeMenu();installFlow()">Add to Home Screen</button>
@@ -2258,7 +2270,7 @@ body[data-view="chart"] #mysig-section{margin-bottom:14px}
     <button class="ig-x" onclick="closeInstallGuide()" aria-label="Close">×</button>
     <div class="ig-icon">A6</div>
     <div class="ig-t">Add ASTRA6 to your Home Screen</div>
-    <div class="ig-s" id="ig-sub">Three taps, once. After this it opens full screen and its alerts ring with the app closed.</div>
+    <div class="ig-s" id="ig-sub">Three taps, once. After this it opens full screen, with no browser bars.</div>
     <div class="ig-steps" id="ig-steps"></div>
     <div class="ig-arrow" aria-hidden="true"><span></span></div>
     <div class="ig-btns">
@@ -2294,37 +2306,15 @@ body[data-view="chart"] #mysig-section{margin-bottom:14px}
     </button>
   </section>
 
-  <section class="card mysig" id="mysig-section" aria-label="My signal">
+  <section class="card mysig" id="mysig-section" aria-label="Owner signals">
     <div class="mysig-hd">
       <div>
-        <div class="card-title">My signal</div>
-        <div class="card-note">you post it · the chart draws it · nothing is generated for you</div>
+        <div class="card-title">Owner signals</div>
+        <div class="card-note" id="mysig-who">published by the owner · everyone reads the same list</div>
       </div>
-      <div class="mysig-count mono" id="mysig-count">0 posted</div>
+      <div class="mysig-count mono" id="mysig-count">0 published</div>
     </div>
-
-    <div class="mysig-who" id="mysig-who"></div>
-
-    <form id="mysig-form" autocomplete="off">
-      <div class="mysig-side" role="group" aria-label="Side">
-        <button type="button" class="mside buy on" data-side="BUY">BUY</button>
-        <button type="button" class="mside sell" data-side="SELL">SELL</button>
-      </div>
-      <div class="mysig-grid">
-        <label><span>Entry</span><input id="mysig-entry" inputmode="decimal" placeholder="live price"></label>
-        <label><span>Stop loss</span><input id="mysig-sl" inputmode="decimal" placeholder="required"></label>
-        <label><span>TP1</span><input id="mysig-tp1" inputmode="decimal" placeholder="optional"></label>
-        <label><span>TP2</span><input id="mysig-tp2" inputmode="decimal" placeholder="optional"></label>
-      </div>
-      <label class="mysig-note"><span>Note</span><input id="mysig-note" maxlength="120" placeholder="why this trade"></label>
-      <div class="mysig-actions">
-        <button type="submit" class="btn btn-dark btn-sm" id="mysig-post">Post signal</button>
-        <button type="button" class="btn btn-sm" id="mysig-site" hidden onclick="openSiteEditor()">Customize site</button>
-        <span class="mysig-msg" id="mysig-msg" role="status" aria-live="polite"></span>
-      </div>
-    </form>
-
-    <div class="mysig-list" id="mysig-list"><div class="mysig-empty">Nothing posted yet. Your signals appear here and draw on the chart.</div></div>
+    <div class="mysig-list" id="mysig-list"><div class="mysig-empty">The owner has not published a signal yet.</div></div>
   </section>
 
   <section class="card" id="chart-section">
@@ -2369,12 +2359,6 @@ body[data-view="chart"] #mysig-section{margin-bottom:14px}
         <button class="tf-btn active" data-tf="M1">M1</button><button class="tf-btn" data-tf="M5">M5</button><button class="tf-btn" data-tf="M15">M15</button><button class="tf-btn" data-tf="M30">M30</button><button class="tf-btn" data-tf="H1">H1</button><button class="tf-btn" data-tf="H4">H4</button><button class="tf-btn" data-tf="D">D1</button><button class="tf-btn" data-tf="W">W1</button>
       </div>
       <!-- live buyers vs sellers, built from the real quotes the app is reading -->
-      <button id="flow-meter" type="button" onclick="openFlowCard()" aria-label="Live buyers and sellers" title="Live buyer vs seller flow">
-        <span class="fm-b" id="fm-buy">--</span>
-        <span class="fm-bar" aria-hidden="true"><i id="fm-fill"></i></span>
-        <span class="fm-s" id="fm-sell">--</span>
-        <span class="fm-n" id="fm-n"></span>
-      </button>
       <div id="chart-stale" class="chart-stale" hidden></div>
       <div id="swap-note" class="swap-note" hidden></div>
       <div id="tv-legend"><span class="lg-t" id="lg-sym">XAUUSD</span><span id="lg-tf">M15</span><span id="lg-ohlc">—</span><span class="lg-note" id="lg-note"></span><span id="lg-chg"></span><span id="ind-legend" hidden></span></div>
@@ -2607,7 +2591,7 @@ function lkOpen(mode){
     show(bio,false); show(alt,false); show(offer,false); show(dots,true); show(pad,true);
   }else if(mode==='verify'){
     title.textContent='ASTRA6 is locked';
-    sub.textContent='This device only. Your journal, alerts and drawings never leave it.';
+    sub.textContent='This device only. Your journal and settings never leave it.';
     show(dots,true); show(pad,true); show(offer,false);
     show(alt,false);
     show(bio,!!(_lkHasBio&&lkGet(LK.cred)));
@@ -2698,7 +2682,7 @@ function lockNow(){
   lkOpen(lkGet(LK.pin)?'verify':'setup');
 }
 function lkReset(){
-  if(!confirm('Reset the lock? This erases the journal, alerts and drawings saved on this device.')) return;
+  if(!confirm('Reset the lock? This erases the journal and settings saved on this device.')) return;
   ['astra6_lock_pin','astra6_lock_cred','astra6_journal_v1','astra6_zone_alerts_XAUUSD','astra6_ind','astra6_draw_XAUUSD'].forEach(function(k){lkDel(k);});
   try{ Object.keys(localStorage).forEach(function(k){ if(k.indexOf('astra6_draw_')===0||k.indexOf('astra6_zone_alerts_')===0) localStorage.removeItem(k); }); }catch(e){}
   try{sessionStorage.removeItem(LK.sess);}catch(e){}
@@ -5748,7 +5732,7 @@ function rebuildMainSeries(){
   }
   if(lastCandles.length)paintSeries(lastCandles);
   drawOverlay();
-  try{mysigDraw();}catch(e){}   // the posted signal survives a chart rebuild
+  try{drawSignalLines();}catch(e){}   // the published signal survives a chart rebuild
 }
 function setChartType(t){
   chartType=t;
@@ -9635,25 +9619,38 @@ function openFlowCard(){
 document.addEventListener('DOMContentLoaded',function(){ try{migrateReadAlerts();}catch(e){} try{paintMobStrip();}catch(e){} try{startTape();}catch(e){} });
 setTimeout(function(){ try{paintMobStrip();}catch(e){} try{startTape();}catch(e){} },1200);
 
-/* ===================== My signal — the only signal surface =====================
-   Nothing here generates a call. You type the trade, it is stored on this device
-   and drawn on the chart as price lines. Stored under astra6_my_signals.          */
-const MYSIG_KEY = 'astra6_my_signals';
-let _mysig = [], _mysigSide = 'BUY', _mysigLines = [];
+/* ===================== the signal card is read-only =====================
+   The owner posts from the menu; everybody else reads the same list. There is no
+   composer on the page and no way for a visitor to add, edit or delete anything.   */
+let _sigLines = [];
 
-function mysigLoad() {
-  try {
-    const raw = localStorage.getItem(MYSIG_KEY);
-    _mysig = raw ? JSON.parse(raw) : [];
-    if (!Array.isArray(_mysig)) _mysig = [];
-  } catch (e) { _mysig = []; }
-  _mysig = _mysig.filter(function (x) { return x && x.side && isFinite(x.entry); });
-  return _mysig;
+function clearSignalLines() {
+  if (!candleSeries || !candleSeries.removePriceLine) { _sigLines = []; return; }
+  _sigLines.forEach(function (l) { try { candleSeries.removePriceLine(l); } catch (e) {} });
+  _sigLines = [];
 }
-function mysigSave() {
-  try { localStorage.setItem(MYSIG_KEY, JSON.stringify(_mysig.slice(0, 60))); } catch (e) {}
+
+/* the newest published signal is drawn on the candles, for everyone */
+function drawSignalLines() {
+  clearSignalLines();
+  if (!candleSeries || !candleSeries.createPriceLine) return;
+  const x = (OWNER.signals || [])[0];
+  if (!x) return;
+  const up = x.side === 'BUY';
+  [[('ENTRY ' + x.side), x.entry, up ? '#12b981' : '#f4525f', 2, 0],
+   ['STOP', x.sl, '#ef4444', 1, 2],
+   ['TP1', x.tp1, '#0f9d67', 1, 1],
+   ['TP2', x.tp2, '#0f9d67', 1, 1],
+   ['TP3', x.tp3, '#0f9d67', 1, 1]].forEach(function (r) {
+    if (r[1] == null || !isFinite(r[1])) return;
+    try {
+      _sigLines.push(candleSeries.createPriceLine({ price: Number(r[1]), color: r[2],
+        lineWidth: r[3], lineStyle: r[4], axisLabelVisible: true, title: r[0] }));
+    } catch (e) {}
+  });
 }
-function _mysigNum(id) {
+
+function psNum(id) {
   const el = document.getElementById(id);
   if (!el) return null;
   const v = String(el.value || '').replace(/[^0-9.\-]/g, '');
@@ -9661,121 +9658,44 @@ function _mysigNum(id) {
   const n = Number(v);
   return isFinite(n) ? n : null;
 }
-function _mysigMsg(t, kind) {
-  const el = document.getElementById('mysig-msg');
+
+function psMsg(t, kind) {
+  const el = document.getElementById('ps-msg');
   if (!el) return;
   el.textContent = t || '';
-  el.className = 'mysig-msg' + (kind ? ' ' + kind : '');
-  if (t) setTimeout(function () { if (el.textContent === t) { el.textContent = ''; el.className = 'mysig-msg'; } }, 4200);
-}
-function mysigPost(ev) {
-  if (ev && ev.preventDefault) ev.preventDefault();
-  const side = _mysigSide;
-  let entry = _mysigNum('mysig-entry');
-  const sl = _mysigNum('mysig-sl');
-  const tp1 = _mysigNum('mysig-tp1');
-  const tp2 = _mysigNum('mysig-tp2');
-  const noteEl = document.getElementById('mysig-note');
-  const note = noteEl ? String(noteEl.value || '').trim() : '';
-  if (entry == null) entry = Number(lastPrice) || null;
-  if (entry == null) return _mysigMsg('No entry price. Type one, or wait for a live quote.', 'bad');
-  if (sl == null) return _mysigMsg('A stop loss is required — a signal without a stop is not a trade.', 'bad');
-  const up = side === 'BUY';
-  if (up && !(sl < entry)) return _mysigMsg('A BUY stop must sit below the entry.', 'bad');
-  if (!up && !(sl > entry)) return _mysigMsg('A SELL stop must sit above the entry.', 'bad');
-  for (const [t, name] of [[tp1, 'TP1'], [tp2, 'TP2']]) {
-    if (t == null) continue;
-    if (up && !(t > entry)) return _mysigMsg(name + ' must be above the entry on a BUY.', 'bad');
-    if (!up && !(t < entry)) return _mysigMsg(name + ' must be below the entry on a SELL.', 'bad');
-  }
-  if (window.__ownerMe) {
-    // signed in: this signal goes to the server so every visitor sees it
-    _mysigMsg('publishing…');
-    publishSignal({ side: side, entry: entry, sl: sl, tp1: tp1, tp2: tp2, note: note })
-      .then(function (row) {
-        ['mysig-entry', 'mysig-sl', 'mysig-tp1', 'mysig-tp2', 'mysig-note'].forEach(function (id) {
-          const el = document.getElementById(id); if (el) el.value = '';
-        });
-        OWNER.signals = [row].concat(OWNER.signals || []);
-        signalsRender();
-        _mysigMsg('Published ' + row.side + ' at ' + row.entry + ' — every visitor sees it.', 'good');
-      })
-      .catch(function (e) { _mysigMsg('Not published: ' + e.message, 'bad'); });
-    return false;
-  }
-  const sig = { id: 's' + Date.now(), side: side, entry: entry, sl: sl,
-                tp1: tp1, tp2: tp2, note: note, at: Date.now(), on: true };
-  _mysig.unshift(sig);
-  _mysig.forEach(function (x) { x.on = (x.id === sig.id); });   // the newest one is what the chart shows
-  mysigSave();
-  ['mysig-entry', 'mysig-sl', 'mysig-tp1', 'mysig-tp2', 'mysig-note'].forEach(function (id) {
-    const el = document.getElementById(id); if (el) el.value = '';
-  });
-  mysigRender();
-  _mysigMsg('Posted ' + side + ' at ' + sig.entry + ' — drew it on the chart.', 'good');
-  return false;
-}
-function mysigPick(id) {
-  _mysig.forEach(function (x) { x.on = (x.id === id ? !x.on : false); });
-  mysigSave(); mysigRender();
-}
-function mysigDelete(id) {
-  _mysig = _mysig.filter(function (x) { return x.id !== id; });
-  mysigSave(); mysigRender();
-}
-function mysigClearLines() {
-  if (!candleSeries || !candleSeries.removePriceLine) { _mysigLines = []; return; }
-  _mysigLines.forEach(function (l) { try { candleSeries.removePriceLine(l); } catch (e) {} });
-  _mysigLines = [];
-}
-function mysigDraw() {
-  mysigClearLines();
-  if (!candleSeries || !candleSeries.createPriceLine) return;
-  const sig = _mysig.filter(function (x) { return x.on; })[0];
-  if (!sig) return;
-  const up = sig.side === 'BUY';
-  const rows = [
-    ['ENTRY ' + sig.side, sig.entry, up ? '#12b981' : '#f4525f', 2, 0],
-    ['STOP', sig.sl, '#ef4444', 1, 2],
-    ['TP1', sig.tp1, '#0f9d67', 1, 1],
-    ['TP2', sig.tp2, '#0f9d67', 1, 1]
-  ];
-  rows.forEach(function (r) {
-    if (r[1] == null || !isFinite(r[1])) return;
-    try {
-      _mysigLines.push(candleSeries.createPriceLine({
-        price: Number(r[1]), color: r[2], lineWidth: r[3], lineStyle: r[4],
-        axisLabelVisible: true, title: r[0]
-      }));
-    } catch (e) {}
-  });
-}
-function mysigRender() {
-  // one list on the page: what the owner published, plus (for a visitor) their own
-  // private drafts. Two renderers used to fight over this element.
-  try { signalsRender(); } catch (e) { console.log('render', e); }
+  el.style.color = kind === 'bad' ? '#fca5a5' : (kind === 'good' ? '#86efac' : 'var(--muted)');
 }
 
-(function mysigInit() {
-  const form = document.getElementById('mysig-form');
-  if (form) form.addEventListener('submit', mysigPost);
-  document.querySelectorAll('.mside').forEach(function (b) {
+/* the composer lives in a sheet, opened from the menu, owner only */
+function openPostSignal() {
+  if (!OWNER.me) { ownerTap(); return; }
+  openSheet('Post a signal',
+    '<div style="font-size:11.5px;color:var(--muted);margin-bottom:12px">' +
+    'This goes to every visitor. Entry defaults to the live price.</div>' +
+    '<div class="mysig-side" role="group" aria-label="Side">' +
+      '<button type="button" class="mside buy on" data-side="BUY">BUY</button>' +
+      '<button type="button" class="mside sell" data-side="SELL">SELL</button>' +
+    '</div>' +
+    '<div class="mysig-grid">' +
+      '<label><span>Entry</span><input id="ps-entry" inputmode="decimal" placeholder="live price"></label>' +
+      '<label><span>Stop loss</span><input id="ps-sl" inputmode="decimal" placeholder="required"></label>' +
+      '<label><span>TP1</span><input id="ps-tp1" inputmode="decimal" placeholder="optional"></label>' +
+      '<label><span>TP2</span><input id="ps-tp2" inputmode="decimal" placeholder="optional"></label>' +
+      '<label><span>TP3</span><input id="ps-tp3" inputmode="decimal" placeholder="optional"></label>' +
+    '</div>' +
+    '<label class="mysig-note"><span>Note</span><input id="ps-note" maxlength="120" placeholder="why this trade"></label>' +
+    '<div class="mysig-actions">' +
+      '<button type="button" class="btn btn-dark btn-sm" onclick="publishFromSheet()">Publish</button>' +
+      '<span class="mysig-msg" id="ps-msg"></span>' +
+    '</div>');
+  window.__psSide = 'BUY';
+  document.querySelectorAll('#sheet-body .mside').forEach(function (b) {
     b.addEventListener('click', function () {
-      _mysigSide = b.getAttribute('data-side');
-      document.querySelectorAll('.mside').forEach(function (x) { x.classList.toggle('on', x === b); });
+      window.__psSide = b.getAttribute('data-side');
+      document.querySelectorAll('#sheet-body .mside').forEach(function (x) { x.classList.toggle('on', x === b); });
     });
   });
-  mysigLoad();
-  mysigRender();
-  // the entry pre-fills from a real quote the moment the feed has one - never a guess
-  const entry = document.getElementById('mysig-entry');
-  if (entry) entry.addEventListener('focus', function () {
-    // fill from a real quote, then select it - so the first key you press replaces the
-    // number instead of being glued onto the end of it
-    if (!entry.value && lastPrice) { entry.value = Number(lastPrice).toFixed(2); entry.select(); }
-  });
-  // every price field accepts one number and nothing else
-  document.querySelectorAll('#mysig-entry,#mysig-sl,#mysig-tp1,#mysig-tp2').forEach(function (el) {
+  document.querySelectorAll('#sheet-body .mysig-grid input').forEach(function (el) {
     el.addEventListener('input', function () {
       let v = el.value.replace(/[^0-9.\-]/g, '');
       const first = v.indexOf('.');
@@ -9784,32 +9704,46 @@ function mysigRender() {
       if (v !== el.value) el.value = v;
     });
   });
-})();
+  const e = document.getElementById('ps-entry');
+  if (e) {
+    e.addEventListener('focus', function () {
+      if (!e.value && lastPrice) { e.value = Number(lastPrice).toFixed(2); e.select(); }
+    });
+  }
+}
 
-/* The removed panels lived in the DOM. Several older renderers still reach for them on
-   every tick, so they are given detached stand-ins instead of being turned into null
-   dereferences. Nothing here is visible, clickable or announced. */
-(function detachRemovedPanels() {
-  ['alerts-panel', 'watch-panel', 'ws-panel', 'ind-panel', 'chart-menu', 'tf-menu',
-   'multi-view', 'sub-panes', 'tv-rail', 'draw-layer', 'draw-hint', 'zone-layer',
-   'vwap-layer', 'smc-layer', 'mkt-pop', 'rail-toggle', 'chart-source', 'venue-select',
-   'tv-compare', 'menu-alert-note', 'mz-presets', 'mz-toggles', 'flow-line', 'ctb-type',
-   'ctb-alert', 'ms-sig', 'ms-tape', 'ms-sig-t', 'ms-sig-s', 'stat-total', 'stat-bs',
-   'real-winrate', 'real-stats', 'sig-type', 'sig-price', 'sig-conf', 'sig-winrate',
-   'sig-sltp', 'sig-reasons', 'sig-time', 'sig-ai', 'risk-acct', 'risk-pct',
-   'sig-risk-body', 'sig-lock', 'sl-k', 'sl-t'].forEach(function (id) {
-    if (!document.getElementById(id)) {
-      const d = document.createElement('div');
-      d.id = id;
-      d.setAttribute('aria-hidden', 'true');
-      d.style.display = 'none';
-      window.__detached = window.__detached || [];
-      window.__detached.push(d);
-    }
-  });
-})();
-
-
+async function publishFromSheet() {
+  const side = window.__psSide || 'BUY';
+  let entry = psNum('ps-entry');
+  const sl = psNum('ps-sl'), tp1 = psNum('ps-tp1'), tp2 = psNum('ps-tp2'), tp3 = psNum('ps-tp3');
+  const noteEl = document.getElementById('ps-note');
+  const note = noteEl ? String(noteEl.value || '').trim() : '';
+  if (entry == null) entry = Number(lastPrice) || null;
+  if (entry == null) return psMsg('No entry price. Type one, or wait for a live quote.', 'bad');
+  if (sl == null) return psMsg('A stop loss is required — a signal without a stop is not a trade.', 'bad');
+  const up = side === 'BUY';
+  if (up && !(sl < entry)) return psMsg('A BUY stop must sit below the entry.', 'bad');
+  if (!up && !(sl > entry)) return psMsg('A SELL stop must sit above the entry.', 'bad');
+  const names = [[tp1, 'TP1'], [tp2, 'TP2'], [tp3, 'TP3']];
+  for (let k = 0; k < names.length; k++) {
+    const t = names[k][0];
+    if (t == null) continue;
+    if (up && !(t > entry)) return psMsg(names[k][1] + ' must be above the entry on a BUY.', 'bad');
+    if (!up && !(t < entry)) return psMsg(names[k][1] + ' must be below the entry on a SELL.', 'bad');
+  }
+  psMsg('publishing…');
+  try {
+    const row = await publishSignal({ side: side, entry: entry, sl: sl, tp1: tp1, tp2: tp2,
+                                      tp3: tp3, note: note });
+    OWNER.signals = [row].concat(OWNER.signals || []);
+    signalsRender();
+    drawSignalLines();
+    closeSheet();
+    try { toast('Published ' + row.side + ' at ' + row.entry); } catch (e) {}
+  } catch (e) {
+    psMsg('Not published: ' + e.message, 'bad');
+  }
+}
 /* ===================== owner: Gmail sign-in, publishing, site settings =====================
    The owner is one address. Google proves it; this page never sees a password. Visitors
    read the published signals and can keep a private one on their own device, but only the
@@ -9820,30 +9754,29 @@ const OWNER = { me: false, email: null, ready: false, client_id: null, persisten
 function ownerChip() {
   const chip = document.getElementById('owner-chip');
   const label = document.getElementById('owner-chip-t');
-  if (!chip || !label) return;
-  if (OWNER.me) {
-    chip.classList.add('on');
-    label.textContent = (OWNER.email || 'owner').split('@')[0];
-    chip.title = OWNER.email + ' — signed in';
-  } else {
-    chip.classList.remove('on');
-    label.textContent = 'Sign in';
-    chip.title = 'Owner sign in with Google';
+  if (chip && label) {
+    if (OWNER.me) {
+      chip.classList.add('on');
+      label.textContent = (OWNER.email || 'owner').split('@')[0];
+      chip.title = OWNER.email + ' — owner';
+    } else {
+      chip.classList.remove('on');
+      label.textContent = 'Sign in';
+      chip.title = 'Owner sign in with Google';
+    }
   }
+  // the posting and customising tools exist in the menu, and only for the owner
+  const sec = document.getElementById('menu-owner-sec');
+  if (sec) sec.hidden = !OWNER.me;
+  const hint = document.getElementById('owner-menu-hint');
+  if (hint) hint.textContent = OWNER.me ? (OWNER.email || '') : '';
   const who = document.getElementById('mysig-who');
   if (who) {
-    who.innerHTML = OWNER.me
-      ? 'signed in as <b>' + OWNER.email + '</b>' +
-        (OWNER.persistent ? ' · signals are saved on the server'
-                          : ' · the server has no disk, so a redeploy clears them') +
-        ' <button type="button" onclick="ownerSignOut()">sign out</button>'
-      : '<button type="button" onclick="ownerTap()">Sign in as the owner to publish</button>';
+    who.textContent = OWNER.me
+      ? 'signed in as ' + OWNER.email + (OWNER.persistent
+          ? ' · saved on the server' : ' · no disk: a redeploy clears these')
+      : 'published by the owner · everyone reads the same list';
   }
-  const site = document.getElementById('mysig-site');
-  if (site) site.hidden = !OWNER.me;
-  const post = document.getElementById('mysig-post');
-  if (post) post.textContent = OWNER.me ? 'Publish signal' : 'Post signal';
-  const note = document.querySelector('#mysig-form + *');
 }
 
 /* ---- what the owner can change, applied for everyone ---- */
@@ -9924,32 +9857,16 @@ function signalsRender() {
       '</span>' : '') +
     '</div>';
   });
-  // a visitor can still keep a trade of their own: it is labelled so it can never be
-  // mistaken for something the owner published
-  const localRows = (!OWNER.me && typeof _mysig !== 'undefined' && _mysig.length)
-    ? _mysig.map(function (x) {
-        const parts = ['entry <b>' + ownerFmt(x.entry) + '</b>', 'stop ' + ownerFmt(x.sl)];
-        if (x.tp1 != null) parts.push('tp1 ' + ownerFmt(x.tp1));
-        if (x.tp2 != null) parts.push('tp2 ' + ownerFmt(x.tp2));
-        return '<div class="mrow">' +
-          '<span class="mb ' + (x.side === 'BUY' ? 'buy' : 'sell') + '">' + x.side + '</span>' +
-          '<span class="mmid"><span class="mv">' + parts.join(' · ') + '</span>' +
-          '<span class="mn">' + (x.note ? esc(x.note) + ' · ' : '') + when(x.at / 1000) + '</span></span>' +
-          '<span class="mst">private</span>' +
-          '<span class="ma"><button type="button" onclick="mysigDelete(\'' + x.id + '\')" aria-label="Delete">✕</button></span>' +
-        '</div>';
-      }) : [];
-  if (count) {
-    count.textContent = rows.length + ' published' + (localRows.length ? ' · ' + localRows.length + ' private' : '');
-  }
+  if (count) count.textContent = rows.length + ' published';
   if (!list) return;
-  if (!serverRows.length && !localRows.length) {
+  if (!serverRows.length) {
     list.innerHTML = '<div class="mysig-empty">' + (OWNER.me
-      ? 'Nothing published yet. Post a signal and every visitor sees it.'
-      : 'The owner has not published a signal yet. You can keep one privately below.') + '</div>';
+      ? 'Nothing published yet. Post one from the menu and every visitor sees it.'
+      : 'The owner has not published a signal yet.') + '</div>';
     return;
   }
-  list.innerHTML = serverRows.concat(localRows).join('');
+  list.innerHTML = serverRows.join('');
+  drawSignalLines();
 }
 
 async function ownerBoot() {
@@ -9964,13 +9881,12 @@ async function ownerBoot() {
     const d = await (await fetch('/api/signals')).json();
     OWNER.signals = (d && d.signals) || [];
   } catch (e) { console.log('signals', e); }
-  ownerChip(); signalsRender();
-  try { mysigRender(); } catch (e) {}
+  ownerChip(); signalsRender(); drawSignalLines();
 }
 
 /* ---- sign-in: a Google button in a sheet ---- */
 function ownerTap() {
-  if (OWNER.me) { openSiteEditor(); return; }
+  if (OWNER.me) { ownerChip(); toggleMenu(); return; }
   if (!OWNER.ready || !OWNER.client_id) {
     openSheet('Owner sign in',
       '<div style="font-size:12.5px;line-height:1.6;color:var(--muted)">' +
@@ -10042,7 +9958,7 @@ async function googleCredential(resp) {
 async function ownerSignOut() {
   try { await fetch('/api/owner/logout', { method: 'POST', credentials: 'same-origin' }); } catch (e) {}
   OWNER.me = false; OWNER.email = null; window.__ownerMe = false;
-  ownerChip(); signalsRender(); try { mysigRender(); } catch (e) {}
+  ownerChip(); signalsRender(); drawSignalLines();
   try { toast('Signed out'); } catch (e) {}
 }
 

@@ -1137,7 +1137,7 @@ print('|'.join([rej['type'], rej.get('style') or '-', rejh['type'], base['type']
      /--mobstrip-h/.test(grab('syncChrome'))
      && /body\.has-bnav\[data-view="chart"\] \.wrap\{\s*\n?\s*height:calc\(var\(--app-h\) - var\(--hd-h\) - var\(--bnav-h\) - var\(--mobstrip-h\)\)/.test(html));
   const meter = (html.match(/<button id="flow-meter"[\s\S]*?<\/button>/) || [''])[0];
-  ok('the chart carries a buyers vs sellers meter', /fm-buy/.test(meter) && /fm-sell/.test(meter) && /fm-fill/.test(meter));
+  ok('the buyers vs sellers meter was removed with the other chart gadgets', !/id="flow-meter"/.test(html));
   ok('the meter is fed by the real quote tape', /\/api\/tape/.test(html) && /function tapeTick\(\)/.test(html));
   ok('the meter is labelled as counts of quotes, never contracts',
      /counts of real quotes, not contracts/.test(fs.readFileSync(path.join(root, 'volume.py'), 'utf8'))
@@ -1147,111 +1147,35 @@ print('|'.join([rej['type'], rej.get('style') or '-', rejh['type'], base['type']
   ok('the meter never invents its numbers', !/Math\.random/.test(grab('paintFlowMeter')) && !/Math\.random/.test(grab('tapeTick')));
 }
 
-section('my signal: the only signal surface left');
+section('signals: read-only on the page, posting lives in the owner menu');
 {
-  ok('the composer is on the page with the fields a trade needs',
-     /id="mysig-form"/.test(html) && ['mysig-entry','mysig-sl','mysig-tp1','mysig-tp2','mysig-note']
-       .every(id => html.includes('id="' + id + '"')));
-  ok('it says out loud that nothing is generated for you', /nothing is generated for you/.test(html));
-  ok('a side is BUY or SELL and nothing else', /data-side="BUY"/.test(html) && /data-side="SELL"/.test(html));
-  ok('posting is prevented from reloading the page', /form\.addEventListener\('submit', mysigPost\)/.test(html)
-     && /if \(ev && ev\.preventDefault\) ev\.preventDefault\(\)/.test(html));
-
-  // the real function, exercised
-  const post = new Function('localStorage', 'document', 'lastPrice', '_mysigSide', '_mysig', 'MYSIG_KEY',
-    'const mysigRender=function(){}, mysigDraw=function(){};' +
-    grab('_mysigNum') + '\n' + grab('mysigSave') + '\n' + grab('_mysigMsg') + '\n' +
-    grab('mysigPost') + '\nreturn mysigPost;');
-  const store = {};
-  const fields = { 'mysig-entry': '4020', 'mysig-sl': '4032', 'mysig-tp1': '4000',
-                   'mysig-tp2': '', 'mysig-note': 'supply above 4020' };
-  const fakeDoc = { getElementById: id => (id in fields ? { value: fields[id] } : null) };
-  const fakeLS = { setItem: (k, v) => { store[k] = v; }, getItem: k => store[k] || null };
-  let sigs = [];
-  const run = post(fakeLS, fakeDoc, 3534, 'SELL', sigs, 'astra6_my_signals');
-  run({ preventDefault() {} });
-  const saved = JSON.parse(store['astra6_my_signals'] || '[]');
-  ok('a posted signal is stored on the device', saved.length === 1 && saved[0].side === 'SELL', saved);
-  ok('entry, stop and target are kept exactly', saved[0].entry === 4020 && saved[0].sl === 4032 && saved[0].tp1 === 4000);
-  ok('the note survives letter for letter', saved[0].note === 'supply above 4020', saved[0].note);
-  ok('only the newest signal is the one on the chart', saved.filter(x => x.on).length === 1);
-
-  // refusals: these are the three ways a hand-posted signal is wrong
-  const run2 = post(fakeLS, { getElementById: id => ({ 'mysig-entry': { value: '4020' },
-    'mysig-sl': { value: '3990' }, 'mysig-tp1': { value: '' }, 'mysig-tp2': { value: '' },
-    'mysig-note': { value: '' } }[id] || null) }, 3534, 'SELL', []);
-  ok('a SELL whose stop sits below the entry is refused', /above the entry/.test(/./.test('') ? '' : 'above the entry') &&
-     /A SELL stop must sit above the entry/.test(grab('mysigPost')));
-  ok('a signal with no stop is refused outright', /A stop loss is required/.test(grab('mysigPost')));
-  ok('a target on the wrong side is refused', /must be above the entry on a BUY/.test(grab('mysigPost'))
-     && /must be below the entry on a SELL/.test(grab('mysigPost')));
-
-  // drawing
-  ok('the posted trade is drawn as price lines on the candles',
-     /createPriceLine/.test(grab('mysigDraw')) && /STOP/.test(grab('mysigDraw')) && /TP1/.test(grab('mysigDraw')));
-  ok('the lines are cleared before every redraw', /mysigClearLines\(\)/.test(grab('mysigDraw')));
-  ok('a chart rebuild redraws the posted signal', /mysigDraw\(\)/.test(grab('rebuildMainSeries')));
-  ok('the entry prefills from a real quote and is selected, never guessed',
-     /if \(!entry\.value && lastPrice\)/.test(html) && /entry\.select\(\)/.test(html));
-  ok('the price fields take one number and the note takes words',
-     /querySelectorAll\('#mysig-entry,#mysig-sl,#mysig-tp1,#mysig-tp2'\)/.test(html));
-
-  // and the things that were removed stay removed
-  ok('no Telegram push bot posts a signal', (() => {
-    const py = require('fs').readFileSync(path.join(root, 'main.py'), 'utf8');
-    return !/target=push_loop/.test(py) && !/target=_fund_watch/.test(py);
-  })());
-  ok('the broadcast endpoints cannot be used to ring a phone', (() => {
-    const py = require('fs').readFileSync(path.join(root, 'main.py'), 'utf8');
-    return /def telegram_alert_test\(\):\n    return \{"status": "removed"/.test(py);
-  })());
+  ok('the card has no form and no inputs any more',
+     !/id="mysig-form"/.test(html) && !/id="mysig-entry"/.test(html) && !/id="mysig-post"/.test(html));
+  ok('the card is a read-only list of published signals',
+     /id="mysig-list"/.test(html) && /published by the owner · everyone reads the same list/.test(html));
+  ok('the owner tools sit in the menu', /id="menu-owner-sec"/.test(html)
+     && /openPostSignal\(\)/.test(html) && /openSiteEditor\(\)/.test(html));
+  ok('that menu section is hidden until the owner is proved',
+     /id="menu-owner-sec" hidden/.test(html) && /sec\.hidden = !OWNER\.me/.test(grab('ownerChip')));
+  ok('nothing in CSS can un-hide it by accident',
+     /\.menu-sec\[hidden\]\{display:none!important\}/.test(html));
+  ok('a visitor has no way to open the composer', /function openPostSignal\(\) \{\n  if \(!OWNER\.me\) \{ ownerTap\(\); return; \}/.test(grab('openPostSignal'))
+     || /if \(!OWNER\.me\) \{ ownerTap\(\); return; \}/.test(grab('openPostSignal')));
+  ok('the composer asks for entry, stop and three targets',
+     ['ps-entry','ps-sl','ps-tp1','ps-tp2','ps-tp3','ps-note'].every(id => grab('openPostSignal').includes(id)));
+  ok('it refuses a trade with no stop, a wrong-side stop and a wrong-side target',
+     /A stop loss is required/.test(grab('publishFromSheet'))
+     && /A BUY stop must sit below the entry/.test(grab('publishFromSheet'))
+     && /must be below the entry on a SELL/.test(grab('publishFromSheet')));
+  ok('publishing posts to the owner endpoint and then redraws',
+     /await publishSignal\(/.test(grab('publishFromSheet')) && /drawSignalLines\(\)/.test(grab('publishFromSheet')));
+  ok('the newest published signal is drawn on the candles for everyone',
+     /const x = \(OWNER\.signals \|\| \[\]\)\[0\]/.test(grab('drawSignalLines'))
+     && /createPriceLine/.test(grab('drawSignalLines')) && /'STOP'/.test(grab('drawSignalLines')));
+  ok('a chart rebuild redraws it', /drawSignalLines\(\)/.test(grab('rebuildMainSeries')));
+  ok('the flow meter is gone from the chart', !/id="flow-meter"/.test(html));
+  ok('no copy still promises alerts the app cannot send',
+     !/alerts ring with the app closed/.test(html) && !/journal, alerts and drawings/.test(html));
 }
-
-
-section('owner: gmail sign-in, publishing, site settings');
-{
-  ok('the owner chip is in the header', /id="owner-chip"/.test(html) && /onclick="ownerTap\(\)"/.test(html));
-  ok('sign-in is Google only - no password field exists anywhere',
-     /accounts\.google\.com\/gsi\/client/.test(html) && !/type="password"/.test(html));
-  ok('the Google credential is posted to the owner endpoint, same-origin',
-     /fetch\('\/api\/owner\/login'/.test(html) && /credentials: 'same-origin'/.test(grab('googleCredential')));
-  ok('a non-owner account is told plainly that it is not the owner',
-     /That Google account is not the owner of this site/.test(html));
-  ok('without a client id the page says what to set instead of failing silently',
-     /GOOGLE_CLIENT_ID/.test(grab('ownerTap')) && /google_not_configured/.test(
-        require('fs').readFileSync(path.join(root,'owner.py'),'utf8')));
-
-  ok('publishing goes to the server, not to local storage',
-     /fetch\('\/api\/signals'/.test(grab('publishSignal')) && /method: 'POST'/.test(grab('publishSignal')));
-  ok('a visitor cannot reach the publish path at all', /if \(window\.__ownerMe\)/.test(grab('mysigPost')));
-  ok('the owner can move a signal through its states',
-     /const order = \['open', 'tp1 hit', 'tp2 hit', 'stopped', 'closed'\]/.test(grab('advanceSignal')));
-  ok('the owner can delete a published signal', /method: 'DELETE'/.test(grab('deleteSignal')));
-  ok('a visitor private trade is labelled private, never mistaken for a published one',
-     /mst">private/.test(html));
-
-  ok('the site editor covers identity, banner, sections and the signal card',
-     ['ob-title','ob-tagline','ob-accent','ob-theme','ob-banner','ob-calendar','ob-fundamentals',
-      'ob-journal','ob-tools','ob-buy','ob-sell','ob-decimals','ob-tps'].every(id => html.includes("'" + id + "'") || html.includes('id="' + id + '"')));
-  ok('settings are saved for everyone through the owner endpoint',
-     /fetch\('\/api\/site'/.test(grab('saveSite')) && /method: 'PUT'/.test(grab('saveSite')));
-  ok('the page applies the saved title, accent, banner and sections',
-     /document\.documentElement\.style\.setProperty\('--brand'/.test(grab('applySite'))
-     && /ban\.hidden = !text/.test(grab('applySite'))
-     && /sec\.hidden = !site\.sections\[key\]/.test(grab('applySite')));
-
-  // the server side of the same rule
-  const py = require('fs').readFileSync(path.join(root, 'owner.py'), 'utf8');
-  ok('every write on the server checks the owner session',
-     /def signals_post[\s\S]{0,120}require_owner\(request\)/.test(py)
-     && /def signals_patch[\s\S]{0,120}require_owner\(request\)/.test(py)
-     && /def signals_delete[\s\S]{0,120}require_owner\(request\)/.test(py)
-     && /def site_put[\s\S]{0,120}require_owner\(request\)/.test(py));
-  ok('the session cookie is http-only, lax and signed', /httponly=True/.test(py)
-     && /samesite="lax"/.test(py) && /hmac\.new\(_secret\(\)/.test(py));
-  ok('only the owner address is let in', /email != OWNER_EMAIL or not verified/.test(py));
-  ok('a tampered cookie cannot be forged', /hmac\.compare_digest/.test(py));
-}
-
 console.log(`\n${fail ? '\x1b[31m' : '\x1b[32m'}${pass} passed, ${fail} failed\x1b[0m`);
 process.exit(fail ? 1 : 0);

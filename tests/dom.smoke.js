@@ -39,7 +39,7 @@ function check(name, cond, extra) {
 setTimeout(() => {
   console.log('boot');
   check('no boot exception', errors.length === 0, errors.slice(0, 3));
-  check('composer exists', !!doc.getElementById('mysig-form'));
+  check('the signals card exists', !!doc.getElementById('mysig-section'));
   check('chart still exists', !!doc.getElementById('oanda_chart'));
   check('timeframe row still there', !!doc.querySelector('#tf-float [data-tf="M5"]'));
 
@@ -53,45 +53,21 @@ setTimeout(() => {
   check('no Telegram block in the footer', !/ASTRA6RENDER/.test(doc.body.innerHTML));
   check('no signal-alert button anywhere', !/alertSignal|Signal alert/.test(doc.body.innerHTML));
 
-  console.log('posting');
-  const val = (id, v) => { const el = doc.getElementById(id); el.value = v; return el; };
-  doc.querySelector('.mside[data-side="SELL"]').dispatchEvent(new window.Event('click'));
-  check('SELL selected', doc.querySelector('.mside[data-side="SELL"]').classList.contains('on'));
-
-  val('mysig-entry', '4000');
-  val('mysig-sl', '4010');
-  val('mysig-tp1', '3980');
-  doc.getElementById('mysig-form').dispatchEvent(new window.Event('submit'));
-
-  const saved = JSON.parse(window.localStorage.getItem('astra6_my_signals') || '[]');
-  check('signal stored', saved.length === 1 && saved[0].side === 'SELL', saved);
-  check('entry/sl/tp kept', saved[0] && saved[0].entry === 4000 && saved[0].sl === 4010 && saved[0].tp1 === 3980);
-  check('listed on the page, labelled private', /SELL/.test(doc.getElementById('mysig-list').innerHTML)
-        && /private/.test(doc.getElementById('mysig-list').innerHTML));
-  check('the count separates published from private',
-        doc.getElementById('mysig-count').textContent === '0 published · 1 private',
-        doc.getElementById('mysig-count').textContent);
-  check('form cleared', doc.getElementById('mysig-entry').value === '');
-
-  console.log('refusals');
-  const before = JSON.parse(window.localStorage.getItem('astra6_my_signals')).length;
-  val('mysig-entry', '4000'); val('mysig-sl', '3990');      // SELL stop below entry
-  doc.getElementById('mysig-form').dispatchEvent(new window.Event('submit'));
-  check('SELL with the stop on the wrong side refused',
-        JSON.parse(window.localStorage.getItem('astra6_my_signals')).length === before,
-        doc.getElementById('mysig-msg').textContent);
-  check('...and says why', /above the entry/.test(doc.getElementById('mysig-msg').textContent));
-
-  val('mysig-entry', '4000'); val('mysig-sl', '');          // no stop
-  doc.getElementById('mysig-form').dispatchEvent(new window.Event('submit'));
-  check('a signal with no stop refused', /stop loss is required/.test(doc.getElementById('mysig-msg').textContent));
-
-  console.log('deleting');
-  const id = JSON.parse(window.localStorage.getItem('astra6_my_signals'))[0].id;
-  window.mysigDelete(id);
-  check('deleted from storage', JSON.parse(window.localStorage.getItem('astra6_my_signals')).length === 0);
-  check('empty state shown', /has not published a signal yet/.test(doc.getElementById('mysig-list').innerHTML));
-
+  console.log('the card is read only');
+  check('no form and no inputs on the page', !doc.getElementById('mysig-form')
+        && !doc.getElementById('mysig-entry'));
+  check('the owner menu section starts hidden', doc.getElementById('menu-owner-sec').hidden);
+  check('a visitor cannot open the composer into a visible state',
+        (window.openPostSignal(), true) && !doc.getElementById('ps-entry'));
+  console.log('the owner gets the composer in a sheet');
+  window.eval('OWNER.me = true');
+  window.openPostSignal();
+  check('the sheet asks for entry, stop, three targets and a note',
+        ['ps-entry','ps-sl','ps-tp1','ps-tp2','ps-tp3','ps-note'].every(id => !!doc.getElementById(id)));
+  check('the side buttons are BUY and SELL only',
+        doc.querySelectorAll('#sheet-body .mside').length === 2);
+  window.closeSheet();
+  window.eval('OWNER.me = false');
 
   console.log('owner surfaces');
   check('the sign-in chip is in the header', !!doc.getElementById('owner-chip'));
