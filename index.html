@@ -2273,6 +2273,8 @@ body::before,[data-theme="dark"] body::before{
     <button class="chip" id="push-btn" style="width:100%;justify-content:center"
             onclick="closeMenu();pushEnable()">Signal alerts on this device</button>
     <div class="menu-hint" id="push-note">One card with the same numbers the owner published — on another tab, on the lock screen, or with the app shut.</div>
+    <button class="chip" id="push-test-btn" style="width:100%;justify-content:center;margin-top:8px"
+            onclick="closeMenu();pushTestNow()">Send a test card</button>
   </div>
 
   <div class="menu-sec" id="menu-install-sec">
@@ -8006,6 +8008,17 @@ function pushStateText(){
   return 'Off — the card only shows while you are looking at this tab.';
 }
 async function pushEnable(){
+  if(pushIsIOS()&&!pushStandalone()){
+    openSheet('Add it to the Home Screen first',
+      '<div style="font-size:12.5px;line-height:1.75;color:var(--muted)">' +
+      '<p>iPhone only lets an installed app show a card on the lock screen. A tab in Safari cannot.</p>' +
+      '<p>Tap <b style="color:var(--ink)">Share</b>, then <b style="color:var(--ink)">Add to Home Screen</b>, ' +
+      'open ASTRA6 from that icon, and turn alerts on there.</p></div>' +
+      '<button type="button" onclick="closeSheet();installFlow()" style="width:100%;margin-top:14px;padding:12px;' +
+      'border-radius:11px;border:1px solid var(--line);background:var(--surface);color:var(--ink);' +
+      'font-weight:800;font-size:13.5px;cursor:pointer">Show me how</button>');
+    return;
+  }
   if(!pushSupported()){toast('This browser has no push support');return;}
   try{
     try{await navigator.serviceWorker.register('/sw.js',{scope:'/'});}catch(e){}
@@ -8015,10 +8028,11 @@ async function pushEnable(){
     if(perm!=='granted'){pushState='denied';renderAlertsPanel();toast('Notifications blocked');return;}
     const v=await (await fetch('/api/push/vapid',{cache:'no-store'})).json();
     if(!v||v.status!=='ok'||!v.publicKey){toast('Server push is not configured');return;}
+    // a subscription the push service has already refused is not cured by re-sending it:
+    // start a fresh one every time this is switched on, so "on" always means "it works"
     let sub=await reg.pushManager.getSubscription();
-    if(!sub){
-      sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64ToU8(v.publicKey)});
-    }
+    if(sub){ try{ await sub.unsubscribe(); }catch(e){} sub=null; }
+    sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64ToU8(v.publicKey)});
     _pushEp=sub.endpoint;
     const r=await (await fetch('/api/push/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({subscription:sub,rules:pushRules(),readCard:pushReadCard(),fundCard:pushFundCard(),ua:navigator.userAgent.slice(0,110)})})).json();
@@ -8027,8 +8041,9 @@ async function pushEnable(){
     try{localStorage.setItem('astra6_push','1');}catch(e){}
     pushHeartbeat();
     renderAlertsPanel();
-    toast('Phone notifications on');
-    pushTest(true);
+    const t = await pushTest(true);
+    toast(t && t.sent ? 'Notifications on — test card sent' :
+          'Registered, but the push service refused the test card');
   }catch(e){
     pushState='error';
     toast('Could not turn notifications on');
@@ -8133,12 +8148,29 @@ function pushHeartbeat(){
   },30000);
 }
 async function pushTest(quiet){
-  if(!_pushEp){if(!quiet)toast('Turn phone notifications on first');return;}
+  if(!_pushEp){if(!quiet)toast('Turn notifications on first');return null;}
   try{
     const r=await (await fetch('/api/push/test',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({endpoint:_pushEp,sym:currentSymbol})})).json();
-    if(!quiet)toast(r&&r.sent?'Sent — check the phone':'The push service refused it');
-  }catch(e){if(!quiet)toast('Test failed');}
+    if(!quiet)toast(r&&r.sent?'Sent — check the lock screen':
+      (r&&r.error==='no_subscription'?'No device is registered yet':'The push service refused the card'));
+    return r;
+  }catch(e){if(!quiet)toast('Test failed');return null;}
+}
+
+/* the drawer button: one tap, and the truth about whether a phone will ring */
+async function pushTestNow(){ pushTest(false); }
+
+/* published, but nothing is listening: say so and offer the one tap that fixes it */
+function pushNudge(){
+  if(!pushSupported())return;
+  openSheet('No device is listening yet',
+    '<div style="font-size:12.5px;line-height:1.75;color:var(--muted)">' +
+    '<p>The signal is published and saved. The card that wakes a lock screen needs this device ' +
+    'to allow notifications once.</p></div>' +
+    '<button type="button" onclick="closeSheet();pushEnable()" style="width:100%;margin-top:14px;padding:12px;' +
+    'border-radius:11px;border:1px solid var(--line);background:var(--surface);color:var(--ink);' +
+    'font-weight:800;font-size:13.5px;cursor:pointer">Turn on signal alerts</button>');
 }
 function togglePushRead(){
   PUSH_READ=!PUSH_READ;
@@ -9614,13 +9646,21 @@ async function publishFromSheet() {
   }
   psMsg('publishing…');
   try {
-    const row = await publishSignal({ side: side, entry: entry, sl: sl, tp1: tp1, tp2: tp2,
+    const out = await publishSignal({ side: side, entry: entry, sl: sl, tp1: tp1, tp2: tp2,
                                       tp3: tp3, note: note });
+    const row = out.signal;
     OWNER.signals = [row].concat(OWNER.signals || []);
     signalsRender();
     drawSignalLines();
     closeSheet();
-    try { toast('Published ' + row.side + ' at ' + row.entry); } catch (e) {}
+    // the card on the lock screen is the whole point; say plainly if it did not leave
+    let msg = 'Published ' + row.side + ' at ' + row.entry;
+    if (!out.devices) msg = 'Published — but no device is listening for the card yet';
+    else if (!out.pushed) msg = 'Published — the push service refused the card';
+    else if (out.pushed === 1) msg = 'Published — card sent to 1 device';
+    else msg = 'Published — card sent to ' + out.pushed + ' devices';
+    try { toast(msg); } catch (e) {}
+    if (!out.devices) setTimeout(function () { try { pushNudge(); } catch (e) {} }, 700);
   } catch (e) {
     const why = String(e.message || '');
     if (/owner_only|owner only/i.test(why)) {
@@ -10165,7 +10205,7 @@ async function publishSignal(payload) {
     const why = (d && d.detail) || {};
     throw new Error(why.error ? String(why.error).replace(/_/g, ' ') : 'the server refused it');
   }
-  return d.signal;
+  return { signal: d.signal, pushed: Number(d.pushed || 0), devices: Number(d.devices || 0) };
 }
 
 /* ---- the owner can correct a signal after it is posted ---- */

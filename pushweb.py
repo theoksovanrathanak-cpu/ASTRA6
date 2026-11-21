@@ -38,6 +38,7 @@ MAX_PER_HOUR = 6              # and never more than six cards an hour, whatever 
 STARTED = [time.time()]
 MAX_SUBS = 400
 LAST_SCAN = [0.0]          # when the rule engine last walked the subscribers
+LAST_ERROR = [None]        # why the last card did not leave (0 = it did)
 
 # filled in by main.py at import time
 _quote_fn = None
@@ -95,7 +96,8 @@ def status():
             # the honest answer to "will it ring while my phone is in my pocket?"
             "lastScanAge": (round(age, 1) if age is not None else None),
             "watching": bool(LAST_SCAN[0] and age is not None and age < 120),
-            "scanEvery": 20, "uptime": round(time.time() - STARTED[0], 1)}
+            "scanEvery": 20, "uptime": round(time.time() - STARTED[0], 1),
+            "lastError": LAST_ERROR[0]}
 
 
 # ------------------------------------------------------------------ storage
@@ -273,12 +275,25 @@ def signal_card(row):
 
 def send_to(rec, payload):
     ok, code = _send(rec.get("subscription") or {}, payload)
-    if not ok and code in (404, 410):
+    if not ok and code in (400, 403, 404, 410):
+        # the push service will never accept this one again: a re-subscribe is the only cure
         remove(rec.get("endpoint"))
-        print("push dropped dead endpoint", rec.get("endpoint", "")[:48])
+        note_error(rec.get("endpoint"), code)
+        print("push dropped dead endpoint", rec.get("endpoint", "")[:48], code)
     elif not ok:
+        note_error(rec.get("endpoint"), code)
         print("push failed", code)
+    else:
+        note_error(rec.get("endpoint"), 0)
     return ok, code
+
+
+def note_error(endpoint, code):
+    """Remember why the last card did not leave, so the app can say it plainly."""
+    try:
+        LAST_ERROR[0] = {"code": code, "at": int(time.time()), "endpoint": str(endpoint or "")[:24]}
+    except Exception:
+        pass
 
 
 def card(title, body, sym=None, kind="alert", tag=None, extra=None):

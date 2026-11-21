@@ -1194,6 +1194,20 @@ section('signals: read-only on the page, posting lives in the owner menu');
   ok('an edit is checked before it is sent, like a new signal',
      /A BUY stop must sit below the entry/.test(grab('saveEditSignal'))
      && /is on the wrong side of the entry/.test(grab('saveEditSignal')));
+  ok('publishing says whether the lock-screen card really left',
+     /out\.devices/.test(grab('publishFromSheet')) && /out\.pushed/.test(grab('publishFromSheet'))
+     && /no device is listening for the card yet/.test(grab('publishFromSheet'))
+     && /the push service refused the card/.test(grab('publishFromSheet')));
+  ok('the publish helper hands back the push counts', /return \{ signal: d\.signal, pushed:/.test(grab('publishSignal')));
+  ok('turning alerts on starts a brand-new subscription, never a rejected one',
+     /await sub\.unsubscribe\(\)/.test(grab('pushEnable')) && /sub=await reg\.pushManager\.subscribe/.test(grab('pushEnable')));
+  ok('turning alerts on ends with a real test card', /const t = await pushTest\(true\)/.test(grab('pushEnable'))
+     && /test card sent/.test(grab('pushEnable')));
+  ok('an iPhone tab is told to install first', /pushIsIOS\(\)&&!pushStandalone\(\)/.test(grab('pushEnable'))
+     && /Add to Home Screen/.test(grab('pushEnable')));
+  ok('the menu can send a test card', /id="push-test-btn"/.test(html) && /function pushTestNow\(\)/.test(html));
+  ok('a publish with nothing listening offers the one tap that fixes it',
+     /function pushNudge\(\)/.test(html) && /closeSheet\(\);pushEnable\(\)/.test(grab('pushNudge')));
   ok('a signal that lands while the tab is hidden becomes a system card', /async function signalAwayCard\(sig\)/.test(html)
      && /Notification\.permission !== 'granted'/.test(grab('signalAwayCard'))
      && /showNotification\(c\.title/.test(grab('signalAwayCard'))

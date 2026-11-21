@@ -333,14 +333,18 @@ def signals_post(body: SignalBody, request: Request):
         rows.insert(0, row)
         rows = rows[:120]
         _write("signals.json", rows)
-    # ring every phone that asked to be told; a phone with the page open draws its own card
+    # ring every device that asked to be told. The phone that published is not skipped:
+    # a signal is a record of a trade, and the card has to be on the lock screen later
+    # even if the app happened to be open at the second it was posted.
+    pushed, devices = 0, 0
     try:
         import pushweb as _push
-        _card = _push.signal_card(row)
-        threading.Thread(target=_push.broadcast, args=(_card,), daemon=True).start()
+        devices = len(_push.subscribers())
+        pushed = _push.broadcast(_push.signal_card(row), skip_awake=False)
     except Exception as e:
         print("signal push:", str(e)[:80])
-    return {"ok": True, "signal": row, "persistent": persistent()}
+    return {"ok": True, "signal": row, "persistent": persistent(),
+            "pushed": pushed, "devices": devices}
 
 
 def _check_geometry(row):
@@ -401,7 +405,16 @@ def signals_patch(sid: str, body: SignalPatch, request: Request):
                 hit[f] = None
         _check_geometry(hit)
         _write("signals.json", rows)
-    return {"ok": True, "signal": hit}
+    pushed, devices = 0, 0
+    try:
+        import pushweb as _push
+        _card = _push.signal_card(hit)
+        _card["title"] = (_card.get("title") or "ASTRA6") + " · updated"
+        devices = len(_push.subscribers())
+        pushed = _push.broadcast(_card, skip_awake=False)
+    except Exception as e:
+        print("signal push:", str(e)[:80])
+    return {"ok": True, "signal": hit, "pushed": pushed, "devices": devices}
 
 
 @router.delete("/api/signals/{sid}")
