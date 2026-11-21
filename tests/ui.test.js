@@ -1172,6 +1172,23 @@ section('signals: read-only on the page, posting lives in the owner menu');
      /const x = \(OWNER\.signals \|\| \[\]\)\[0\]/.test(grab('drawSignalLines'))
      && /createPriceLine/.test(grab('drawSignalLines')) && /'STOP'/.test(grab('drawSignalLines')));
   ok('a chart rebuild redraws it', /drawSignalLines\(\)/.test(grab('rebuildMainSeries')));
+  ok('a published row wraps on a phone instead of scrolling sideways',
+     /\.mrow\{[^}]*flex-wrap:wrap/.test(html) && /\.mrow \.mv\{[^}]*flex-wrap:wrap/.test(html)
+     && /\.mrow \.mv \.mvp\{white-space:nowrap\}/.test(html) && /\.mysig-list\{max-height:none/.test(html));
+  ok('every number is its own span, so a line break never splits a price',
+     /class="mvp">entry /.test(grab('signalsRender')) && /class="mvp">tp1 /.test(grab('signalsRender')));
+  ok('the owner gets an edit control on each row, and only the owner',
+     /OWNER\.me \? '<span class="ma">'/.test(grab('signalsRender'))
+     && /aria-label="Edit"/.test(grab('signalsRender')) && /aria-label="Delete"/.test(grab('signalsRender')));
+  ok('editing opens a prefilled sheet for that signal',
+     /function openEditSignal\(id\)/.test(html) && /if \(!OWNER\.me\) return;/.test(grab('openEditSignal'))
+     && ['pe-entry','pe-sl','pe-tp1','pe-tp2','pe-tp3','pe-note','pe-status'].every(id => grab('openEditSignal').includes(id)));
+  ok('saving an edit patches the same signal with the side and the numbers',
+     /method: 'PATCH'/.test(grab('saveEditSignal')) && /\/api\/signals\/'.*encodeURIComponent\(id\)/.test(grab('saveEditSignal'))
+     && /side: side, replace: true/.test(grab('saveEditSignal')) && /signalsRender\(\)/.test(grab('saveEditSignal')));
+  ok('an edit is checked before it is sent, like a new signal',
+     /A BUY stop must sit below the entry/.test(grab('saveEditSignal'))
+     && /is on the wrong side of the entry/.test(grab('saveEditSignal')));
   ok('the flow meter is gone from the chart', !/id="flow-meter"/.test(html));
   ok('no copy still promises alerts the app cannot send',
      !/alerts ring with the app closed/.test(html) && !/journal, alerts and drawings/.test(html));

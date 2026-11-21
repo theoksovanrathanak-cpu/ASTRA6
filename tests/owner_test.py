@@ -92,6 +92,46 @@ check("TP2 closer than TP1 on a BUY is refused", raises(lambda: sig(side="BUY", 
 check("an unknown status is refused", raises(lambda: sig(side="BUY", entry=10, sl=9, status="moon"), 400))
 check("TP3 is kept when given", sig(side="BUY", entry=10, sl=9, tp1=11, tp2=12, tp3=13)["tp3"] == 13)
 
+print("the owner can correct a published signal")
+
+
+class REdit:
+    cookies = {O.COOKIE: tok}
+
+
+class RGuest:
+    cookies = {}
+
+
+O._write("signals.json", [{"id": "s-edit", "side": "BUY", "entry": 10.0, "sl": 9.0, "tp1": 11.0,
+                           "tp2": 12.0, "tp3": 13.0, "status": "open", "note": "first", "ts": 0}])
+try:
+    row = O.signals_patch("s-edit", O.SignalPatch(side="sell", entry=10, sl=11, tp1=9, tp2=8, tp3=None,
+                                                  replace=True, note="  fixed  ", status="tp1 hit"),
+                          REdit())["signal"]
+    check("the side can be flipped after posting", row["side"] == "SELL")
+    check("the numbers are rewritten", (row["entry"], row["sl"], row["tp1"], row["tp2"]) == (10.0, 11.0, 9.0, 8.0))
+    check("an emptied target is cleared, not kept", row["tp3"] is None)
+    check("the note is trimmed on edit", row["note"] == "fixed")
+    check("the status can be set on edit", row["status"] == "tp1 hit")
+    check("without replace an empty target is left alone",
+          O.signals_patch("s-edit", O.SignalPatch(tp3=7.0), REdit())["signal"]["tp3"] == 7.0)
+    check("a stop on the wrong side of the edit is refused",
+          raises(lambda: O.signals_patch("s-edit", O.SignalPatch(sl=8.0), REdit()), 400))
+    check("a target on the wrong side of the edit is refused",
+          raises(lambda: O.signals_patch("s-edit", O.SignalPatch(tp1=10.5), REdit()), 400))
+    check("targets out of order after an edit are refused",
+          raises(lambda: O.signals_patch("s-edit", O.SignalPatch(tp1=6.0), REdit()), 400))
+    check("an unknown side is refused", raises(lambda: O.signals_patch("s-edit", O.SignalPatch(side="HOLD"), REdit()), 400))
+    check("a visitor cannot edit a signal", raises(lambda: O.signals_patch("s-edit", O.SignalPatch(note="x"), RGuest()), 401))
+    check("editing something that is gone is a 404",
+          raises(lambda: O.signals_patch("nope", O.SignalPatch(note="x"), REdit()), 404))
+    check("the owner can delete it", O.signals_delete("s-edit", REdit())["ok"] is True
+          and O._read("signals.json", []) == [])
+    check("a visitor cannot delete a signal", raises(lambda: O.signals_delete("s-edit", RGuest()), 401))
+finally:
+    O._write("signals.json", [])
+
 print("site settings are clamped, never trusted")
 saved = {"title": "x" * 80, "accent": "javascript:alert(1)", "theme": "neon",
          "banner": {"text": "y" * 400, "tone": "nonsense"},

@@ -209,6 +209,8 @@ class SignalBody(BaseModel):
 
 
 class SignalPatch(BaseModel):
+    side: Optional[str] = None
+    replace: Optional[bool] = False     # true: an empty target clears it instead of being ignored
     status: Optional[str] = None
     note: Optional[str] = None
     tp1: Optional[float] = None
@@ -341,6 +343,33 @@ def signals_post(body: SignalBody, request: Request):
     return {"ok": True, "signal": row, "persistent": persistent()}
 
 
+def _check_geometry(row):
+    """An edit cannot leave a trade that contradicts itself."""
+    side, entry, sl = row.get("side"), row.get("entry"), row.get("sl")
+    if entry is None or sl is None:
+        raise HTTPException(status_code=400, detail={"error": "entry_and_stop_required"})
+    if side == "BUY":
+        if not sl < entry:
+            raise HTTPException(status_code=400, detail={"error": "stop_on_wrong_side"})
+    elif side == "SELL":
+        if not sl > entry:
+            raise HTTPException(status_code=400, detail={"error": "stop_on_wrong_side"})
+    else:
+        raise HTTPException(status_code=400, detail={"error": "unknown_side"})
+    tps = [row.get("tp%d" % i) for i in (1, 2, 3)]
+    last = None
+    for i, tp in enumerate(tps, 1):
+        if tp is None:
+            continue
+        if side == "BUY" and not tp > entry:
+            raise HTTPException(status_code=400, detail={"error": "target_on_wrong_side"})
+        if side == "SELL" and not tp < entry:
+            raise HTTPException(status_code=400, detail={"error": "target_on_wrong_side"})
+        if last is not None and ((side == "BUY" and tp <= last) or (side == "SELL" and tp >= last)):
+            raise HTTPException(status_code=400, detail={"error": "targets_out_of_order"})
+        last = tp
+
+
 @router.patch("/api/signals/{sid}")
 def signals_patch(sid: str, body: SignalPatch, request: Request):
     require_owner(request)
@@ -357,12 +386,20 @@ def signals_patch(sid: str, body: SignalPatch, request: Request):
             if body.status.lower() not in ALLOWED_STATUS:
                 raise HTTPException(status_code=400, detail={"error": "unknown_status"})
             hit["status"] = body.status.lower()
+        if body.side is not None:
+            sd = str(body.side).strip().upper()
+            if sd not in ("BUY", "SELL"):
+                raise HTTPException(status_code=400, detail={"error": "unknown_side"})
+            hit["side"] = sd
         if body.note is not None:
             hit["note"] = body.note.strip()[:200]
         for f in ("tp1", "tp2", "tp3", "entry", "sl"):
             v = getattr(body, f)
             if v is not None:
                 hit[f] = float(v)
+            elif body.replace and f.startswith("tp"):
+                hit[f] = None
+        _check_geometry(hit)
         _write("signals.json", rows)
     return {"ok": True, "signal": hit}
 
