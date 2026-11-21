@@ -5828,7 +5828,28 @@ function chartToolsOnSymbol(){
 }
 
 try{registerOfflineShell();watchNetwork();}catch(e){}
-function initChart(){try{const c=document.getElementById('oanda_chart');if(!c)return;if(typeof LightweightCharts==='undefined'){c.innerHTML='<div style="padding:20px;text-align:center">Chart lib loading...<br><span style="font-size:10px">Data works in Dashboard • Rebuilt</span></div>';const s=document.createElement('script');s.src='/static/vendor/lightweight-charts.js';s.onload=()=>{createChart();fetchChart(currentTF);};s.onerror=()=>{c.innerHTML='<div style="padding:20px;text-align:center">Chart CDN blocked in preview (normal)<br>Data works in Dashboard<br>Chart feed reconnecting • price above is LIVE</div>';};document.head.appendChild(s);return;}createChart();fetchChart(currentTF);}catch(e){console.log('initChart err',e);}}
+var _libTry=0;
+function chartLibNote(msg){const c=document.getElementById('oanda_chart');if(!c)return;
+  c.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100%;padding:24px;text-align:center;color:#8b94a7;font-size:12px;line-height:1.7">'+msg+'</div>';}
+function loadChartLib(){
+  if(typeof LightweightCharts!=='undefined'){_libTry=0;try{createChart();fetchChart(currentTF);}catch(e){console.log('chart build err',e);}return;}
+  if(_libTry>0){return;}                     // one loader at a time
+  _libTry=1;
+  const attempt=function(n){
+    if(typeof LightweightCharts!=='undefined'){_libTry=0;try{createChart();fetchChart(currentTF);}catch(e){console.log('chart build err',e);}return;}
+    if(n>0) chartLibNote('Connecting to the chart…');
+    const s=document.createElement('script');s.src='/static/vendor/lightweight-charts.js';
+    s.onload=function(){ if(typeof LightweightCharts!=='undefined'){_libTry=0;try{createChart();fetchChart(currentTF);}catch(e){console.log('chart build err',e);}} else if(n<4) setTimeout(function(){attempt(n+1);},700*(n+1)); else waitMore(); };
+    s.onerror=function(){ if(n<4) setTimeout(function(){attempt(n+1);},700*(n+1)); else waitMore(); };
+    document.head.appendChild(s);
+  };
+  const waitMore=function(){ _libTry=0; chartLibNote('The chart will come back on its own — the price above is live.<br><span style="font-size:11px;opacity:.7">Retrying the chart…</span>');
+    setTimeout(function(){ try{initChart();}catch(e){} },15000); };
+  attempt(0);
+}
+function initChart(){try{const c=document.getElementById('oanda_chart');if(!c)return;
+  if(typeof LightweightCharts==='undefined'){chartLibNote('Loading the chart…');loadChartLib();return;}
+  createChart();fetchChart(currentTF);}catch(e){console.log('initChart err',e);}}
 function createChart(){try{const c=document.getElementById('oanda_chart');if(!c||typeof LightweightCharts==='undefined')return;if(chart)return;c.innerHTML='';c.style.display='block';c.style.alignItems='stretch';c.style.justifyContent='flex-start';const _ch=c.clientHeight||420;const _p=chartPalette();
     const _opts=tvChartOptions();_opts.width=c.clientWidth;_opts.height=_ch;
     // no crosshair: the dashed lines that hung over the candles were the last thing on the
