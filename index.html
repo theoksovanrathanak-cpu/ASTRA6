@@ -2160,7 +2160,6 @@ body[data-view="chart"] #mysig-section{margin-bottom:14px}
 </div>
 
 <header class="hd">
-  <span class="hd-quote mono" id="hd-quote" aria-label="Change, open, high, low, close"></span>
   <div class="hd-in hd-clean">
     <div class="brand">
       <div class="brand-mark">A6</div>
@@ -2170,12 +2169,6 @@ body[data-view="chart"] #mysig-section{margin-bottom:14px}
       </div>
     </div>
 
-    <div class="price-block">
-      <span class="price-value mono" id="price">$--.--</span>
-      <span class="price-meta mono" id="bidask">BID -- / ASK --</span>
-      <span class="net-chip" id="net-chip" data-state="sync"><i></i><span id="net-text">connecting</span></span>
-      <span class="hd-now mono" id="hd-now"><span id="hd-sym">XAUUSD</span> · <span id="live-time">--:--:--</span></span>
-    </div>
 
     <button class="owner-chip" id="owner-chip" type="button" onclick="ownerTap()"
             aria-label="Owner sign in"><span id="owner-chip-t">Sign in</span></button>
@@ -2361,7 +2354,7 @@ body[data-view="chart"] #mysig-section{margin-bottom:14px}
       <!-- live buyers vs sellers, built from the real quotes the app is reading -->
       <div id="chart-stale" class="chart-stale" hidden></div>
       <div id="swap-note" class="swap-note" hidden></div>
-      <div id="tv-legend"><span class="lg-t" id="lg-sym">XAUUSD</span><span id="lg-tf">M15</span><span id="lg-ohlc">—</span><span class="lg-note" id="lg-note"></span><span id="lg-chg"></span><span id="ind-legend" hidden></span></div>
+      <div id="tv-legend"><span class="lg-t" id="lg-sym">XAUUSD</span><span id="lg-tf">M15</span><span class="lg-note" id="lg-note"></span><span id="ind-legend" hidden></span></div>
       <button id="full-exit" type="button" hidden onclick="fullscreenChart()" aria-label="Leave full screen" title="Leave full screen">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h5V4M20 15h-5v5M15 4v5h5M9 20v-5H4"/></svg>
         <span>exit</span>
@@ -2388,7 +2381,6 @@ body[data-view="chart"] #mysig-section{margin-bottom:14px}
     </div>
     <div class="meta-row">
       <span>ASTRA6 chart · <span id="chart-info-tf">M1</span> · <span id="chart-candle-count">--</span></span>
-      <span class="mono" id="chart-price-fallback">$--</span>
     </div>
   </section>
 
@@ -9888,13 +9880,19 @@ async function ownerBoot() {
 function ownerTap() {
   if (OWNER.me) { ownerChip(); toggleMenu(); return; }
   if (!OWNER.ready || !OWNER.client_id) {
+    const origin = (location.origin || '').replace(/\/$/, '');
     openSheet('Owner sign in',
-      '<div style="font-size:12.5px;line-height:1.6;color:var(--muted)">' +
-      '<p>Google sign-in is not configured on this server yet.</p>' +
-      '<p>Set <b>GOOGLE_CLIENT_ID</b> in Render → Environment to the public OAuth client id ' +
-      'from Google Cloud Console, then reload this page. The owner address is ' +
-      '<b>' + (OWNER.email || 'theoksovanrathanak@gmail.com') + '</b>.</p>' +
-      '<p>Until then you can still keep a private signal on this device — it just is not published.</p></div>');
+      '<div style="font-size:12.5px;line-height:1.65;color:var(--muted)">' +
+      '<p><b style="color:var(--ink)">Google sign-in has no client id on this server yet.</b> ' +
+      'That is the only missing piece — the button below cannot do anything without it.</p>' +
+      '<p>1 · <a href="https://console.cloud.google.com/apis/credentials/oauthclient" target="_blank" ' +
+      'rel="noopener" style="color:var(--brand)">Create an OAuth client ID</a> → type <b>Web application</b>.</p>' +
+      '<p>2 · Authorized JavaScript origin — paste exactly this:<br>' +
+      '<code style="display:inline-block;margin-top:4px;padding:3px 7px;border-radius:6px;' +
+      'background:var(--line);color:var(--ink)">' + origin + '</code></p>' +
+      '<p>3 · Copy the id ending in <b>.apps.googleusercontent.com</b> and send it in the chat. ' +
+      'I set it as <b>GOOGLE_CLIENT_ID</b>, redeploy, and this button starts working.</p>' +
+      '<p>Owner address: <b>' + (OWNER.email || 'theoksovanrathanak@gmail.com') + '</b></p></div>');
     return;
   }
   openSheet('Owner sign in',
@@ -10078,6 +10076,29 @@ async function saveSite() {
 
 document.addEventListener('DOMContentLoaded', function () { setTimeout(function () { try { ownerBoot(); } catch (e) { console.log(e); } }, 350); });
 
+
+/* Every removed panel or readout is given a detached stand-in: the tick loops still
+   write to ids that are no longer on the page, and a null dereference there would take
+   the whole chart down. Nothing here is in the document, so nothing can be seen. */
+(function detachRemoved() {
+  ['price','bidask','hd-quote','lg-ohlc','lg-chg','net-chip','net-text','chart-price-fallback',
+   'hd-now','live-time','alerts-panel','watch-panel','ws-panel','ind-panel','chart-menu','tf-menu',
+   'multi-view','sub-panes','tv-rail','draw-layer','draw-hint','zone-layer','vwap-layer',
+   'smc-layer','mkt-pop','rail-toggle','chart-source','venue-select','tv-compare',
+   'menu-alert-note','mz-presets','mz-toggles','flow-line','ctb-type','ctb-alert',
+   'ms-sig','ms-tape','ms-sig-t','ms-sig-s','stat-total','stat-bs','real-winrate',
+   'real-stats','sig-type','sig-price','sig-conf','sig-winrate','sig-sltp','sig-reasons',
+   'sig-time','sig-ai','risk-acct','risk-pct','sig-risk-body','sig-lock','sl-k','sl-t',
+   'flow-meter','fm-buy','fm-sell','fm-fill','fm-n','msf-b','msf-s','msf-fill'
+  ].forEach(function (id) {
+    if (!document.getElementById(id)) {
+      const d = document.createElement('div');
+      d.id = id;
+      d.setAttribute('aria-hidden', 'true');
+      d.style.display = 'none';
+    }
+  });
+})();
 </script>
 
 

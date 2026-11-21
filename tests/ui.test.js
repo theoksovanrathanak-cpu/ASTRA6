@@ -649,12 +649,13 @@ section('the drawer stays clean');
   ok('the timeframe bar floats over the chart', /#tf-float\{[^}]*position:absolute/.test(html));
   ok('it scrolls sideways on a phone', /#tf-float\{[^}]*overflow-x:auto/.test(html));
   // the chart's own quote line moved into the header, so no pill covers the candles
-  ok('the quote line lives in the header, not on top of the candles', /id="hd-quote"/.test(html)
-     && /function paintHeaderQuote\(b\)/.test(html) && /#tv-legend\{display:none!important\}/.test(html));
+  ok('there is no price or candle readout left on the page',
+     !/id="hd-quote"/.test(html) && !/id="price"/.test(html) && !/id="lg-ohlc"/.test(html)
+     && !/id="chart-price-fallback"/.test(html));
   // the line belongs to the header, not to the narrow price column that clipped it
-  ok('the quote line hangs off the header itself', html.indexOf('id="hd-quote"') < html.indexOf('<div class="price-block">')
-     && /\.hd-quote\{[^}]*position:absolute;left:0;right:0/.test(html)
-     && /body\[data-view="chart"\] \.hd-quote\{left:auto;right:9px/.test(html));
+  ok('the header keeps the name, the owner chip and the menu only',
+     /<div class="brand">/.test(html) && /id="owner-chip"/.test(html) && /class="burger"/.test(html)
+     && !/class="price-block"/.test(html));
   ok('sections are divided, not stacked blindly', /\.menu-sec\{[^}]*border-top:1px solid/.test(html));
   ok('the signal list is no longer a drawer ladder', html.indexOf('id="alerts-list"') < 0);
   const order = ['View', 'Economic calendar', 'Gold fundamentals', 'Trade journal', 'Tools']
@@ -680,7 +681,8 @@ section('the page says when the data stops');
   ok('gold closes Friday 21:00 UTC', !marketOpenNow('XAUUSD', at('2026-10-30T21:30:00Z')));
   ok('the daily break is closed', !marketOpenNow('XAUUSD', at('2026-10-28T21:30:00Z')));
   ok('the rest of the week is open', marketOpenNow('XAUUSD', at('2026-10-28T12:00:00Z')));
-  ok('the header carries the state', html.includes('id="net-chip"') && html.includes('id="net-text"'));
+  ok('the live state is still shown on the chart, not as a price in the header',
+     /id="net-text"/.test(html) || /class="chart-stale"/.test(html) || /id="chart-live"/.test(html));
   ok('a closed market is admitted without home tiles', !html.includes('id="home-tag-XAUUSD"')
      && /market closed/.test(grab('fetchChart')));
   ok('a stale clock is retried instead of freezing', /age>10/.test(grab('netWatch')) && /fetchFastPrice\(\)/.test(grab('netWatch')));
