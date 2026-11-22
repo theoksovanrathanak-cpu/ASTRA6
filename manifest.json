@@ -1,6 +1,6 @@
 {
-  "name": "ASTRA6",
-  "short_name": "ASTRA6",
+  "name": "Desento",
+  "short_name": "Desento",
   "description": "Live metals and futures with order flow, value area and daily VWAP. Free, no sign-in.",
   "id": "/",
   "start_url": "/?src=pwa",

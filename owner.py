@@ -1,4 +1,4 @@
-"""Owner-only publishing for ASTRA6.
+"""Owner-only publishing for Desento.
 
 Three things live here, and nothing else:
 
@@ -221,7 +221,7 @@ class SignalPatch(BaseModel):
 
 
 DEFAULT_SITE = {
-    "title": "ASTRA6",
+    "title": "Desento",
     "tagline": "gold · xauusd · live",
     "accent": "#2962ff",
     "theme": "dark",
@@ -409,7 +409,7 @@ def signals_patch(sid: str, body: SignalPatch, request: Request):
     try:
         import pushweb as _push
         _card = _push.signal_card(hit)
-        _card["title"] = (_card.get("title") or "ASTRA6") + " · updated"
+        _card["title"] = (_card.get("title") or "Desento") + " · updated"
         devices = len(_push.subscribers())
         pushed = _push.broadcast(_card, skip_awake=False)
     except Exception as e:
@@ -459,7 +459,7 @@ def site_put(body: Dict[str, Any], request: Request):
     if not (len(accent) in (4, 7) and accent.startswith("#")):
         cur["accent"] = DEFAULT_SITE["accent"]
     cur["theme"] = cur.get("theme") if cur.get("theme") in ("dark", "light") else "dark"
-    cur["title"] = (str(cur.get("title") or "ASTRA6"))[:28]
+    cur["title"] = (str(cur.get("title") or "Desento"))[:28]
     cur["tagline"] = (str(cur.get("tagline") or ""))[:48]
     b = cur.get("banner") or {}
     cur["banner"] = {"text": str(b.get("text") or "")[:160],
@@ -518,7 +518,7 @@ def login_required() -> bool:
 
 
 SIGNIN_PAGE = """<!doctype html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>ASTRA6 · sign in</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Desento · sign in</title>
 <style>
  :root{{--bg:#0b0e14;--card:#141922;--line:#232b38;--ink:#e8edf6;--mut:#8b97a8;--brand:#2962ff}}
  *{{box-sizing:border-box}} body{{margin:0;min-height:100vh;background:var(--bg);color:var(--ink);
@@ -539,7 +539,7 @@ SIGNIN_PAGE = """<!doctype html><html lang="en"><head><meta charset="utf-8">
 </style></head><body>
  <div class="card">
    <div class="mark">A6</div>
-   <h1>ASTRA6 is private</h1>
+   <h1>Desento is private</h1>
    <p>Sign in to continue.</p>
    <div id="g"></div>
    <div id="msg" class="note"></div>

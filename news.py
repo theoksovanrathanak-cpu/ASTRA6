@@ -189,7 +189,7 @@ def fundamentals(limit=30):
         "calendar_source": _cache["cal"].get("src") or CAL_SOURCE_TV,
         "news_sources": _cache["news"].get("sources", []),
         "real": True,
-        "note": "Fetched from public feeds. Times shown in your own timezone. Nothing is written by ASTRA6.",
+        "note": "Fetched from public feeds. Times shown in your own timezone. Nothing is written by Desento.",
     }
 
 

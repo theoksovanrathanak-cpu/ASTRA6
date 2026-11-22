@@ -190,7 +190,16 @@ p=P(); p.feed(open('${root}/index.html').read())
 print('BAD' if (p.bad or p.stack) else 'clean')
 "`).toString().trim();
   ok('no unclosed or stray tags', bal === 'clean', bal);
-  ok('title is ASTRA6', /<title>ASTRA6<\/title>/.test(html));
+  ok('title is Desento', /<title>Desento<\/title>/.test(html));
+  ok('the brand is Desento everywhere it is read, old name gone',
+     !/>ASTRA6/.test(html) && !/<title>ASTRA6/.test(html)
+     && /<div class="brand-name">Desento<\/div>/.test(html)
+     && /<div class="home-title">Desento<\/div>/.test(html)
+     && /<div class="brand-mark">D<\/div>/.test(html) && /<div class="home-mark">D<\/div>/.test(html));
+  ok('the manifest and the push cards carry the new name',
+     /"name": "Desento"/.test(fs.readFileSync(path.join(root, 'manifest.json'), 'utf8'))
+     && /"short_name": "Desento"/.test(fs.readFileSync(path.join(root, 'manifest.json'), 'utf8'))
+     && /Desento · %s XAUUSD/.test(fs.readFileSync(path.join(root, 'pushweb.py'), 'utf8')));
   ok('no duplicate ids', (() => {
     const ids = [...html.matchAll(/id="([A-Za-z0-9_-]+)"/g)].map(m => m[1]);
     return new Set(ids).size === ids.length;

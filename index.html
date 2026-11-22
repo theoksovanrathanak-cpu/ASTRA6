@@ -27,9 +27,9 @@
   window._APP_BROWSER=app;
 })();
 </script>
-<title>ASTRA6</title>
-<meta name="description" content="ASTRA6 — live gold (XAUUSD) with order-flow volume, value area and daily VWAP. Free, no sign-in.">
-<meta property="og:title" content="ASTRA6">
+<title>Desento</title>
+<meta name="description" content="Desento — live gold (XAUUSD) with order-flow volume, value area and daily VWAP. Free, no sign-in.">
+<meta property="og:title" content="Desento">
 <meta property="og:description" content="Live gold. Order flow, value area, daily VWAP and real OHLC.">
 <meta property="og:url" content="https://astra6render.com">
 <meta name="theme-color" content="#0b1220">
@@ -37,7 +37,7 @@
 <link rel="manifest" href="/manifest.json">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="ASTRA6">
+<meta name="apple-mobile-web-app-title" content="Desento">
 <link rel="apple-touch-icon" href="/icon-192.png">
 <meta name="mobile-web-app-capable" content="yes">
 <style>
@@ -2213,9 +2213,9 @@ body::before,[data-theme="dark"] body::before{
 <header class="hd">
   <div class="hd-in hd-clean">
     <div class="brand">
-      <div class="brand-mark">A</div>
+      <div class="brand-mark">D</div>
       <div>
-        <div class="brand-name">ASTRA6</div>
+        <div class="brand-name">Desento</div>
         <div class="brand-sub" id="brand-sub">Gold · Metals</div>
       </div>
     </div>
@@ -2301,11 +2301,11 @@ body::before,[data-theme="dark"] body::before{
 
   </aside>
 
-<div class="ios-guide" id="ios-guide" aria-hidden="true" role="dialog" aria-label="Add ASTRA6 to the Home Screen">
+<div class="ios-guide" id="ios-guide" aria-hidden="true" role="dialog" aria-label="Add Desento to the Home Screen">
   <div class="ig-card">
     <button class="ig-x" onclick="closeInstallGuide()" aria-label="Close">×</button>
     <div class="ig-icon">A</div>
-    <div class="ig-t">Add ASTRA6 to your Home Screen</div>
+    <div class="ig-t">Add Desento to your Home Screen</div>
     <div class="ig-s" id="ig-sub">Three taps, once. After this it opens full screen, with no browser bars.</div>
     <div class="ig-steps" id="ig-steps"></div>
     <div class="ig-arrow" aria-hidden="true"><span></span></div>
@@ -2339,9 +2339,9 @@ body::before,[data-theme="dark"] body::before{
 <main class="wrap">
 
   <section class="home" id="home-view">
-    <div class="home-mark-wrap"><div class="home-mark">A</div></div>
+    <div class="home-mark-wrap"><div class="home-mark">D</div></div>
     <div>
-      <div class="home-title">ASTRA6</div>
+      <div class="home-title">Desento</div>
     </div>
   </section>
 
@@ -2359,7 +2359,7 @@ body::before,[data-theme="dark"] body::before{
   <footer class="foot">
     <div class="foot-l">
       <div>
-        <div class="foot-t">ASTRA6 · XAUUSD</div>
+        <div class="foot-t">Desento · XAUUSD</div>
         <div class="foot-d">astra6render@gmail.com</div>
       </div>
     </div>
@@ -2423,7 +2423,7 @@ let chart=null,candleSeries=null,lastCandles=[],currentTF=localStorage.getItem('
 let THEME=localStorage.getItem('astra6_theme')||'dark';
 let currentVenue=localStorage.getItem('astra6_venue')||'OANDA:XAUUSD';
 let _unusedVenue=null;      // gold is the only venue-priced market now
-// The markets ASTRA6 trades. Gold is the flagship and keeps its own feed; the rest
+// The markets Desento trades. Gold is the flagship and keeps its own feed; the rest
 // come from the market layer. No bitcoin anywhere.
 // ONE MARKET. The app is a gold terminal: XAUUSD only. Every list in the page - the market
 // picker, the watchlist, the alert pair chips, the multi-chart cells, the journal form -
@@ -2456,7 +2456,7 @@ function authHeaders(){const t=getToken();return t?{'Authorization':'Bearer '+t}
 
 // ---------------- device lock: the OS does the face check, this file never sees a face ----------------
 // Face ID / Touch ID / Windows Hello is asked for by the browser through WebAuthn: the phone
-// compares your face, and all ASTRA6 ever receives is a yes/no plus a random credential id.
+// compares your face, and all Desento ever receives is a yes/no plus a random credential id.
 // No camera stream is opened, no photo is taken, nothing biometric is stored or sent anywhere.
 // The 4-digit PIN is the fallback for a device or browser without a platform authenticator;
 // it is stored as a salted hash, never as the digits themselves.
@@ -2489,8 +2489,8 @@ async function lkRegisterBio(){
   if(!window.PublicKeyCredential) throw new Error('this browser has no Face ID check');
   const cred=await navigator.credentials.create({publicKey:{
     challenge:lkChallenge(),
-    rp:{name:'ASTRA6',id:location.hostname},
-    user:{id:lkChallenge(),name:'astra6@'+location.hostname,displayName:'ASTRA6'},
+    rp:{name:'Desento',id:location.hostname},
+    user:{id:lkChallenge(),name:'astra6@'+location.hostname,displayName:'Desento'},
     pubKeyCredParams:[{type:'public-key',alg:-7},{type:'public-key',alg:-257}],
     authenticatorSelection:{authenticatorAttachment:'platform',userVerification:'required',residentKey:'preferred'},
     timeout:60000,attestation:'none'
@@ -2537,10 +2537,10 @@ function lkOpen(mode){
   const show=function(e,on){if(e)e.hidden=!on;};
   if(mode==='setup'||mode==='setup2'){
     title.textContent=mode==='setup'?'Create your lock':'Repeat the PIN';
-    sub.textContent=mode==='setup'?'A 4-digit PIN keeps other people out of this device\'s ASTRA6.':'Type the same 4 digits again.';
+    sub.textContent=mode==='setup'?'A 4-digit PIN keeps other people out of this device\'s Desento.':'Type the same 4 digits again.';
     show(bio,false); show(alt,false); show(offer,false); show(dots,true); show(pad,true);
   }else if(mode==='verify'){
-    title.textContent='ASTRA6 is locked';
+    title.textContent='Desento is locked';
     sub.textContent='This device only. Your journal and settings never leave it.';
     show(dots,true); show(pad,true); show(offer,false);
     show(alt,false);
@@ -2551,7 +2551,7 @@ function lkOpen(mode){
     sub.textContent='Add Face ID so the next unlock is a glance, not four taps.';
     show(bio,false); show(alt,false); show(dots,false); show(pad,false); show(offer,true);
   }else if(mode==='pinonly'){
-    title.textContent='ASTRA6 is locked';
+    title.textContent='Desento is locked';
     sub.textContent='Enter your 4-digit PIN.';
     show(bio,false); show(alt,!!(_lkHasBio&&lkGet(LK.cred))); show(offer,false); show(dots,true); show(pad,true);
   }
@@ -2687,7 +2687,7 @@ let _introT0=0;
 })();
 
 // ---------- economic calendar: one panel, real events only ----------
-// Nothing here is written by ASTRA6. The calendar comes from TradingView (ForexFactory
+// Nothing here is written by Desento. The calendar comes from TradingView (ForexFactory
 // as backup) and every event keeps its own time, forecast, previous and actual.
 let _cal=null, _calAt=0, _calBusy=false;
 function esc(x){return String(x==null?'':x).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
@@ -2782,7 +2782,7 @@ function calHtml(d){
      +'<span class="ev-n mono">'+nums.join(' · ')+'</span></div>';
   }
   h+='<div class="sheet-note">Source: '+esc(d.source||d.calendar_source||'')+'. Times are in your own timezone. '
-   +'Nothing here is written or summarised by ASTRA6.</div>';
+   +'Nothing here is written or summarised by Desento.</div>';
   return h;
 }
 async function openCalendar(){
@@ -2985,7 +2985,7 @@ function newsHtml(d){
      +'<span class="nw-time mono">'+esc(ago(n.time))+'</span></a>';
   }
   h+='<div class="sheet-note">Sources: '+esc((d.sources||[]).join(' · '))
-   +'. Every headline links to the original article. Nothing here is written or summarised by ASTRA6.</div>';
+   +'. Every headline links to the original article. Nothing here is written or summarised by Desento.</div>';
   return h;
 }
 async function openNews(){
@@ -3540,7 +3540,7 @@ function paintInstall(){
     return;
   }
   const ios=pushIsIOS(), b=iosBrowser(), native=!!_installPrompt&&!ios;
-  btn.textContent=native?'Install ASTRA6':'Add to Home Screen';
+  btn.textContent=native?'Install Desento':'Add to Home Screen';
   note.textContent=native
     ? 'This browser can install it in one tap — no browser menu needed.'
     : ios
@@ -3598,7 +3598,7 @@ function renderCurrent(s){if(!s)return;window._lastSignal=s;const typeEl=documen
     // the label carries the sample: a percentage with no n is a rumour, not a record
     const swk=document.getElementById('sig-winrate-k');
     if(swk) swk.textContent=(st.n?('Winrate · n='+st.n):'Winrate · no sample');
-  }const sl=document.getElementById('sig-time');if(sl){try{sl.textContent=(s.time_str||'')+' · '+(s.strategy||'ASTRA6 Elite');}catch(e){sl.textContent=s.type;}}const reasons=document.getElementById('sig-reasons');if(reasons)reasons.textContent=(s.reasons&&s.reasons[0])||'Scanning for a high-confluence setup.';const sltp=document.getElementById('sig-sltp');if(sltp){
+  }const sl=document.getElementById('sig-time');if(sl){try{sl.textContent=(s.time_str||'')+' · '+(s.strategy||'Desento Elite');}catch(e){sl.textContent=s.type;}}const reasons=document.getElementById('sig-reasons');if(reasons)reasons.textContent=(s.reasons&&s.reasons[0])||'Scanning for a high-confluence setup.';const sltp=document.getElementById('sig-sltp');if(sltp){
     if(s.sl){
       sltp.innerHTML=`<span style="color:var(--muted)">ENTRY <b style="color:var(--ink)">${fmtPx(s.entry!=null?s.entry:s.price)}</b></span>`
         +` • <span style="color:var(--red)">SL ${fmtPx(s.sl)}</span>`
@@ -8013,7 +8013,7 @@ async function pushEnable(){
       '<div style="font-size:12.5px;line-height:1.75;color:var(--muted)">' +
       '<p>iPhone only lets an installed app show a card on the lock screen. A tab in Safari cannot.</p>' +
       '<p>Tap <b style="color:var(--ink)">Share</b>, then <b style="color:var(--ink)">Add to Home Screen</b>, ' +
-      'open ASTRA6 from that icon, and turn alerts on there.</p></div>' +
+      'open Desento from that icon, and turn alerts on there.</p></div>' +
       '<button type="button" onclick="closeSheet();installFlow()" style="width:100%;margin-top:14px;padding:12px;' +
       'border-radius:11px;border:1px solid var(--line);background:var(--surface);color:var(--ink);' +
       'font-weight:800;font-size:13.5px;cursor:pointer">Show me how</button>');
@@ -8219,7 +8219,7 @@ function pushBlockHtml(){
   }
   if(pushIsIOS()&&!pushStandalone()){
     h+='<div class="tp-chips"><button class="tp-chip" onclick="installFlow()">Add to Home Screen</button></div>';
-    h+='<div class="tp-note">iPhone alerts only reach a locked phone once ASTRA6 is on the Home Screen — the guide shows the exact icon to tap.</div>';
+    h+='<div class="tp-note">iPhone alerts only reach a locked phone once Desento is on the Home Screen — the guide shows the exact icon to tap.</div>';
   }
   if(!pushStandalone()&&!pushIsIOS()){
     h+='<div class="tp-chips"><button class="tp-chip" onclick="pushInstall()">Install on this device</button></div>';
@@ -8268,10 +8268,10 @@ function showInstallGuide(){
   const shareIcon='<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3.6"/><path d="M8.2 7.2 12 3.4l3.8 3.8"/><path d="M5.5 12.5v6.4a1.6 1.6 0 0 0 1.6 1.6h9.8a1.6 1.6 0 0 0 1.6-1.6v-6.4"/></svg>';
   const step=function(n,html){return '<div class="ig-step"><b class="n">'+n+'</b><span>'+html+'</span></div>';};
   if(ios&&b==='safari'){
-    sub.textContent='Three taps, once. Then ASTRA6 opens like an app and its alerts reach a locked phone.';
+    sub.textContent='Three taps, once. Then Desento opens like an app and its alerts reach a locked phone.';
     stepsEl.innerHTML=step(1,'Tap <strong>Share</strong> in the Safari toolbar at the bottom of the screen — the square with an arrow coming out. '+shareIcon)
       +step(2,'Scroll that list and tap <strong>Add to Home Screen</strong>.')
-      +step(3,'Tap <strong>Add</strong> top right. ASTRA6 lands on your Home Screen.');
+      +step(3,'Tap <strong>Add</strong> top right. Desento lands on your Home Screen.');
     note.textContent='Apple has no “install” button a website can press — this is the only route, and it is the same one every iPhone app store guide uses.';
   }else if(ios){
     // Chrome / Firefox / Edge on iPhone cannot install: hand over to Safari
@@ -8281,7 +8281,7 @@ function showInstallGuide(){
     safariBtn.hidden=false;
     note.textContent='Your current browser ('+(b==='chrome'?'Chrome':b==='firefox'?'Firefox':b==='edge'?'Edge':'this one')+') cannot add apps on iPhone; Safari can.';
   }else{
-    sub.textContent='Install ASTRA6 so it opens full screen, keeps your workspace and rings with the app closed.';
+    sub.textContent='Install Desento so it opens full screen, keeps your workspace and rings with the app closed.';
     stepsEl.innerHTML=step(1,'In Chrome or Edge, open the browser menu <strong>⋮</strong> (top right).')
       +step(2,'Choose <strong>Install app</strong> or <strong>Add to Home screen</strong>.')
       +step(3,'Confirm <strong>Install</strong>. It then opens in its own window.');
@@ -8506,7 +8506,7 @@ async function alertReadTick(force){
       try{if(soundOn&&typeof beep==='function')beep(880,.12);}catch(e){}
       try{
         if('Notification' in window&&Notification.permission==='granted'){
-          new Notification('ASTRA6 · '+sym+' · '+typ+' signal',{body:'The 15m cluster read on '+sym+' is '+typ+'. A read, not a guarantee.',tag:'astra6-signal-'+sym});
+          new Notification('Desento · '+sym+' · '+typ+' signal',{body:'The 15m cluster read on '+sym+' is '+typ+'. A read, not a guarantee.',tag:'astra6-signal-'+sym});
         }
       }catch(e){}
     });
@@ -8537,7 +8537,7 @@ function fireAlert(a,px){
   try{if(soundOn&&typeof beep==='function')beep(880,.12);}catch(e){}
   try{
     if('Notification' in window&&Notification.permission==='granted'){
-      new Notification('ASTRA6 alert · '+currentSymbol,{body:a.kind.toUpperCase()+' '+fmtPx(a.price)+' — price is '+fmtPx(px),tag:a.id});
+      new Notification('Desento alert · '+currentSymbol,{body:a.kind.toUpperCase()+' '+fmtPx(a.price)+' — price is '+fmtPx(px),tag:a.id});
     }
   }catch(e){}
   renderAlertsPanel();
@@ -9334,7 +9334,7 @@ function initClicks(){
     const _l2=document.getElementById('chart-info-tf'); if(_l2)_l2.textContent=tfLabel(currentTF);
   }catch(e){}
   setStrategy();
-  console.log('ASTRA6 rebuilt smooth - all clicks bound');
+  console.log('Desento rebuilt smooth - all clicks bound');
 }
 applyTheme();document.getElementById('sound-btn')&&(document.getElementById('sound-btn').style.opacity=soundOn?'1':'.4');
 initClicks();document.addEventListener('DOMContentLoaded',initClicks);setTimeout(initClicks,500);
@@ -9350,7 +9350,7 @@ loadVenues().then(()=>{if(currentSymbol==='XAUUSD')fetchTVCompare();});updateSym
 setInterval(()=>{fetch('/health').catch(()=>{});},240000);
 setInterval(paintEventLive,20000);
 setInterval(()=>{if(chart)fetchChart(currentTF);},30000);
-console.log('ASTRA6 REBUILT SMOOTH - First upgrade clean + All data + All in one + No lag + Smooth + Free access + Market stays + Working');
+console.log('Desento REBUILT SMOOTH - First upgrade clean + All data + All in one + No lag + Smooth + Free access + Market stays + Working');
 
 /* ================= phone tool strip + live buyer/seller meter =================
    The strip is one row under the chart on a phone: chart views, indicators, every
@@ -9679,7 +9679,7 @@ async function publishFromSheet() {
    The owner is one address. Google proves it; this page never sees a password. Visitors
    read the published signals and can keep a private one on their own device, but only the
    signed-in owner can publish or change the site.                                        */
-const ASTRA6_BUILD = 'r27';
+const Desento_BUILD = 'r27';
 
 /* A phone can keep an old copy of the page in its offline cache. This throws the
    cache away and reloads from the network, so an old build can never stick around. */
@@ -9703,7 +9703,7 @@ function appRefresh() {
 }
 document.addEventListener('DOMContentLoaded', function () {
   const el = document.getElementById('build-note');
-  if (el) el.textContent = 'build ' + ASTRA6_BUILD;
+  if (el) el.textContent = 'build ' + Desento_BUILD;
 });
 
 const OWNER = { me: false, signedIn: false, email: null, ready: false, client_id: null, persistent: false,
@@ -9940,7 +9940,7 @@ function saCardText(sig) {
   });
   const note = sig.note ? String(sig.note).trim().slice(0, 80) : '';
   return {
-    title: side ? 'ASTRA6 · ' + side + ' XAUUSD' : 'ASTRA6 · new signal',
+    title: side ? 'Desento · ' + side + ' XAUUSD' : 'Desento · new signal',
     body: (bits.join(' · ') + (note ? ' · ' + note : '')) || 'the owner published a signal',
     tag: 'astra6-signal-' + (sig.id || 'new')
   };
@@ -10348,7 +10348,7 @@ function openSiteEditor() {
   const on = function (v) { return v ? ' checked' : ''; };
   openSheet('Owner',
     '<div class="ob-sec">Identity</div>' +
-    row('Title', '<input type="text" id="ob-title" maxlength="28" value="' + (s.title || 'ASTRA6') + '">') +
+    row('Title', '<input type="text" id="ob-title" maxlength="28" value="' + (s.title || 'Desento') + '">') +
     row('Tagline', '<input type="text" id="ob-tagline" maxlength="48" value="' + (s.tagline || '') + '">') +
     row('Accent', '<input type="color" id="ob-accent" value="' + (s.accent || '#2962ff') + '">' +
         '<input type="text" id="ob-accent-t" value="' + (s.accent || '#2962ff') + '" style="max-width:110px">') +

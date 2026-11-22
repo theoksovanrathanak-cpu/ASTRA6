@@ -1,4 +1,4 @@
-/* ASTRA6 offline shell.
+/* Desento offline shell.
  *
  * The rule that matters: this app never shows a fake price. So the service worker
  * caches only the shell (the page itself, the chart library, the icons and the lesson
@@ -6,7 +6,7 @@
  * from cache and marks itself offline; every number on it is still the last real one,
  * and the existing staleness pill says how old it is.
  */
-const VERSION = 'astra6-v6';
+const VERSION = 'astra6-v7';
 const SHELL = [
   '/',
   '/manifest.json',
@@ -105,8 +105,8 @@ function cardOptions(d) {
 
 self.addEventListener('push', (e) => {
   let d = {};
-  try { d = e.data ? e.data.json() : {}; } catch (err) { d = { title: 'ASTRA6', body: String(e.data && e.data.text ? e.data.text() : '') }; }
-  const title = d.title || 'ASTRA6 alert';
+  try { d = e.data ? e.data.json() : {}; } catch (err) { d = { title: 'Desento', body: String(e.data && e.data.text ? e.data.text() : '') }; }
+  const title = d.title || 'Desento alert';
   e.waitUntil(self.registration.showNotification(title, cardOptions(d)));
 });
 

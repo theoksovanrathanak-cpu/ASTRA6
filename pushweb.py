@@ -1,4 +1,4 @@
-"""ASTRA6 phone push - a real card on the lock screen while the app is shut.
+"""Desento phone push - a real card on the lock screen while the app is shut.
 
 How it works, honestly:
   * the page asks the phone for permission, then hands the browser's own push
@@ -266,7 +266,7 @@ def signal_card(row):
             bits.append("TP%d %s" % (i, _num(row.get(key), 2)))
     note = str(row.get("note") or "").strip()[:80]
     body = " · ".join(bits) + ((" · " + note) if note else "")
-    title = ("ASTRA6 · %s XAUUSD" % side) if side else "ASTRA6 · new signal"
+    title = ("Desento · %s XAUUSD" % side) if side else "Desento · new signal"
     p = card(title, body or "the owner published a signal", "XAUUSD", kind="signal",
              tag="astra6-signal-" + str(row.get("id") or int(time.time())))
     p["url"] = "/?src=signal"

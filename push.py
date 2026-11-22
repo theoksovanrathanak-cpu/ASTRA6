@@ -174,7 +174,7 @@ def mark(key):
 def format_signal(sym, sig, tf="M15"):
     side = sig.get("type")
     row = sig.get("row") or {}
-    lines = ["<b>ASTRA6 · %s %s</b>" % (NAME.get(sym, sym), side),
+    lines = ["<b>Desento · %s %s</b>" % (NAME.get(sym, sym), side),
              "entry <b>%s</b>" % _money(sig.get("entry", sig.get("price"))),
              "stop %s" % _money(sig.get("sl")),
              "tp1 %s" % _money(sig.get("tp1")),
@@ -187,18 +187,18 @@ def format_signal(sym, sig, tf="M15"):
         lines.append("%s VWAP %s" % (where, _money(sig["vwap"])))
     if sig.get("r") is not None:
         lines.append("tp2 %sR · volume clusters · %s" % (sig["r"], tf))
-    lines.append("<a href=\"%s\">open ASTRA6</a>" % SITE)
+    lines.append("<a href=\"%s\">open Desento</a>" % SITE)
     return "\n".join(lines)
 
 
 def format_test():
-    return ("<b>ASTRA6 · test</b>\n"
+    return ("<b>Desento · test</b>\n"
             "This is the phone alert channel.\n"
             "When a volume-cluster BUY or SELL prints on gold or bitcoin, "
             "you get one message like this with entry, stop and both targets.\n"
-            "<a href=\"%s\">open ASTRA6</a>" % SITE)
+            "<a href=\"%s\">open Desento</a>" % SITE)
 
 
 def format_closed(sym):
-    return ("<b>ASTRA6</b>\n%s market closed - no new candles until it reopens.\n"
-            "<a href=\"%s\">open ASTRA6</a>" % (NAME.get(sym, sym), SITE))
+    return ("<b>Desento</b>\n%s market closed - no new candles until it reopens.\n"
+            "<a href=\"%s\">open Desento</a>" % (NAME.get(sym, sym), SITE))

@@ -63,7 +63,7 @@ check("any signed-in Google address reads back, but only the owner may publish",
 try:
     import pushweb as _PW
     _c = _PW.signal_card({"id": "s1", "side": "BUY", "entry": 3520.5, "sl": 3512.0, "tp1": 3532.0})
-    check("a published signal builds a real card", _c["title"].startswith("ASTRA6") and "3,520.50" in _c["body"]
+    check("a published signal builds a real card", _c["title"].startswith("Desento") and "3,520.50" in _c["body"]
           and "3,512.00" in _c["body"] and _c["kind"] == "signal")
     check("the card carries no invented number", set(_c.keys()) >= {"title", "body", "sym", "kind", "tag", "ts", "url"})
     check("broadcast exists and is callable", callable(_PW.broadcast))
