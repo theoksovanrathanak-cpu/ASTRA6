@@ -3550,6 +3550,19 @@ def _gate(request: Request):
     return None
 
 
+def _stamped(body: str) -> str:
+    """Point the terminal at the bundle that is actually on disk, not a cached one."""
+    for asset in ("app.js", "app.css"):
+        f = Path("terminal") / "assets" / asset
+        try:
+            v = int(f.stat().st_mtime)
+        except Exception:
+            continue
+        body = body.replace("/terminal/assets/%s" % asset,
+                            "/terminal/assets/%s?v=%d" % (asset, v))
+    return body
+
+
 def _render(which: str, request: Request):
     blocked = _gate(request)
     if blocked is not None:
@@ -3559,6 +3572,8 @@ def _render(which: str, request: Request):
         body = p.read_text(encoding="utf-8")
     except Exception:
         raise HTTPException(404, "page not found")
+    if p == Path("terminal") / "index.html":
+        body = _stamped(body)
     return HTMLResponse(content=body, headers=dict(NO_CACHE))
 
 

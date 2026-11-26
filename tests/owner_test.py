@@ -427,6 +427,8 @@ check("the same second is served from cache, not recomputed per request",
 
 print("the front door and the tape's durability are stated, not assumed")
 check("the terminal is the front page", str(M.page_file("terminal")).endswith("terminal/index.html"))
+check("the page points at the bundle's build stamp, so a stale copy cannot linger",
+      "?v=" in M._stamped('/terminal/assets/app.js'))
 check("the signals page is still served, at its own address",
       str(M.page_file("classic")) == "index.html")
 check("history is only called durable when it sits on a mounted disk",
