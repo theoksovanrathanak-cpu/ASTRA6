@@ -107,3 +107,35 @@ canvas{display:block;width:100%}
   color:#cfe0f2;font-size:11px;padding:8px 12px;border-radius:8px;z-index:60;font-family:var(--mono)}
 .sk{animation:pulse 1.4s infinite ease-in-out}
 @keyframes pulse{0%,100%{opacity:.45}50%{opacity:1}}
+
+/* ---------- menu ---------- */
+.mbtn{display:grid;place-items:center;gap:3px;width:34px;height:30px;border-radius:7px;
+  border:1px solid var(--line2);background:#0a1017;cursor:pointer;padding:0}
+.mbtn i{display:block;width:14px;height:1.6px;background:#9fb2c6;border-radius:2px}
+.mbtn:hover{border-color:#33455a}
+.mbtn:hover i{background:#e8eef6}
+.sheetwrap{position:fixed;inset:0;background:#04070bd9;z-index:80;display:flex;
+  justify-content:flex-start;backdrop-filter:blur(2px)}
+.sheet{width:308px;max-width:88vw;height:100%;background:linear-gradient(180deg,#0d141d,#080d13);
+  border-right:1px solid var(--line2);display:flex;flex-direction:column;
+  animation:slide .16s ease-out}
+@keyframes slide{from{transform:translateX(-14px);opacity:.4}to{transform:none;opacity:1}}
+.sheet-h{display:flex;align-items:center;justify-content:space-between;padding:14px 14px 10px;
+  font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:800}
+.sheet-h .x{background:transparent;border:0;color:#8ea2b6;font-size:20px;line-height:1;cursor:pointer;padding:2px 6px}
+.mi{display:flex;flex-direction:column;gap:2px;padding:11px 14px;text-decoration:none;color:var(--ink);
+  border-left:2px solid transparent}
+.mi:hover{background:#0f1926;border-left-color:#2a3d52}
+.mi.on{border-left-color:var(--green);background:#0b1720}
+.mi-t{font-size:13px;font-weight:700}
+.mi-s{font-size:10.5px;color:var(--muted)}
+.sheet-sep{height:1px;background:var(--line);margin:8px 0}
+.sheet-note{padding:0 14px 4px;font-size:10.5px;line-height:1.55;color:#8fa1b4}
+.acct{padding:6px 14px 16px;display:flex;flex-direction:column;gap:8px}
+.acct-t{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:800}
+.acct-e{font-family:var(--mono);font-size:12px;color:#dbe9f8;word-break:break-all}
+.acct-s{font-size:10.5px;color:var(--muted);line-height:1.5}
+.gbtn{min-height:40px}
+.ghost{align-self:flex-start;background:#101a25;border:1px solid var(--line2);color:#c8d6e6;
+  border-radius:7px;padding:7px 12px;font-size:11.5px;cursor:pointer}
+.ghost:hover{border-color:#3b4f66;color:#fff}

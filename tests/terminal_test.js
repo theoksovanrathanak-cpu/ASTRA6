@@ -123,7 +123,8 @@ setTimeout(() => {
   ok('the estimate warning is on the page, not hidden in a tooltip',
     /estimated · tick rule/i.test(text));
   ok('the chart is titled as a footprint', /Footprint · bid × ask/.test(text));
-  ok('the transport state is shown', /transport/.test(text));
+  ok('the transport readout is gone, as asked - it only ever twitched',
+    !/transport/.test(text));
   ok('the feed panel reports the quote and its age', /3571\.32/.test(text) && /0\.4s/.test(text));
   ok('delta, session delta and CVD are all present',
     /Delta/.test(text) && /Session \(UTC\)/.test(text) && /Cumulative/.test(text));
@@ -135,8 +136,13 @@ setTimeout(() => {
   ok('absorption and exhaustion are described in the panel',
     /Absorption zones/.test(text) && /Exhaustion bars/.test(text));
   ok('the divergence alert is surfaced', /bearish divergence/.test(text));
-  ok('the footer says there are no synthetic prices and no predictive signals',
-    /no synthetic prices, no predictive signals/.test(text));
+  ok('the footer is down to the brand and the clock',
+    /DESENTO/.test((window.document.querySelector('.foot') || {}).textContent || '')
+    && !/no synthetic prices/.test(text));
+  ok('a hamburger menu is back on the page',
+    !!window.document.querySelector('.mbtn'));
+  const _m = window.document.querySelector('.mbtn');
+  if (_m) _m.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
   ok('the session delta is printed from the payload', /\+8/.test(text));
   ok('a websocket to the tape endpoint was opened',
     !!window.__ws && /\/ws\/tape/.test(window.__ws.url));
@@ -152,6 +158,15 @@ setTimeout(() => {
     calls.filter((c) => c[0] === 'fillRect').length > 6);
   ok('a per-candle delta is printed in the column header',
     drawn.some((s) => s === '+4' || s === '+6' || s === '-2'), drawn.slice(0, 12));
+
+  setTimeout(() => {
+  const menuText = (window.document.querySelector('.sheet') || {}).textContent || '';
+  ok('the menu carries the signals page and the owner door',
+    /Signals & news/.test(menuText) && /Owner sign-in/.test(menuText), menuText.slice(0, 140));
+  ok('the menu repeats the estimate warning rather than hiding it',
+    /counted quotes, not reported traded volume/i.test(menuText.split('\n').join(' ')));
+  ok('sign-in says plainly when Google is not configured, instead of failing silently',
+    /not configured on this server/i.test(menuText.split('\n').join(' ')), menuText.slice(-120));
 
   // ---- second scenario: the exchange is shut, so there is no tape to draw
   const shut = JSON.parse(JSON.stringify(frame));
@@ -186,4 +201,5 @@ setTimeout(() => {
     console.log(pass + ' passed, ' + fail + ' failed' + (fail ? '' : ' — TERMINAL SMOKE PASSED'));
     process.exit(fail ? 1 : 0);
   }, 220);
+  }, 40);
 }, 220);

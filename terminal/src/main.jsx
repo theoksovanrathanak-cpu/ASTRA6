@@ -8,6 +8,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client';
 import Footprint from './chart.jsx';
 import { Feed, Delta, Imbalance, Profile, Behaviour } from './panels.jsx';
+import Menu, { useOwner } from './menu.jsx';
 import './styles.css';
 
 const TF = [[15, '15s'], [30, '30s'], [60, '1m'], [120, '2m'], [300, '5m'], [900, '15m']];
@@ -87,7 +88,9 @@ function useTape(q) {
 function App() {
   const [q, setQ] = useState({ tf: 60, step: 0.05, bars: 90, ratio: 3.0, stack: 3, minutes: 240 });
   const [barW, setBarW] = useState(56);
+  const [menu, setMenu] = useState(false);
   const [data, link] = useTape(q);
+  const [me, refreshOwner] = useOwner();
   const set = (k, v) => setQ((old) => ({ ...old, [k]: v }));
 
   const f = (data && data.feed) || {};
@@ -99,6 +102,9 @@ function App() {
   return (
     <div className="dx">
       <header className="hd">
+        <button className="mbtn" aria-label="Menu" onClick={() => setMenu(true)}>
+          <i /><i /><i />
+        </button>
         <div className="brand">
           <div className="mk"><i /></div>
           <div>
@@ -157,8 +163,7 @@ function App() {
         <span>{data?.archive?.ticks ?? 0} quotes archived</span>
         <span className="sep" />
         <span>{data?.profile?.total ?? 0} in profile</span>
-        <span className="sep" />
-        <span>transport <b>{link.state}</b>{link.mode === 'http' ? ' · polling' : ''}</span>
+        {me.signed_in ? <><span className="sep" /><span>{me.owner ? 'owner' : me.email}</span></> : null}
       </div>
 
       <div className="main">
@@ -191,16 +196,12 @@ function App() {
       </div>
 
       <footer className="foot">
-        <span>DESENTO · order flow terminal</span>
-        <span className="sep" />
-        <span>data <b>Exness Trading API</b> · quotes only</span>
-        <span className="sep" />
-        <span>no synthetic prices, no predictive signals</span>
-        <span className="sep" />
-        <a href="/app" style={{ color: '#93a5ba', textDecoration: 'none' }}>signals &amp; news →</a>
+        <span>DESENTO</span>
         <span style={{ flex: 1 }} />
         <span>{data ? new Date(data.server_ts * 1000).toISOString().slice(11, 19) : '--:--:--'} UTC</span>
       </footer>
+
+      <Menu open={menu} onClose={() => setMenu(false)} me={me} refreshOwner={refreshOwner} />
     </div>
   );
 }

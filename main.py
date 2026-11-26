@@ -6134,7 +6134,12 @@ def _tape_payload(tf, step, bars, ratio, stack, minutes) -> dict:
         "kept_days": 4,
     }
     try:
-        snap["market"] = TP.market_state(now)
+        mk = TP.market_state(now)
+        # a quote that arrived inside the last two minutes outranks the published hours
+        age = snap["feed"].get("age")
+        if age is not None and age < 120:
+            mk = {"open": True, "reason": "quotes", "opens_at": None, "detail": ""}
+        snap["market"] = mk
     except Exception:
         snap["market"] = {"open": True, "reason": "unknown", "opens_at": None, "detail": ""}
     snap["settings"] = {"tf": tf, "step": step, "bars": bars, "ratio": ratio,

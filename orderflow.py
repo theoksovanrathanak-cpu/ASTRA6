@@ -609,13 +609,11 @@ def _ws_loop():
     backoff = RECONNECT_S
     while True:
         try:
+            # The published hours are a guide, not a command: the socket is tried even
+            # during the scheduled break, because a real quote outranks a calendar.
             import tape as _TP
-            ms = _TP.market_state(time.time())
-            if not ms["open"]:                 # nothing will print: do not thrash the socket
-                _set(status="closed", connected=False, error="")
-                time.sleep(20)
-                continue
-            _set(status="connecting", connected=False, error="")
+            shut = not _TP.market_state(time.time())["open"]
+            _set(status="closed" if shut else "connecting", connected=False, error="")
             ap = access_point()
             host = ap.split("://", 1)[1]
             sym = resolve_symbol()
@@ -654,7 +652,7 @@ def _ws_loop():
             _set(connected=False, status="closed" if shut else "error",
                  error="" if shut else msg)
             print("orderflow:", msg)
-            time.sleep(backoff)
+            time.sleep(max(backoff, 30.0) if shut else backoff)
             backoff = min(backoff * 1.6, 60.0)
         else:                             # pragma: no cover
             time.sleep(RECONNECT_S)
