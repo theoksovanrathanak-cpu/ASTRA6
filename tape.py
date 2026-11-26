@@ -84,7 +84,9 @@ def _bars_index(ts: float, tf: int) -> int:
 
 def footprint(points, tf: int = 60, step: float = 0.05, limit: int = 120) -> list:
     """Bid x ask cells per price level, per candle. Every cell is a counted estimate."""
-    pts, has_size = classify(points)
+    # sort by event time: a quote that arrives late still belongs in its own interval, and
+    # a candle's close is then the last quote of that interval rather than the last to arrive
+    pts, has_size = classify(sorted(points, key=lambda p: p[0]))
     bars = {}
     order = []
     for ts, price, side, weight in pts:

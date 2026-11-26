@@ -89,7 +89,7 @@ export default function Footprint({ data, view, opts, hover: shared, onHover, on
   const [local, setLocal] = useState(null);
   const gesture = useRef(null);
 
-  const { mode, fmt, filter, intensity, rowH, onUse247 } = opts;
+  const { mode, fmt, filter, intensity, rowH, onUse247, pocLines } = opts;
   const barW = (view && view.barW) || 58;
   const hover = local || shared || null;
 
@@ -120,8 +120,9 @@ export default function Footprint({ data, view, opts, hover: shared, onHover, on
     c.style.height = H + 'px';
     const x = c.getContext('2d');
     x.setTransform(dpr, 0, 0, dpr, 0, 0);
-    draw(x, W, H, data, geom, { mode, fmt, filter: filter || 0, intensity: intensity || 1, rowH }, hover);
-  }, [size, data, geom, mode, fmt, filter, intensity, rowH, hover]);
+    draw(x, W, H, data, geom, { mode, fmt, filter: filter || 0, intensity: intensity || 1, rowH,
+      pocLines: pocLines !== false }, hover);
+  }, [size, data, geom, mode, fmt, filter, intensity, rowH, pocLines, hover]);
 
   const hit = useCallback((px, py) => {
     if (!data || !geom.view.length) return null;
@@ -200,7 +201,7 @@ export default function Footprint({ data, view, opts, hover: shared, onHover, on
   // the first thing on screen is the empty state (the old version attached it to a node
   // that did not exist yet and never learned the chart's size)
   return (
-    <div ref={box} className="chartwrap" style={full ? { position: 'fixed', inset: 0, zIndex: 60, background: '#05080c' } : null}>
+    <div ref={box} className="chartwrap" style={full ? { position: 'fixed', inset: 0, zIndex: 60, background: '#0D121A' } : null}>
       {hasBars ? (
         <canvas
           ref={cvs}
@@ -290,7 +291,7 @@ function draw(x, W, H, data, g, o, hover) {
   const live = data.feed && data.feed.price;
   const prof = data.profile || {};
 
-  x.fillStyle = '#05080c';
+  x.fillStyle = '#0D121A';
   x.fillRect(0, 0, W, H);
 
   // ---- rows
@@ -300,7 +301,7 @@ function draw(x, W, H, data, g, o, hover) {
       x.fillStyle = 'rgba(255,255,255,.012)';
       x.fillRect(0, y, right, rowH);
     }
-    x.strokeStyle = '#080d13';
+    x.strokeStyle = '#0D121A';
     x.beginPath(); x.moveTo(0, y + 0.5); x.lineTo(right, y + 0.5); x.stroke();
   }
 
@@ -362,7 +363,7 @@ function draw(x, W, H, data, g, o, hover) {
       if (mark) {
         x.fillStyle = mark.side === 'buy' ? 'rgba(47,146,104,.20)' : 'rgba(184,73,79,.20)';
         x.fillRect(bx + 1, y, cw - 1, rowH - 1);
-        x.fillStyle = mark.side === 'buy' ? '#2f9268' : '#b8494f';
+        x.fillStyle = mark.side === 'buy' ? '#20C997' : '#F06470';
         x.fillRect(mark.side === 'buy' ? bx + 1 : bx + cw - 2, y, 2, rowH - 1);
       } else if (heat > 0.01) {
         const col = up ? '47,146,104' : down ? '184,73,79' : '120,134,152';
@@ -378,7 +379,7 @@ function draw(x, W, H, data, g, o, hover) {
         // level was active and none of it was directional - never a fake 0 x 0.
         if ((buy || 0) + (sell || 0) === 0 && flat) {
           x.textAlign = 'center';
-          x.fillStyle = '#5c6d80';
+          x.fillStyle = '#718096';
           x.fillText('·' + fmtV(flat, fmt), cx, cellY);
           return;
         }
@@ -392,47 +393,47 @@ function draw(x, W, H, data, g, o, hover) {
           // is the cue, and it keeps the eye on the numbers that mean something
           if (Number(sell) !== 0) {
             x.textAlign = 'right';
-            x.fillStyle = down ? '#e0757d' : '#b3606a';
+            x.fillStyle = down ? '#F06470' : '#F06470';
             x.fillText(left, cx - 3, cellY);
           }
           if (Number(buy) !== 0) {
             x.textAlign = 'left';
-            x.fillStyle = up ? '#57c795' : '#57ae86';
+            x.fillStyle = up ? '#20C997' : '#20C997';
             x.fillText(right2, cx + 3, cellY);
           }
-          x.strokeStyle = '#111a24';
+          x.strokeStyle = '#192230';
           x.beginPath(); x.moveTo(cx + 0.5, y + 2); x.lineTo(cx + 0.5, y + rowH - 2); x.stroke();
         } else {
           // too narrow for two numbers: the one that carries the level, never an overlap
           x.textAlign = 'center';
           const net = (buy || 0) - (sell || 0);
           const label = fmtV(total, fmt);
-          x.fillStyle = net > 0 ? '#57c795' : net < 0 ? '#e0757d' : '#8b9aad';
+          x.fillStyle = net > 0 ? '#20C997' : net < 0 ? '#F06470' : '#A0AEC0';
           x.fillText(label, cx, cellY);
         }
         return;
       }
 
       let label = '';
-      let color = '#8b9aad';
+      let color = '#A0AEC0';
       if (mode === 'delta') {
         const net = (buy || 0) - (sell || 0);
-        if (!net) { x.fillStyle = '#3f4a58'; x.textAlign = 'center'; x.fillText('·', cx, cellY); return; }
+        if (!net) { x.fillStyle = '#273243'; x.textAlign = 'center'; x.fillText('·', cx, cellY); return; }
         label = fmt === 'hidden' ? '' : sgn(net);
-        color = net > 0 ? '#57c795' : '#e0757d';
+        color = net > 0 ? '#20C997' : '#F06470';
       } else if (mode === 'volume') {
         label = fmtV(total, fmt);
-        color = '#9aabbd';
+        color = '#A0AEC0';
       } else if (mode === 'bid') {
         label = fmtV(sell, fmt);
-        color = down ? '#e0757d' : '#a2575c';
+        color = down ? '#F06470' : '#F06470';
       } else if (mode === 'ask') {
         label = fmtV(buy, fmt);
-        color = up ? '#57c795' : '#4f9e7c';
+        color = up ? '#20C997' : '#20C997';
       } else if (mode === 'imbalance') {
         if (!mark) return;
         label = Math.round(mark.ratio * 100) + '%';
-        color = mark.side === 'buy' ? '#7fe0b4' : '#ff9aa2';
+        color = mark.side === 'buy' ? '#2CE6A5' : '#FF6575';
       }
       if (!label) return;
       x.textAlign = 'center';
@@ -450,7 +451,7 @@ function draw(x, W, H, data, g, o, hover) {
   x.textBaseline = 'middle';
   g.view.forEach((b, ci) => {
     const bx = PAD_L + ci * g.barW;
-    x.fillStyle = b.delta === 0 ? '#39424f' : b.delta > 0 ? '#3f9c74' : '#b8565c';
+    x.fillStyle = b.delta === 0 ? '#273243' : b.delta > 0 ? '#20C997' : '#F06470';
     x.font = '600 9.5px ui-monospace,SFMono-Regular,Menlo,monospace';
     const label = (b.delta >= 0 ? '+' : '') + fmtV(b.delta, fmt === 'hidden' ? 'plain' : fmt);
     if (x.measureText(label).width <= g.barW - 6) x.fillText(label, bx + (g.barW - 1) / 2, y0 - 8);
@@ -463,9 +464,9 @@ function draw(x, W, H, data, g, o, hover) {
   for (let i = 0; i < g.rows; i += every) {
     const price = g.top - (i + g.off) * g.step;
     const y = y0 + i * rowH + rowH / 2;
-    x.fillStyle = '#66748a';
+    x.fillStyle = '#718096';
     x.fillText(price.toFixed(d), W - GUTTER + 9, y);
-    x.strokeStyle = '#0b1118';
+    x.strokeStyle = '#0D121A';
     x.beginPath(); x.moveTo(W - GUTTER, y + 0.5); x.lineTo(W - GUTTER + 5, y + 0.5); x.stroke();
   }
 
@@ -478,27 +479,29 @@ function draw(x, W, H, data, g, o, hover) {
     x.beginPath(); x.moveTo(0, y + 0.5); x.lineTo(right, y + 0.5); x.stroke();
     x.setLineDash([]);
     // the tag replaces the price tick on that row, so the two never print on top of each other
-    x.fillStyle = '#05080c';
+    x.fillStyle = '#0D121A';
     x.fillRect(W - GUTTER, y - 7, GUTTER, 14);
     x.fillStyle = color;
     x.font = '700 8.5px ui-monospace,Menlo,monospace';
     x.fillText(name + ' ' + price.toFixed(d), W - GUTTER + 5, y);
   };
-  if (prof.val != null) line(prof.val, '#3b6a9b', [3, 3], 'VAL');
-  if (prof.vah != null) line(prof.vah, '#3b6a9b', [3, 3], 'VAH');
-  if (prof.poc != null) line(prof.poc, '#cfa23a', [], 'POC');
+  if (o.pocLines !== false) {
+    if (prof.val != null) line(prof.val, '#6598E8', [3, 3], 'VAL');
+    if (prof.vah != null) line(prof.vah, '#6598E8', [3, 3], 'VAH');
+    if (prof.poc != null) line(prof.poc, '#F5C451', [], 'POC');
+  }
 
   // ---- current price
   if (live != null) {
     const row = (g.top - live) / g.step - g.off;
     const y = y0 + row * rowH + rowH / 2;
     if (y > y0 && y < yEnd) {
-      x.strokeStyle = '#dfe7f1'; x.lineWidth = 1; x.setLineDash([2, 3]);
+      x.strokeStyle = '#EDF2F8'; x.lineWidth = 1; x.setLineDash([2, 3]);
       x.beginPath(); x.moveTo(0, y); x.lineTo(right, y); x.stroke();
       x.setLineDash([]);
-      x.fillStyle = '#dfe7f1';
+      x.fillStyle = '#EDF2F8';
       x.fillRect(right, y - 8, GUTTER, 16);
-      x.fillStyle = '#05080c';
+      x.fillStyle = '#0D121A';
       x.font = '700 10px ui-monospace,SFMono-Regular,Menlo,monospace';
       x.fillText(live.toFixed(d), right + 6, y + 0.5);
     }
@@ -515,16 +518,16 @@ function draw(x, W, H, data, g, o, hover) {
     x.beginPath(); x.moveTo(hx, y0); x.lineTo(hx, yEnd); x.stroke();
     if (hover.y != null) { x.beginPath(); x.moveTo(0, hover.y); x.lineTo(W - GUTTER, hover.y); x.stroke(); }
     if (hover.kind === 'cell' && hover.price != null && hover.y != null) {
-      x.fillStyle = '#111a24';
+      x.fillStyle = '#192230';
       x.fillRect(W - GUTTER, hover.y - 8, GUTTER, 16);
-      x.fillStyle = '#cfdcec';
+      x.fillStyle = '#EDF2F8';
       x.font = '600 10px ui-monospace,Menlo,monospace';
       x.fillText(hover.price.toFixed(d), W - GUTTER + 6, hover.y);
     } else if (hover.b) {
       const label = clock(hover.b.t0, data.tf);
-      x.fillStyle = '#111a24';
+      x.fillStyle = '#192230';
       x.fillRect(Math.max(0, hx - 24), H - AXIS_H, 48, AXIS_H - 2);
-      x.fillStyle = '#cfdcec';
+      x.fillStyle = '#EDF2F8';
       x.textAlign = 'center';
       x.font = '600 9px ui-monospace,Menlo,monospace';
       x.fillText(label, hx, H - 8);
@@ -534,7 +537,7 @@ function draw(x, W, H, data, g, o, hover) {
 
   // ---- time axis
   x.textAlign = 'center';
-  x.fillStyle = '#5a687a';
+  x.fillStyle = '#718096';
   x.font = '500 9px ui-monospace,SFMono-Regular,Menlo,monospace';
   const stepCols = Math.max(1, Math.round(70 / g.barW));
   g.view.forEach((b, ci) => {
@@ -544,7 +547,7 @@ function draw(x, W, H, data, g, o, hover) {
   x.textAlign = 'left';
 
   // ---- edges
-  x.strokeStyle = '#151c25';
+  x.strokeStyle = '#1C2531';
   x.beginPath(); x.moveTo(right + 0.5, y0); x.lineTo(right + 0.5, yEnd); x.stroke();
   x.beginPath(); x.moveTo(0, y0 - 0.5); x.lineTo(W, y0 - 0.5); x.stroke();
   x.beginPath(); x.moveTo(0, H - AXIS_H + 0.5); x.lineTo(W, H - AXIS_H + 0.5); x.stroke();

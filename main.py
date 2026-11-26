@@ -6162,6 +6162,29 @@ def _tape_payload(tf, step, bars, ratio, stack, minutes, sym="auto") -> dict:
         snap["market"] = mk
     except Exception:
         snap["market"] = {"open": True, "reason": "unknown", "opens_at": None, "detail": ""}
+    # what the feed did with the frames it received, so the page can be honest about
+    # quality rather than merely showing a green dot
+    try:
+        stt = OF.state() if hasattr(OF, "state") else st
+    except Exception:
+        stt = st
+    snap["quality"] = {
+        "source": "Exness Trading API",
+        "kind": "broker_quotes",              # not exchange order flow
+        "volume": "tick_count",               # Exness publishes no traded size at a price
+        "classification": "estimated_tick_rule",
+        "events": stt.get("parsed", 0),
+        "invalid": stt.get("invalid", 0),
+        "duplicates": stt.get("duplicates", 0),
+        "late": stt.get("late", 0),
+        "rejected": stt.get("rejected", 0),
+        "messages": stt.get("messages", 0),
+        "age_ms": (int(round(age * 1000)) if age is not None else None),
+        "candles": len(snap.get("bars") or []),
+        "points": snap.get("points", 0),
+        "tf": tf,
+        "history": bool((snap.get("archive") or {}).get("ticks")),
+    }
     snap["settings"] = {"tf": tf, "step": step, "bars": bars, "ratio": ratio,
                         "stack": stack, "minutes": minutes,
                         "timeframes": list(TP.TIMEFRAMES),

@@ -53,6 +53,9 @@ _LOCK = threading.Lock()
 _TICKS = collections.deque()             # (ts, price, side, volume, symbol)
 _LAST_PX = {}                            # symbol -> last quoted price
 _LAST_BOOK = {}                          # symbol -> (bid, ask, ts) as the wire sent them
+_SEEN = {}                               # (sym, ts, price) -> when it was booked, for de-duplication
+_SEEN_MAX = 8000
+_LAST_TS = {}                            # symbol -> newest event timestamp accepted
 _STATE = {
     "worker": False,                     # a thread is running
     "connected": False,
@@ -70,6 +73,10 @@ _STATE = {
     "started": 0.0,
     "messages": 0,                       # frames seen
     "parsed": 0,                         # ticks recognised
+    "duplicates": 0,                     # ticks that repeated one already booked
+    "invalid": 0,                        # ticks with no usable price
+    "late": 0,                           # ticks that arrived behind a newer one
+    "rejected": 0,                       # ticks for an instrument this desk does not chart
     "sample": None,                      # the last raw frame, for field discovery
     "symbol_seen": "",
     "book": [],
@@ -549,8 +556,28 @@ def _same_instrument(sym) -> bool:
     return a == b or a.startswith(b) or b.startswith(a)
 
 
+def _seen_before(sym: str, stamp: float, price: float, now: float) -> bool:
+    """Has this exact quote already been booked? A re-delivered frame must not double volume."""
+    key = (sym, round(stamp, 3), round(price, 6))
+    when = _SEEN.get(key)
+    if when is not None and now - when < 5.0:
+        return True
+    _SEEN[key] = now
+    if len(_SEEN) > _SEEN_MAX:
+        for k in list(_SEEN)[:_SEEN_MAX // 2]:
+            _SEEN.pop(k, None)
+    return False
+
+
 def ingest(ticks) -> int:
-    """Book the ticks, classifying each as buying (price rose) or selling (it fell)."""
+    """Book the ticks, classifying each as buying (price rose) or selling (it fell).
+
+    A tick is dropped only when it cannot be a trade at all: no usable price, an
+    instrument this desk does not chart, or an exact re-delivery of one already booked.
+    A tick that arrives behind a newer one is kept - the candle builder sorts by event
+    time, so the candle's close is still the last quote of the interval - and counted
+    as late so the diagnostics can say so.
+    """
     added = 0
     now = time.time()
     with _LOCK:
@@ -558,14 +585,30 @@ def ingest(ticks) -> int:
         for t in ticks:
             sym = t.get("sym") or active_symbol()
             if not (_same_instrument(sym) or _is_companion(sym)):
+                _STATE["rejected"] += 1
                 continue
-            price = t["price"]
+            price = t.get("price")
+            try:
+                price = float(price)
+            except (TypeError, ValueError):
+                price = None
+            if price is None or price <= 0 or price != price:
+                _STATE["invalid"] += 1
+                continue
+            stamp = t["ts"] or now
+            if _seen_before(sym, stamp, price, now):
+                _STATE["duplicates"] += 1
+                continue
+            newest = _LAST_TS.get(sym)
+            if newest is not None and stamp < newest - 0.5:
+                _STATE["late"] += 1
+            else:
+                _LAST_TS[sym] = stamp
             last = _LAST_PX.get(sym)
             if last is None or price == last:
                 side = 0                      # a repeat of the same quote votes for nobody
             else:
                 side = 1 if price > last else -1
-            stamp = t["ts"] or now
             _TICKS.append((stamp, price, side, t.get("volume"), sym))
             _LAST_PX[sym] = price
             bid, ask = t.get("bid"), t.get("ask")

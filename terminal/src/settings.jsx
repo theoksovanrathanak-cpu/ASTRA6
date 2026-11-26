@@ -20,6 +20,9 @@ export const DEFAULTS = {
   cvdRebase: false,
   volume: true,
   split: 0.48,
+  grid: true,
+  candles: 'mint',
+  pocLines: true,
 };
 
 const clamp = (v, lo, hi, dflt) => {
@@ -43,6 +46,9 @@ function read() {
       cvdRebase: !!s.cvdRebase,
       volume: s.volume !== false,
       split: clamp(s.split, 0.22, 0.72, 0.48),
+      grid: s.grid !== false,
+      candles: s.candles === 'classic' ? 'classic' : 'mint',
+      pocLines: s.pocLines !== false,
     };
   } catch (e) { return { ...DEFAULTS }; }
 }
@@ -59,6 +65,10 @@ export function usePrefs() {
   return [prefs, set];
 }
 
+function Val({ v }) {
+  return <span className="m" style={{ fontFamily: 'var(--mono)', fontSize: 10.5 }}>{v}</span>;
+}
+
 function Line({ k, hint, children }) {
   return (
     <div className="srow" style={{ padding: '7px 14px', alignItems: 'center' }}>
@@ -68,7 +78,7 @@ function Line({ k, hint, children }) {
   );
 }
 
-export default function Settings({ open, onClose, prefs, set }) {
+export default function Settings({ open, onClose, prefs, set, quality, feed, link, onReconnect }) {
   useEffect(() => {
     if (!open) return undefined;
     const esc = (e) => { if (e.key === 'Escape') onClose(); };
@@ -82,6 +92,36 @@ export default function Settings({ open, onClose, prefs, set }) {
       <div className="sheet right" role="dialog" aria-label="Settings">
         <div className="sheet-h"><span>Chart settings</span>
           <button className="x" onClick={onClose} aria-label="Close">×</button>
+        </div>
+
+        <div className="sgrp">
+          <div className="sgrp-h">Market data</div>
+          <Line k="Source" hint="server-side credentials, never in this page">
+            <Val v={(quality && quality.source) || 'Exness Trading API'} />
+          </Line>
+          <Line k="Feed" hint={(link && link.mode === 'ws') ? 'websocket, one frame a second' : 'http polling, once every two seconds'}>
+            <Val v={((quality && quality.age_ms) != null ? quality.age_ms + ' ms old' : 'no quote yet')
+              + ((feed && feed.connected) ? ' · connected' : ' · not connected')} />
+          </Line>
+          <Line k="Volume type" hint="Exness publishes quotes, not traded size at each price">
+            <Val v="counted quotes (tick volume)" />
+          </Line>
+          <Line k="Classification" hint="a quote above the previous one is booked to the ask, below to the bid">
+            <Val v="estimated · tick rule" />
+          </Line>
+          <Line k="Frames booked" hint="quotes accepted into the tape">
+            <Val v={(quality ? quality.events : 0).toLocaleString() + ' · ' + (quality ? quality.candles : 0) + ' candles'} />
+          </Line>
+          <Line k="Rejected on the way in" hint="re-deliveries, unusable prices, other instruments">
+            <Val v={quality
+              ? (quality.duplicates || 0) + ' dup · ' + (quality.invalid || 0) + ' bad · '
+                + (quality.late || 0) + ' late · ' + (quality.rejected || 0) + ' other'
+              : '—'} />
+          </Line>
+          <Line k="Reconnect">
+            <button className="mbtn2" style={{ width: 'auto', padding: '3px 10px' }}
+              onClick={() => { if (onReconnect) onReconnect(); onClose(); }}>Reconnect the feed</button>
+          </Line>
         </div>
 
         <div className="sgrp">
@@ -140,6 +180,30 @@ export default function Settings({ open, onClose, prefs, set }) {
               <button className={prefs.split > 0.5 ? 'on' : ''} onClick={() => set({ split: 0.6 })}>Price</button>
             </div>
           </Line>
+          <Line k="Price grid" hint="horizontal price lines behind the candles">
+            <div className="seg">
+              <button className={prefs.grid ? 'on' : ''} onClick={() => set({ grid: true })}>Shown</button>
+              <button className={!prefs.grid ? 'on' : ''} onClick={() => set({ grid: false })}>Hidden</button>
+            </div>
+          </Line>
+          <Line k="Candle colours" hint="both schemes keep green up, red down">
+            <select value={prefs.candles || 'mint'} onChange={(e) => set({ candles: e.target.value })}>
+              <option value="mint">Mint · coral</option>
+              <option value="classic">Classic · brick</option>
+            </select>
+          </Line>
+          <Line k="POC / value area lines" hint="drawn across the footprint">
+            <div className="seg">
+              <button className={prefs.pocLines !== false ? 'on' : ''} onClick={() => set({ pocLines: true })}>Shown</button>
+              <button className={prefs.pocLines === false ? 'on' : ''} onClick={() => set({ pocLines: false })}>Hidden</button>
+            </div>
+          </Line>
+          <Line k="CVD" hint="the line starts where the screen starts, or at zero">
+            <div className="seg">
+              <button className={!prefs.cvdRebase ? 'on' : ''} onClick={() => set({ cvdRebase: false })}>As recorded</button>
+              <button className={prefs.cvdRebase ? 'on' : ''} onClick={() => set({ cvdRebase: true })}>Rebase 0</button>
+            </div>
+          </Line>
           <Line k="Price chart volume" hint="quote count per candle, not traded size">
             <div className="seg">
               <button className={prefs.volume ? 'on' : ''} onClick={() => set({ volume: true })}>Shown</button>
@@ -157,7 +221,7 @@ export default function Settings({ open, onClose, prefs, set }) {
           <div className="mnote">
             Saved on this device only. Nothing here changes what the server counts — it changes
             how much of it is drawn, in which of the six footprints, and how the two charts
-            share the column.
+            share the column. Market data, credentials and calculations never leave the server.
           </div>
         </div>
       </div>

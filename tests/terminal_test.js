@@ -32,7 +32,7 @@ function bar(t0, delta, levels) {
 }
 
 const frame = {
-  symbol: 'XAUUSD', tf: 60, step: 0.05, decimals: 2, points: 40,
+  symbol: 'XAUUSD', instruments: ['XAUUSD', 'XAUUSD247'], tf: 60, step: 0.05, decimals: 2, points: 40,
   first_ts: 1795700000, last_ts: 1795700180,
   bars: [
     bar(1795700000, 4, [[3571.10, 3, 1, 0], [3571.05, 1, 2, 0]]),
@@ -61,6 +61,9 @@ const frame = {
   settings: { tf: 60, step: 0.05, bars: 90, ratio: 3, stack: 3, minutes: 240,
     timeframes: [15, 30, 60, 120, 180, 300, 600, 900, 1800, 3600, 7200, 14400, 86400], steps: [0.01, 0.05, 0.1, 0.25, 0.5, 1] },
   provenance: { vol_kind: 'tick_rule_estimate', label: 'estimated', note: 'counted ticks' },
+  quality: { source: 'Exness Trading API', kind: 'broker_quotes', volume: 'tick_count',
+    classification: 'estimated_tick_rule', events: 1284, invalid: 2, duplicates: 3, late: 1,
+    rejected: 0, messages: 900, age_ms: 400, candles: 3, points: 40, tf: 60, history: true },
   note: 'estimate',
   market: { open: true, reason: 'quotes', opens_at: null, detail: '' },
   server_ts: 1795700181,
@@ -173,7 +176,16 @@ setTimeout(() => {
   ok('the brand reads DESENTO with the product line', /DESENTO/.test(text) && /Order Flow Terminal/.test(text));
   ok('the estimate warning is in the header, not hidden in a tooltip',
     /estimated · tick rule/i.test(text));
-  ok('the navigation carries the instrument selector', /Auto/.test(flat) && /XAUUSD247/.test(flat));
+  ok('the navigation carries the instrument picker', !!q('.symbtn') && /Auto/.test(q('.symbtn').textContent));
+  click(window, '.symbtn');
+  setTimeout(() => {
+    const list = (doc.querySelector('.picklist') || {}).textContent || '';
+    ok('the picker lists only the contracts the feed carries, with their status',
+      /XAUUSD/.test(list) && /XAUUSD247/.test(list) && /receiving quotes/.test(list), list.slice(0, 120));
+    ok('and says it will not offer a symbol the feed is not printing',
+      /not offered/i.test(list));
+    click(window, '.symbtn');
+  }, 60);
   ok('it carries the live price', /3571\.32/.test(text));
   ok('and the change since the first candle on screen', /\+0\.22/.test(text), text.slice(0, 120));
   ok('the market state is named', /open/.test(flat));
@@ -358,15 +370,31 @@ setTimeout(() => {
                   ok('the footprint was drawn from the same window, not its own',
                     Number(after) > 1, after);
 
+                  click(w6, '.right .icobtn[aria-label="Settings"]');
+                  setTimeout(() => {
+                    const sheet = (w6.document.querySelector('.sheet') || {}).textContent || '';
+                    ok('the settings sheet carries a market-data section',
+                      /Market data/.test(sheet) && /Exness Trading API/.test(sheet));
+                    ok('it names the volume type and the classification, not just a number',
+                      /counted quotes/i.test(sheet) && /estimated · tick rule/.test(sheet));
+                    ok('it reports the frames it refused, with a reason for each',
+                      /1,284/.test(sheet) && /3 dup/.test(sheet) && /2 bad/.test(sheet)
+                      && /1 late/.test(sheet), sheet.slice(0, 200));
+                    ok('and offers a reconnect', /Reconnect the feed/.test(sheet));
+                    ok('the chart options include the grid and the candle scheme',
+                      /Price grid/.test(sheet) && /Candle colours/.test(sheet)
+                      && /POC \/ value area lines/.test(sheet));
+
                   ok('the mobile bottom navigation exists',
                     !!bn && ['Price', 'Footprint', 'Delta', 'Profile', 'Menu']
                       .every((l) => new RegExp(l, 'i').test(bn.textContent || '')), bn && bn.textContent);
 
                   ok('the stylesheet carries the responsive rules', /@media \(max-width:820px\)/.test(css));
 
-                  console.log('');
-                  console.log(pass + ' passed, ' + fail + ' failed' + (fail ? '' : ' — TERMINAL SMOKE PASSED'));
-                  process.exit(fail ? 1 : 0);
+                    console.log('');
+                    console.log(pass + ' passed, ' + fail + ' failed' + (fail ? '' : ' — TERMINAL SMOKE PASSED'));
+                    process.exit(fail ? 1 : 0);
+                  }, 120);
                 }, 150);
               }, 150);
             }, 150);

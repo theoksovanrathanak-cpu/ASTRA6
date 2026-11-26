@@ -397,3 +397,46 @@ a{color:inherit}
 @media (max-width:1300px){ .quotechips{display:none} }
 @media (max-width:1120px){ .px .chg{display:none} }
 @media (max-width:1000px){ .symsel{display:none} }
+
+/* ---------- instrument picker ---------- */
+.instpick{position:relative;flex:0 0 auto}
+.symbtn{display:flex;align-items:center;gap:5px;height:24px;padding:0 7px;border-radius:var(--r);
+  border:1px solid var(--line-2);background:var(--panel);color:var(--ink);
+  font-family:var(--mono);font-size:10.5px;font-variant-numeric:tabular-nums}
+.symbtn:hover{border-color:var(--line-3);background:var(--panel-2)}
+.symbtn span{color:var(--muted-2);font-size:8px}
+.picklist{position:absolute;top:30px;left:0;z-index:70;width:268px;max-height:60vh;overflow-y:auto;
+  background:var(--panel);border:1px solid var(--line-3);border-radius:var(--r);
+  box-shadow:0 12px 32px rgba(0,0,0,.55);padding:6px}
+.picklist input{width:100%;margin-bottom:5px;padding:5px 7px;border-radius:3px;
+  border:1px solid var(--line-2);background:var(--chart);color:var(--ink);font-size:11px}
+.picklist input:focus{outline:1px solid var(--accent);border-color:var(--accent)}
+.pick{display:flex;flex-direction:column;gap:1px;width:100%;text-align:left;padding:5px 7px;border-radius:3px}
+.pick:hover{background:var(--panel-2)}
+.pick.on{background:rgba(101,152,232,.14)}
+.pick b{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--ink)}
+.pick em{font-style:normal;font-size:9px;color:var(--muted-2)}
+.picklist .note{padding:6px 7px 2px;line-height:1.5}
+
+/* ---------- chart tools ---------- */
+.toolpop{position:relative;display:inline-flex}
+.toolmenu{position:absolute;top:22px;right:0;z-index:72;width:196px;padding:5px;
+  background:var(--panel);border:1px solid var(--line-3);border-radius:var(--r);
+  box-shadow:0 12px 30px rgba(0,0,0,.55)}
+.toolmenu .tool{display:flex;align-items:center;gap:8px;width:100%;text-align:left;
+  padding:5px 7px;border-radius:3px;font-size:10.5px;color:var(--ink-2)}
+.toolmenu .tool:hover:not(:disabled){background:var(--panel-2);color:var(--ink)}
+.toolmenu .tool.on{background:rgba(101,152,232,.16);color:var(--ink)}
+.toolmenu .tool:disabled{color:var(--muted-2);cursor:default}
+.toolmenu .tool i{display:inline-grid;place-items:center;width:14px;height:14px;font-style:normal;
+  font-family:var(--mono);font-size:10px;color:var(--va)}
+.toolmenu .tsep{height:1px;background:var(--line-2);margin:4px 2px}
+.toolmenu .note{padding:5px 7px 2px;line-height:1.5}
+.toolhint{display:flex;align-items:center;gap:7px;height:22px;padding:0 10px;flex:0 0 auto;
+  background:rgba(101,152,232,.08);border-bottom:1px solid var(--line);
+  font-family:var(--mono);font-size:9.5px;color:var(--va)}
+.toolhint i{font-style:normal;color:var(--ink-2)}
+@media (max-width:520px){
+  .p-head .ohlc{display:none}
+  .toolmenu{width:180px}
+}

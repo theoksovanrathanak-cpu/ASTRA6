@@ -103,7 +103,7 @@ export function Sidebar({ data, bars: onScreen }) {
         <Row k="Exhaustion bars" v={n0((data.exhaustion || []).length)} />
       </div>
 
-      <div className="note" style={{ borderTop: '1px solid #151c25' }}>
+      <div className="note" style={{ borderTop: '1px solid #1C2531' }}>
         Counting: a quote above the previous price is booked to the ask, below to the bid, equal
         to neither. Exness publishes quotes, not traded size, so every volume here is an estimate
         of pressure — never reported exchange volume.
@@ -154,7 +154,7 @@ export function Cvd({ bars, rebase, onRebase }) {
   const hi = shown.length ? Math.max(...shown) : 0;
 
   const draw = (x, W, H) => {
-    x.fillStyle = '#090d13'; x.fillRect(0, 0, W, H);
+    x.fillStyle = '#0D121A'; x.fillRect(0, 0, W, H);
     const h = H - AXIS;
     const span = (hi - lo) || 1;
     const yOf = (v) => 6 + (1 - (v - lo) / span) * (h - 12);
@@ -162,13 +162,13 @@ export function Cvd({ bars, rebase, onRebase }) {
 
     // zero line, when it is in view
     if (lo <= 0 && hi >= 0) {
-      x.strokeStyle = '#1d2731'; x.setLineDash([2, 3]);
+      x.strokeStyle = '#202A38'; x.setLineDash([2, 3]);
       x.beginPath(); x.moveTo(0, yOf(0)); x.lineTo(W, yOf(0)); x.stroke(); x.setLineDash([]);
-      x.fillStyle = '#3f4a58'; x.font = '9px ui-monospace,Menlo,monospace';
+      x.fillStyle = '#273243'; x.font = '9px ui-monospace,Menlo,monospace';
       x.fillText('0', 2, yOf(0) - 3);
     }
     if (!shown.length) {
-      x.fillStyle = '#4c5a6b'; x.font = '10px ui-monospace,Menlo,monospace';
+      x.fillStyle = '#718096'; x.font = '10px ui-monospace,Menlo,monospace';
       x.fillText('no candles yet', 8, h / 2);
       return;
     }
@@ -192,12 +192,12 @@ export function Cvd({ bars, rebase, onRebase }) {
     // the line
     x.beginPath();
     shown.forEach((v, i) => (i ? x.lineTo(xOf(i), yOf(v)) : x.moveTo(xOf(i), yOf(v))));
-    x.strokeStyle = last >= 0 ? '#4c8dff' : '#8b7cf6'; x.lineWidth = 1.4; x.stroke();
+    x.strokeStyle = last >= 0 ? '#6598E8' : '#6598E8'; x.lineWidth = 1.4; x.stroke();
     // last point
-    x.fillStyle = last >= 0 ? '#4c8dff' : '#8b7cf6';
+    x.fillStyle = last >= 0 ? '#6598E8' : '#6598E8';
     x.beginPath(); x.arc(xOf(shown.length - 1), yOf(last), 2, 0, Math.PI * 2); x.fill();
     // range labels
-    x.fillStyle = '#455263'; x.font = '9px ui-monospace,Menlo,monospace';
+    x.fillStyle = '#718096'; x.font = '9px ui-monospace,Menlo,monospace';
     x.fillText(sg(hi), W - 42, 10);
     x.fillText(sg(lo), W - 42, h - 2);
   };
@@ -228,13 +228,13 @@ export function Cvd({ bars, rebase, onRebase }) {
 export function DeltaHist({ bars }) {
   const max = Math.max(1, ...bars.map((b) => Math.abs(b.delta || 0)));
   const draw = (x, W, H) => {
-    x.fillStyle = '#090d13'; x.fillRect(0, 0, W, H);
+    x.fillStyle = '#0D121A'; x.fillRect(0, 0, W, H);
     const h = H - AXIS;
     const mid = h / 2;
-    x.strokeStyle = '#1d2731';
+    x.strokeStyle = '#202A38';
     x.beginPath(); x.moveTo(0, mid + 0.5); x.lineTo(W, mid + 0.5); x.stroke();
     if (!bars.length) {
-      x.fillStyle = '#4c5a6b'; x.font = '10px ui-monospace,Menlo,monospace';
+      x.fillStyle = '#718096'; x.font = '10px ui-monospace,Menlo,monospace';
       x.fillText('no candles yet', 8, mid);
       return;
     }
@@ -248,10 +248,10 @@ export function DeltaHist({ bars }) {
       if (v >= 0) x.fillRect(bx, mid - bh, bw, bh);
       else x.fillRect(bx, mid, bw, bh);
     });
-    x.fillStyle = '#455263'; x.font = '9px ui-monospace,Menlo,monospace';
+    x.fillStyle = '#718096'; x.font = '9px ui-monospace,Menlo,monospace';
     x.fillText('+' + Math.round(max), 3, 10);
     x.fillText('-' + Math.round(max), 3, h - 2);
-    x.fillStyle = '#3b4553';
+    x.fillStyle = '#202A38';
     x.fillText('0', W - 10, mid - 3);
   };
   const pos = bars.filter((b) => (b.delta || 0) > 0).length;

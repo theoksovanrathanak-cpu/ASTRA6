@@ -15,6 +15,7 @@ import Footprint, { MODES, MODE_HINT } from './chart.jsx';
 import { Sidebar, Cvd, DeltaHist, Profile, screenProfile, valueArea } from './analytics.jsx';
 import Menu, { useOwner } from './menu.jsx';
 import Settings, { usePrefs } from './settings.jsx';
+import { useDrawings, TOOLS } from './drawings.jsx';
 import './styles.css';
 
 const TF = [
@@ -146,12 +147,18 @@ function App() {
   const [hoff, setHoff] = useState(0);
   const [hover, setHover] = useState(null);
   const [colW, setColW] = useState(900);
-  const [data, link] = useTape(q);
+  const [data, link, reconnect] = useTape(q);
   const [me, refreshOwner] = useOwner();
+  const [pick, setPick] = useState(false);
+  const [search, setSearch] = useState('');
+  const [tool, setTool] = useState('');
+  const [toolOpen, setToolOpen] = useState(false);
   const set = (k, v) => setQ((old) => ({ ...old, [k]: v }));
 
   const stack = useRef(null);
   const mobile = useMedia('(max-width: 820px)');
+  const marks = useDrawings((q.sym === 'auto' ? (data?.symbol || 'XAUUSD') : q.sym));
+  const activeTool = TOOLS.find(([v]) => v === tool);
 
   useEffect(() => {
     const el = stack.current;
@@ -217,11 +224,14 @@ function App() {
   const ohlc = hoverBar || (visible.length ? visible[visible.length - 1] : null);
 
   useEffect(() => {
-    if (!full) return undefined;
-    const esc = (e) => { if (e.key === 'Escape') setFull(''); };
+    if (!full && !tool) return undefined;
+    const esc = (e) => {
+      if (e.key !== 'Escape') return;
+      if (tool) { setTool(''); setToolOpen(false); } else setFull('');
+    };
     window.addEventListener('keydown', esc);
     return () => window.removeEventListener('keydown', esc);
-  }, [full]);
+  }, [full, tool]);
 
   const chartH = prefs.chartH;
   const split = clamp(prefs.split ?? 0.42, 0.22, 0.72);
@@ -255,11 +265,33 @@ function App() {
         <div className="vsep" />
 
         <div className="inst">
-          <div className="symsel" role="group" aria-label="Instrument">
-            {SYMS.map(([v, t]) => (
-              <button key={v} className={q.sym === v ? 'on' : ''} onClick={() => set('sym', v)}
-                title={v === 'auto' ? 'Auto follows whichever gold contract is printing' : v}>{t}</button>
-            ))}
+          <div className="instpick">
+            <button className="symbtn" onClick={() => setPick((v) => !v)} aria-label="Instrument">
+              {q.sym === 'auto' ? 'Auto' : q.sym}<span>▾</span>
+            </button>
+            {pick ? (
+              <div className="picklist" role="dialog" aria-label="Choose an instrument">
+                <input autoFocus placeholder="Search instruments" value={search}
+                  onChange={(e) => setSearch(e.target.value)} />
+                <button className={'pick' + (q.sym === 'auto' ? ' on' : '')}
+                  onClick={() => { set('sym', 'auto'); setPick(false); }}>
+                  <b>Auto</b><em>whichever gold contract is printing</em>
+                </button>
+                {(data?.instruments || [])
+                  .filter((x) => x.toLowerCase().includes(search.toLowerCase()))
+                  .map((x) => (
+                    <button key={x} className={'pick' + (q.sym === x ? ' on' : '')}
+                      onClick={() => { set('sym', x); setPick(false); }}>
+                      <b>{x}</b>
+                      <em>{x === data?.symbol ? 'receiving quotes' : 'listed, no quotes right now'}</em>
+                    </button>
+                  ))}
+                <div className="note">
+                  Only the contracts this account is actually subscribed to are listed. A symbol the
+                  feed is not printing would be an empty chart, so it is not offered.
+                </div>
+              </div>
+            ) : null}
           </div>
           <div className="px">
             <span className="sym">{data?.symbol || 'XAUUSD'}</span>
@@ -382,13 +414,48 @@ function App() {
                   ) : <span className="m">no candle</span>}
                 </span>
                 <span className="r">
+                  <span className="toolpop">
+                    <button className={'tiny' + (tool ? ' on' : '')} onClick={() => setToolOpen((v) => !v)}>
+                      {activeTool ? activeTool[1] : 'draw'} ▾
+                    </button>
+                    {toolOpen ? (
+                      <div className="toolmenu" role="menu">
+                        {TOOLS.map(([v, label, glyph]) => (
+                          <button key={v} className={'tool' + (tool === v ? ' on' : '')} role="menuitem"
+                            onClick={() => { setTool(tool === v ? '' : v); setToolOpen(false); }}>
+                            <i>{glyph}</i>{label}
+                          </button>
+                        ))}
+                        <div className="tsep" />
+                        <button className="tool" onClick={() => { marks.undo(); setToolOpen(false); }}
+                          disabled={!marks.canUndo}>Undo</button>
+                        <button className="tool" onClick={() => { marks.redo(); setToolOpen(false); }}
+                          disabled={!marks.canRedo}>Redo</button>
+                        <button className="tool" onClick={() => { marks.clear(); setToolOpen(false); }}
+                          disabled={!marks.list.length}>Clear all</button>
+                        <div className="note">{marks.list.length} drawing{marks.list.length === 1 ? '' : 's'} on this symbol, kept on this device.</div>
+                      </div>
+                    ) : null}
+                  </span>
                   <button className="tiny" onClick={() => setFull(full === 'price' ? '' : 'price')}>
                     {full === 'price' ? 'exit full screen' : 'full screen'}
                   </button>
                 </span>
               </div>
+              {tool ? (
+                <div className="toolhint">
+                  <i>{activeTool && activeTool[2]}</i>
+                  {activeTool ? activeTool[1] : ''} — click to place
+                  {tool === 'trend' || tool === 'rect' || tool === 'measure' ? ', drag to size it' : ''}
+                  {tool === 'erase' ? ' over a drawing' : ''} · Esc to cancel
+                </div>
+              ) : null}
               <Price bars={bars} view={view} decimals={d} feed={f} hover={hover}
-                onHover={setHover} onPan={onPan} onZoom={onZoom} showVolume={prefs.volume} />
+                onHover={setHover} onPan={onPan} onZoom={onZoom} showVolume={prefs.volume}
+                grid={prefs.grid} scheme={prefs.candles}
+                drawings={marks.list} tool={tool}
+                onCreate={(dr) => { marks.add(dr); setTool(''); }}
+                onErase={(id) => marks.remove(id)} />
             </section>
           ) : null}
 
@@ -407,7 +474,8 @@ function App() {
                   </button>
                 </span>
               </div>
-              <Footprint data={viewData} view={view} opts={{ ...prefs, onUse247: () => set('sym', 'XAUUSD247') }}
+              <Footprint data={viewData} view={view} opts={{ ...prefs, pocLines: prefs.pocLines,
+                onUse247: () => set('sym', 'XAUUSD247') }}
                 hover={hover} onHover={setHover}
                 onPan={onPan} onZoom={onZoom} full={full === 'footprint'}
                 onFull={(v) => setFull(v ? 'footprint' : '')} />
@@ -474,7 +542,8 @@ function App() {
 
       <Menu open={menu} onClose={() => setMenu(false)} me={me} refreshOwner={refreshOwner}
         sym={q.sym} onSym={(v) => set('sym', v)} />
-      <Settings open={settings} onClose={() => setSettings(false)} prefs={prefs} set={setPrefs} />
+      <Settings open={settings} onClose={() => setSettings(false)} prefs={prefs} set={setPrefs}
+        quality={data?.quality} feed={f} link={link} onReconnect={reconnect} />
     </div>
   );
 }
