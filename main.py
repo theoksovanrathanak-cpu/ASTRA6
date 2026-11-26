@@ -50,13 +50,15 @@ if _LEGACY:
     except Exception as e:
         print(f"Vibe-Trading not available: {e}")
 
-from fastapi import FastAPI, Header, HTTPException, Depends, Request, Query
+from fastapi import (FastAPI, Header, HTTPException, Depends, Request, Query,
+                     WebSocket, WebSocketDisconnect)
 from fastapi.responses import StreamingResponse
+from fastapi.concurrency import run_in_threadpool
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, FileResponse
 from pydantic import BaseModel
-import os, json, hashlib, secrets, time, math
+import os, json, hashlib, secrets, time, math, asyncio
 from dotenv import load_dotenv
 from pathlib import Path
 
@@ -6019,6 +6021,148 @@ def get_orderflow_state(request: Request):
         return OF.state()
     except Exception as e:
         return {"status": "error", "error": str(e)[:160]}
+
+
+# ---------------------------------------------------------------- order flow terminal
+_TAPE_CACHE = {}
+_TAPE_LOCK = threading.Lock()
+
+
+def _tape_args(tf, step, bars, ratio, stack, minutes):
+    import tape as TP
+    tf = int(tf) if int(tf) in TP.TIMEFRAMES else 60
+    step = float(step) if float(step) in TP.PRICE_STEPS else 0.05
+    bars = max(20, min(int(bars), 300))
+    ratio = max(1.2, min(float(ratio), 20.0))
+    stack = max(2, min(int(stack), 8))
+    minutes = max(15, min(int(minutes), 1440))
+    return tf, step, bars, ratio, stack, minutes
+
+
+def _tape_payload(tf, step, bars, ratio, stack, minutes) -> dict:
+    """One frame of the terminal, computed at most once a second for the same settings."""
+    import orderflow as OF
+    import tape as TP
+    key = (tf, step, bars, ratio, stack, minutes)
+    now = time.time()
+    with _TAPE_LOCK:
+        hit = _TAPE_CACHE.get(key)
+        if hit and now - hit[0] < 1.0:
+            return hit[1]
+    window = min(minutes * 60, 3600 * 6)
+    pts = OF.points(seconds=window)
+    # the session figure is taken from the whole archive, not just the chart's window
+    sess0 = TP.session_start(now)
+    sess_delta = sess_quotes = None
+    st_obj = OF.store()
+    if st_obj is not None:
+        try:
+            buy, sell, quotes = st_obj.side_totals(sess0, now + 1)
+            sess_delta, sess_quotes = buy - sell, quotes
+        except Exception:
+            pass
+    snap = TP.snapshot(pts, tf=tf, step=step, bars=bars, ratio=ratio, stack=stack,
+                       profile_minutes=minutes, session_delta=sess_delta,
+                       session_quotes=sess_quotes)
+    st = OF.snapshot()
+    arc = OF.archive_status()
+    snap["symbol"] = OF.active_symbol()
+    snap["feed"] = {
+        "status": st.get("status"),
+        "connected": st.get("connected"),
+        "age": st.get("age"),
+        "stale": st.get("stale"),
+        "price": st.get("price"),
+        "error": st.get("error"),
+        "source": "Exness Trading API - tick quotes",
+    }
+    snap["archive"] = {
+        "ticks": arc.get("ticks", 0),
+        "first_ts": arc.get("first_ts"),
+        "last_ts": arc.get("last_ts"),
+        "persistent": bool(arc.get("ok")),
+        "kept_days": 4,
+    }
+    snap["settings"] = {"tf": tf, "step": step, "bars": bars, "ratio": ratio,
+                        "stack": stack, "minutes": minutes,
+                        "timeframes": list(TP.TIMEFRAMES),
+                        "steps": list(TP.PRICE_STEPS)}
+    snap["server_ts"] = now
+    with _TAPE_LOCK:
+        if len(_TAPE_CACHE) > 32:
+            _TAPE_CACHE.clear()
+        _TAPE_CACHE[key] = (now, snap)
+    return snap
+
+
+@app.get("/api/tape/snapshot")
+def tape_snapshot(tf: int = 60, step: float = 0.05, bars: int = 90, ratio: float = 3.0,
+                  stack: int = 3, minutes: int = 240):
+    """Footprint, delta, imbalances, absorption and volume profile for one frame."""
+    tf, step, bars, ratio, stack, minutes = _tape_args(tf, step, bars, ratio, stack, minutes)
+    return _tape_payload(tf, step, bars, ratio, stack, minutes)
+
+
+@app.get("/api/tape/meta")
+def tape_meta():
+    """What this terminal is, what it can show, and what it cannot."""
+    import orderflow as OF
+    import tape as TP
+    st = OF.snapshot()
+    arc = OF.archive_status()
+    return {
+        "product": "DESENTO",
+        "symbol": OF.active_symbol(),
+        "configured": bool(st.get("status") != "not_configured"),
+        "feed": {"status": st.get("status"), "connected": st.get("connected"),
+                 "price": st.get("price"), "age": st.get("age")},
+        "archive": {"ticks": arc.get("ticks", 0), "first_ts": arc.get("first_ts"),
+                    "last_ts": arc.get("last_ts"), "persistent": bool(arc.get("ok"))},
+        "timeframes": list(TP.TIMEFRAMES),
+        "price_steps": list(TP.PRICE_STEPS),
+        "provenance": TP.PROVENANCE,
+        "limits": {"bars": [20, 300], "ratio": [1.2, 20.0], "stack": [2, 8],
+                   "minutes": [15, 1440]},
+    }
+
+
+@app.websocket("/ws/tape")
+async def ws_tape(ws: WebSocket):
+    """The same frame as /api/tape/snapshot, pushed once a second while connected."""
+    await ws.accept()
+    try:
+        q = ws.query_params
+        tf, step, bars, ratio, stack, minutes = _tape_args(
+            q.get("tf", 60), q.get("step", 0.05), q.get("bars", 90),
+            q.get("ratio", 3.0), q.get("stack", 3), q.get("minutes", 240))
+        while True:
+            payload = await run_in_threadpool(_tape_payload, tf, step, bars, ratio,
+                                              stack, minutes)
+            await ws.send_json(payload)
+            await asyncio.sleep(1.0)
+    except WebSocketDisconnect:
+        return
+    except Exception as e:                     # pragma: no cover - client side drops
+        print("ws tape:", str(e)[:120])
+        try:
+            await ws.close()
+        except Exception:
+            pass
+
+
+_TERMINAL_ASSETS = Path("terminal") / "assets"
+if _TERMINAL_ASSETS.exists():
+    app.mount("/terminal/assets", StaticFiles(directory=str(_TERMINAL_ASSETS)),
+              name="terminal-assets")
+
+
+@app.get("/terminal", response_class=HTMLResponse)
+def terminal_page():
+    """The order-flow terminal."""
+    p = Path("terminal") / "index.html"
+    if not p.exists():
+        raise HTTPException(404, "terminal not built")
+    return FileResponse(p, media_type="text/html", headers={"Cache-Control": "no-cache"})
 
 
 @app.post("/api/push/test")

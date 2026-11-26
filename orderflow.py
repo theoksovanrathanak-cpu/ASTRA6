@@ -42,6 +42,9 @@ WINDOWS = (60, 300, 900)                 # 1m, 5m, 15m
 KEEP_S = 900                             # how much tick history is held in memory
 RECONNECT_S = 5.0
 
+_STORE = None                            # the on-disk tape, opened on first use
+_STORE_FAILED = False
+
 _LOCK = threading.Lock()
 _TICKS = collections.deque()             # (ts, price, side, volume)
 _STATE = {
@@ -64,6 +67,56 @@ _STATE = {
     "sample": None,                      # the last raw frame, for field discovery
     "symbol_seen": "",
 }
+
+
+def store():
+    """The tick archive. Opened lazily; a read-only disk disables it, never the feed."""
+    global _STORE, _STORE_FAILED
+    if _STORE is not None or _STORE_FAILED:
+        return _STORE
+    try:
+        import tape
+        path = _env("TAPE_DB") or os.path.join("data", "tape.sqlite3")
+        d = os.path.dirname(path)
+        if d:
+            os.makedirs(d, exist_ok=True)
+        _STORE = tape.Store(path)
+    except Exception as e:                    # pragma: no cover - disk problems only
+        _STORE_FAILED = True
+        print("tape store unavailable:", str(e)[:120])
+    return _STORE
+
+
+def points(seconds: int = 900):
+    """The tape for the last `seconds`, from the archive, falling back to memory."""
+    now = time.time()
+    st = store()
+    if st is not None:
+        try:
+            got = st.range(now - seconds, now + 1)
+            if got:
+                return got
+        except Exception:
+            pass
+    with _LOCK:
+        return [(t[0], t[1], t[2], t[3]) for t in _TICKS if t[0] >= now - seconds]
+
+
+def archive_status() -> dict:
+    st = store()
+    if st is None:
+        with _LOCK:
+            n = len(_TICKS)
+            first = _TICKS[0][0] if _TICKS else None
+            last = _TICKS[-1][0] if _TICKS else None
+        return {"ok": False, "ticks": n, "first_ts": first, "last_ts": last,
+                "note": "in memory only, the disk archive is unavailable"}
+    try:
+        s = st.span()
+        s["ok"] = True
+        return s
+    except Exception as e:                    # pragma: no cover
+        return {"ok": False, "error": str(e)[:120]}
 
 
 # ------------------------------------------------------------------ credentials
@@ -413,6 +466,7 @@ def ingest(ticks) -> int:
     now = time.time()
     with _LOCK:
         last = _TICKS[-1][1] if _TICKS else None
+        rows_to_write = []
         for t in ticks:
             if not _same_instrument(t.get("sym")):
                 continue
@@ -421,7 +475,9 @@ def ingest(ticks) -> int:
                 side = 0                      # a repeat of the same quote votes for nobody
             else:
                 side = 1 if price > last else -1
-            _TICKS.append((t["ts"] or now, price, side, t.get("volume")))
+            stamp = t["ts"] or now
+            _TICKS.append((stamp, price, side, t.get("volume")))
+            rows_to_write.append((stamp, price, side, t.get("volume")))
             last = price
             added += 1
         if added:
@@ -432,6 +488,15 @@ def ingest(ticks) -> int:
         cutoff = now - KEEP_S
         while _TICKS and _TICKS[0][0] < cutoff:
             _TICKS.popleft()
+    if added:
+        st = store()
+        if st is not None:
+            try:
+                st.add(rows_to_write)
+                if int(now) % 600 < 2:        # prune roughly every ten minutes
+                    st.prune(now)
+            except Exception as e:            # pragma: no cover - disk problems only
+                print("tape write:", str(e)[:120])
     return added
 
 

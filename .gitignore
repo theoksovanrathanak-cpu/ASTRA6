@@ -16,3 +16,6 @@ telegram_subs.json
 telegram_seen.json
 push_subs.json
 data/
+
+data/
+node_modules/

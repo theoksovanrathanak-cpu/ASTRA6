@@ -369,5 +369,42 @@ check("the door asks for a Google account, not a password", "Sign in with your G
 os.environ.pop("REQUIRE_LOGIN", None)
 O.GOOGLE_CLIENT_ID = _saved[1]
 
+import main as M  # noqa: E402  - the tape routes live here
+
+# a private tape file, so a previous run's ticks cannot colour this one
+os.environ["TAPE_DB"] = os.path.join(tempfile.mkdtemp(prefix="astra6-tape-"), "tape.db")
+OF._STORE = None
+OF._STORE_FAILED = False
+
+print("the tape api refuses nonsense instead of guessing")
+check("an unknown candle size falls back to one minute", M._tape_args(7, 0.05, 90, 3, 3, 240)[0] == 60)
+check("a price grid that is not offered falls back to 0.05",
+      M._tape_args(60, 0.123, 90, 3, 3, 240)[1] == 0.05)
+check("candles are clamped to what the terminal can draw",
+      M._tape_args(60, 0.05, 5, 3, 3, 240)[2] == 20 and
+      M._tape_args(60, 0.05, 99999, 3, 3, 240)[2] == 300)
+check("an imbalance ratio cannot be under 120% or over 2000%",
+      M._tape_args(60, 0.05, 90, 0.1, 3, 240)[3] == 1.2 and
+      M._tape_args(60, 0.05, 90, 999, 3, 240)[3] == 20.0)
+check("a stack needs at least two levels", M._tape_args(60, 0.05, 90, 3, 1, 240)[4] == 2)
+check("the profile window stays between 15 minutes and a day",
+      M._tape_args(60, 0.05, 90, 3, 3, 1)[5] == 15 and
+      M._tape_args(60, 0.05, 90, 3, 3, 99999)[5] == 1440)
+
+print("the tape api answers with the whole frame, and says what it is")
+_payload = M._tape_payload(60, 0.05, 40, 3.0, 3, 240)
+check("the frame carries candles, cvd, profile and the four analyses",
+      all(k in _payload for k in ("bars", "cvd", "profile", "absorption",
+                                  "exhaustion", "aggressive", "divergence", "imbalance")))
+check("it names the workspace product and symbol",
+      "symbol" in _payload and "settings" in _payload)
+check("with no broker configured it still answers, and claims no volume",
+      _payload["feed"]["status"] == "not_configured" and _payload["bars"] == []
+      and _payload["provenance"]["label"] == "estimated")
+check("the archive is reported honestly when it is empty",
+      _payload["archive"]["ticks"] == 0 and _payload["archive"]["persistent"] is True)
+check("the same second is served from cache, not recomputed per request",
+      M._tape_payload(60, 0.05, 41, 3.0, 3, 240) is M._tape_payload(60, 0.05, 41, 3.0, 3, 240))
+
 print("\n%d passed, %d failed" % (PASS, FAIL))
 sys.exit(1 if FAIL else 0)
