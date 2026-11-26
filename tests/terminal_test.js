@@ -74,7 +74,7 @@ function makeCtx() {
   });
 }
 
-function boot(payload) {
+function boot(payload, opts) {
 const dom = new JSDOM(html.replace(/<script[^>]*><\/script>/, '').replace(/<link[^>]*>/, ''), {
   runScripts: 'outside-only',
   pretendToBeVisual: true,
@@ -101,7 +101,47 @@ window.WebSocket = class {
   close() { if (this.onclose) this.onclose(); }
   send() {}
 };
-window.fetch = async () => ({ ok: true, json: async () => payload });
+// the drawer reads three endpoints of its own, so the stub answers by URL rather than
+// handing the tape frame to every caller
+const nowS = Math.floor(Date.now() / 1000);
+const calPayload = {
+  status: 'ok', updated: nowS,
+  next_high: { time: Math.floor(Date.UTC(2026, 10, 30, 8, 30) / 1000), title: 'NBS Manufacturing PMI',
+    currency: 'CN', impact: 'High', forecast: '50.2', previous: '50.0', actual: '', unit: '' },
+  calendar: [
+    { time: Math.floor(Date.UTC(2026, 10, 30, 8, 30) / 1000), title: 'NBS Manufacturing PMI',
+      currency: 'CN', impact: 'High', forecast: '50.2', previous: '50.0', actual: '', unit: '' },
+    { time: Math.floor(Date.UTC(2026, 11, 1, 13, 0) / 1000), title: 'ISM Manufacturing PMI',
+      currency: 'US', impact: 'Medium', forecast: '48.9', previous: '48.7', actual: '', unit: '' },
+  ],
+  source: 'https://www.tradingview.com/economic-calendar/', real: true,
+};
+const goldPayload = {
+  status: 'ok', market: 'XAUUSD', bias: 'SELL', label: 'gold-negative headlines',
+  score: -0.512, confidence: 51, buy: 2, sell: 5, voters: 7, freshest_h: 0.6,
+  stale: false, market_open: true, reopen_at: null, period_s: 90,
+  next_update: nowS + 10, now: nowS, next_in: 10, news_age: 2280,
+  feeds: Array.from({ length: 13 }, (_, i) => ({ name: i === 0 ? 'ZeroHedge' : 'wire ' + i, age: 600 + i * 60 })),
+  stories: [
+    { title: 'Gold price stalls near $3,570 as Fed hike bets keep bulls at bay', impact: 'SELL',
+      weight: 2, strength: 2, why: 'hawkish Fed language weighs on gold', source: 'Reuters',
+      time: nowS - 2280, url: 'https://example.com/a', gold: true },
+    { title: 'Dollar firms as yields edge higher', impact: 'SELL', weight: 1, strength: 1,
+      why: 'a stronger dollar offers gold', source: 'Bloomberg', time: nowS - 3600,
+      url: 'https://example.com/b', gold: false },
+  ],
+  watch: [{ time: nowS + 7200, title: 'ISM Manufacturing PMI', currency: 'US', impact: 'High', note: 'x' }],
+  real: true,
+};
+const ownerPayload = { signed_in: false, owner: false, google_ready: false, client_id: null };
+window.fetch = async (url) => {
+  const u = String(url);
+  const down = opts && opts.down;
+  if (u.indexOf('/api/calendar') === 0) return { ok: true, json: async () => (down ? { status: 'error' } : calPayload) };
+  if (u.indexOf('/api/fundamentals/gold') === 0) return { ok: true, json: async () => (down ? { status: 'error' } : goldPayload) };
+  if (u.indexOf('/api/owner/me') === 0) return { ok: true, json: async () => ownerPayload };
+  return { ok: true, json: async () => payload };
+};
 window.requestAnimationFrame = (cb) => setTimeout(cb, 0);
 
 try {
@@ -161,16 +201,31 @@ setTimeout(() => {
 
   setTimeout(() => {
   const menuText = (window.document.querySelector('.sheet') || {}).textContent || '';
-  ok('the menu carries the signals page and the owner door',
-    /Signals & news/.test(menuText) && /Owner sign-in/.test(menuText), menuText.slice(0, 140));
-  ok('the menu repeats the estimate warning rather than hiding it',
-    /counted quotes, not reported traded volume/i.test(menuText.split('\n').join(' ')));
+  const flat = menuText.split('\n').join(' ');
+  ok('the drawer leads with the economic calendar and the next high-impact event',
+    /Economic calendar/.test(flat) && /CN/.test(flat) && /NBS Manufacturing PMI/.test(flat), flat.slice(0, 180));
+  ok('it offers the full calendar without leaving the terminal', /Open calendar/.test(flat));
+  ok('the gold reading is the second card: side, story and the 90-second clock',
+    /Gold fundamentals · XAUUSD/.test(flat) && /SELL/.test(flat)
+    && /Fed hike bets keep bulls at bay/.test(flat)
+    && /next reading in/.test(flat) && /every 90 s/.test(flat)
+    && /newest story 38 min ago/.test(flat) && /13 wires/.test(flat) && /fastest: ZeroHedge/.test(flat),
+    flat.slice(0, 360));
+  ok('it offers the full gold reading without leaving the terminal', /Open gold fundamentals/.test(flat));
+  ok('alerts are armed from the drawer, with the same promise as the signals page',
+    /Signal alerts on this device/.test(flat) && /Send a test card/.test(flat)
+    && /same numbers the owner published/.test(flat));
+  ok('install is in the drawer too', /Install Desento/.test(flat), flat.slice(-260));
+  ok('the estimate warning did not leave the page just because the drawer changed',
+    /estimated · tick rule/i.test(text) && /counted from quotes/i.test(text));
   ok('sign-in says plainly when Google is not configured, instead of failing silently',
-    /not configured on this server/i.test(menuText.split('\n').join(' ')), menuText.slice(-120));
-  ok('the menu lets the reader choose which gold contract is charted',
-    /Instrument/.test(menuText) && /XAUUSD247/.test(menuText) && /Auto/.test(menuText));
+    /not configured on this server/i.test(flat), menuText.slice(-120));
+  ok('the old navigation rows are gone from the drawer, as asked',
+    !/Signals & news/.test(flat) && !/footprint · delta · profile/.test(flat));
+  ok('the menu still lets the reader choose which gold contract is charted',
+    /Instrument/.test(flat) && /XAUUSD247/.test(flat) && /Auto/.test(flat));
   ok('and it says Auto may switch, under the contract\'s own name',
-    /follows whichever gold contract is printing/i.test(menuText.split('\n').join(' ')));
+    /follows whichever gold contract is printing/i.test(flat));
 
   // ---- second scenario: the exchange is shut, so there is no tape to draw
   const shut = JSON.parse(JSON.stringify(frame));
@@ -191,6 +246,13 @@ setTimeout(() => {
   const _f247 = JSON.parse(JSON.stringify(shut));
   _f247.symbol = 'XAUUSD247';
   const w3 = boot(_f247);
+  // and a third door: both drawer feeds are down, so the cards must say so
+  const w4 = boot(frame, { down: true });
+  // React mounts on its own tick, so the click waits for the button to exist
+  setTimeout(() => {
+    const m4 = w4.document.querySelector('.mbtn');
+    if (m4) m4.dispatchEvent(new w4.MouseEvent('click', { bubbles: true }));
+  }, 60);
   const w2 = boot(shut);
   setTimeout(() => {
     const t2 = w2.document.body.textContent || '';
@@ -206,6 +268,13 @@ setTimeout(() => {
       (w3.document.body.textContent || '').slice(0, 90));
     ok('the estimate label still never doubles as a status',
       /estimated · tick rule/i.test(t2) && /market closed/i.test(t2));
+
+    const t4 = ((w4.document.querySelector('.sheet') || {}).textContent || '').split('\n').join(' ');
+    ok('with the drawer feeds down, the cards say so instead of inventing a reading',
+      /calendar feed is unreachable right now/i.test(t4)
+      && /gold feeds are unreachable right now/i.test(t4), t4.slice(0, 200));
+    ok('and no headline, side or event is printed when there is no data',
+      !/SELL|BUY|NO EDGE/.test(t4) && !/NBS Manufacturing PMI/.test(t4), t4.slice(0, 200));
 
     console.log('');
     console.log(pass + ' passed, ' + fail + ' failed' + (fail ? '' : ' — TERMINAL SMOKE PASSED'));

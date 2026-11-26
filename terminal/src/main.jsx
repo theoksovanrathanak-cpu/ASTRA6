@@ -216,3 +216,13 @@ function App() {
 }
 
 createRoot(document.getElementById('root')).render(<App />);
+
+/* The drawer's alerts and install cards need the site worker: it is the thing the push
+   service wakes, and a page with no worker cannot be installed or ring. Registered here
+   as well as on the signals page, once, against the same scope. */
+if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+  const local = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+  if (location.protocol === 'https:' || local) {
+    try { navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {}); } catch (e) { /* no worker scope */ }
+  }
+}

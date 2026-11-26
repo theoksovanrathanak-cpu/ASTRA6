@@ -1,11 +1,14 @@
-/* The drawer: navigation and the Google door, on the terminal itself.
+/* The drawer: the four things a trader opens a menu for, on the terminal itself.
 
-   The menu is the same idea as the one on the signals page - one hamburger, a short
-   list, and the owner's Google sign-in - but it lives here so the front page is not a
-   dead end. Sign-in uses Google Identity Services against /api/owner/login, exactly the
-   endpoint the other page uses, so one cookie covers both. */
+   Economic calendar, the gold-fundamentals reading, this device's alerts and the install
+   button - the same four cards the signals page carries - and, under them, the contract
+   switch and the owner's Google door so publishing still works from the front page.
+
+   Sign-in uses Google Identity Services against /api/owner/login, exactly the endpoint the
+   signals page uses, so one cookie covers both. */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { CalendarCard, GoldCard, AlertsCard, InstallCard } from './cards.jsx';
 
 export function useOwner() {
   const [me, setMe] = useState({ ready: false, signed_in: false, email: null,
@@ -128,14 +131,10 @@ export default function Menu({ open, onClose, me, refreshOwner, sym, onSym }) {
           <button className="x" onClick={onClose} aria-label="Close">×</button>
         </div>
 
-        <a className="mi on" href="/" onClick={onClose}>
-          <span className="mi-t">Order flow</span>
-          <span className="mi-s">footprint · delta · profile</span>
-        </a>
-        <a className="mi" href="/app">
-          <span className="mi-t">Signals &amp; news</span>
-          <span className="mi-s">the gold page, alerts and lessons</span>
-        </a>
+        <CalendarCard />
+        <GoldCard />
+        <AlertsCard sym={sym === 'auto' || !sym ? 'XAUUSD' : sym} />
+        <InstallCard />
 
         <div className="sheet-sep" />
         <div className="acct">
@@ -152,17 +151,13 @@ export default function Menu({ open, onClose, me, refreshOwner, sym, onSym }) {
             the contract being charted.
           </div>
         </div>
-        <div className="sheet-sep" />
-        <div className="sheet-note">
-          Volumes here are counted quotes, not reported traded volume. The estimate badge
-          in the header stays visible for that reason.
-        </div>
-        <div className="sheet-sep" />
 
+        <div className="sheet-sep" />
         {me.signed_in ? (
           <div className="acct">
             <div className="acct-e">{me.email}</div>
             <div className="acct-s">{me.owner ? 'owner — publishing enabled' : 'signed in'}</div>
+            <a className="mlink" href="/app">Signals &amp; news page →</a>
             <button className="ghost" disabled={busy} onClick={signOut}>Sign out</button>
           </div>
         ) : (
