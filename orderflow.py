@@ -553,9 +553,13 @@ def snapshot() -> dict:
                        if first_px is not None and last_price is not None else None),
         }
     status = "not_configured" if not configured() else state["status"]
-    # a socket that is up but has printed nothing for a while is quiet, not live
-    if status == "live" and age is not None and age > 90:
-        status = "quiet"
+    # a socket that is up but has printed nothing for a while is quiet, not live -
+    # including the case where it has never printed anything at all
+    if status == "live":
+        quiet_for = age if age is not None else (
+            (now - state["started"]) if state.get("started") else None)
+        if quiet_for is not None and quiet_for > 90:
+            status = "quiet"
     return {
         "status": status,
         "proxy": True,

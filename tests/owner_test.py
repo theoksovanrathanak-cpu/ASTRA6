@@ -214,6 +214,10 @@ OF._STATE["status"] = "live"
 OF._STATE["last_tick"] = time.time() - 300
 check("a connected socket with no quotes for minutes is called quiet, not live",
       OF.snapshot()["status"] == "quiet", OF.snapshot()["status"])
+OF._STATE["last_tick"] = 0.0
+OF._STATE["started"] = time.time() - 300
+check("a socket that has never printed a quote is quiet too, not live",
+      OF.snapshot()["status"] == "quiet", OF.snapshot()["status"])
 OF._STATE["last_tick"] = time.time() - 5
 check("and it goes back to live the moment a quote lands",
       OF.snapshot()["status"] == "live", OF.snapshot()["status"])
