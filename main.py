@@ -6043,6 +6043,7 @@ def _tape_payload(tf, step, bars, ratio, stack, minutes) -> dict:
     """One frame of the terminal, computed at most once a second for the same settings."""
     import orderflow as OF
     import tape as TP
+    OF.start()                     # opening the terminal is enough to bring the feed up
     key = (tf, step, bars, ratio, stack, minutes)
     now = time.time()
     with _TAPE_LOCK:

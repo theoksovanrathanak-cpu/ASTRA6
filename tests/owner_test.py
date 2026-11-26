@@ -403,6 +403,9 @@ check("with no broker configured it still answers, and claims no volume",
       and _payload["provenance"]["label"] == "estimated")
 check("the archive is reported honestly when it is empty",
       _payload["archive"]["ticks"] == 0 and _payload["archive"]["persistent"] is True)
+check("asking for a frame is enough to wake the feed, no separate warm-up call",
+      "OF.start()" in open(os.path.join(os.path.dirname(os.path.dirname(
+          os.path.abspath(__file__))), "main.py")).read())
 check("the same second is served from cache, not recomputed per request",
       M._tape_payload(60, 0.05, 41, 3.0, 3, 240) is M._tape_payload(60, 0.05, 41, 3.0, 3, 240))
 
