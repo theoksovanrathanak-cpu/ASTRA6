@@ -167,6 +167,10 @@ setTimeout(() => {
     /counted quotes, not reported traded volume/i.test(menuText.split('\n').join(' ')));
   ok('sign-in says plainly when Google is not configured, instead of failing silently',
     /not configured on this server/i.test(menuText.split('\n').join(' ')), menuText.slice(-120));
+  ok('the menu lets the reader choose which gold contract is charted',
+    /Instrument/.test(menuText) && /XAUUSD247/.test(menuText) && /Auto/.test(menuText));
+  ok('and it says Auto may switch, under the contract\'s own name',
+    /follows whichever gold contract is printing/i.test(menuText.split('\n').join(' ')));
 
   // ---- second scenario: the exchange is shut, so there is no tape to draw
   const shut = JSON.parse(JSON.stringify(frame));
@@ -184,6 +188,9 @@ setTimeout(() => {
     opens_at: Math.floor(Date.UTC(2026, 10, 26, 22, 2, 0) / 1000),
     detail: 'Gold is in its daily break, 20:58-22:02 UTC.' };
 
+  const _f247 = JSON.parse(JSON.stringify(shut));
+  _f247.symbol = 'XAUUSD247';
+  const w3 = boot(_f247);
   const w2 = boot(shut);
   setTimeout(() => {
     const t2 = w2.document.body.textContent || '';
@@ -194,6 +201,9 @@ setTimeout(() => {
       /nothing here is filled in with invented volume/i.test(t2.replace(/\s+/g, ' ')));
     ok('the header carries the market state, not just the estimate label',
       /market closed/.test(t2) && /opens 22:02 UTC/.test(t2));
+    ok('a 24/7 contract is named as such in the header, never disguised as XAUUSD',
+      /24\/7 gold/.test(w3.document.body.textContent || ''),
+      (w3.document.body.textContent || '').slice(0, 90));
     ok('the estimate label still never doubles as a status',
       /estimated · tick rule/i.test(t2) && /market closed/i.test(t2));
 

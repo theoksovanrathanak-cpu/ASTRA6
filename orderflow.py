@@ -38,6 +38,10 @@ except Exception:                        # pragma: no cover - only on a broken i
     _CRYPTO = False
 
 SYMBOL = (os.getenv("EXN_SYMBOL") or "XAUUSDM").upper()   # Exness lists gold as XAUUSDm
+# Gold also exists as a 24/7 contract on the same account (XAUUSD247). It trades through
+# the daily break, so the terminal can follow it when the ordinary contract is shut -
+# always under its own name, never passed off as XAUUSD.
+COMPANIONS = ("XAUUSD247",)
 WINDOWS = (60, 300, 900)                 # 1m, 5m, 15m
 KEEP_S = 900                             # how much tick history is held in memory
 RECONNECT_S = 5.0
@@ -46,7 +50,8 @@ _STORE = None                            # the on-disk tape, opened on first use
 _STORE_FAILED = False
 
 _LOCK = threading.Lock()
-_TICKS = collections.deque()             # (ts, price, side, volume)
+_TICKS = collections.deque()             # (ts, price, side, volume, symbol)
+_LAST_PX = {}                            # symbol -> last quoted price
 _STATE = {
     "worker": False,                     # a thread is running
     "connected": False,
@@ -66,6 +71,7 @@ _STATE = {
     "parsed": 0,                         # ticks recognised
     "sample": None,                      # the last raw frame, for field discovery
     "symbol_seen": "",
+    "book": [],
 }
 
 
@@ -94,19 +100,57 @@ def store():
     return _STORE
 
 
-def points(seconds: int = 900):
+def points(seconds: int = 900, sym: str = ""):
     """The tape for the last `seconds`, from the archive, falling back to memory."""
     now = time.time()
     st = store()
     if st is not None:
         try:
-            got = st.range(now - seconds, now + 1)
+            got = st.range(now - seconds, now + 1, sym=sym or None)
             if got:
                 return got
         except Exception:
             pass
     with _LOCK:
-        return [(t[0], t[1], t[2], t[3]) for t in _TICKS if t[0] >= now - seconds]
+        return [(t[0], t[1], t[2], t[3]) for t in _TICKS
+                if t[0] >= now - seconds and (not sym or _norm(t[4]) == _norm(sym))]
+
+
+def auto_symbol() -> str:
+    """Which gold contract is actually printing: the ordinary one, else the 24/7 one."""
+    now = time.time()
+    with _LOCK:
+        fresh = {}
+        for t in reversed(_TICKS):
+            if now - t[0] > 300:
+                break
+            fresh.setdefault(t[4], t[0])
+    order = [active_symbol(), "XAUUSD"] + list(COMPANIONS) + list(fresh.keys())
+    for sym in order:
+        for name in fresh:
+            if _norm(name) == _norm(sym):
+                return name
+    try:
+        import tape as _TP
+        if not _TP.market_state(now)["open"]:
+            for c in companions():
+                return c
+    except Exception:
+        pass
+    return active_symbol()
+
+
+def feed_for(sym: str):
+    """Last price and age for one instrument, so the header cannot mix two contracts."""
+    now = time.time()
+    with _LOCK:
+        px = _LAST_PX.get(sym)
+        ts = 0.0
+        for t in reversed(_TICKS):
+            if _norm(t[4]) == _norm(sym):
+                ts = t[0]
+                break
+    return px, (now - ts if ts else None)
 
 
 def archive_durable() -> bool:
@@ -460,6 +504,14 @@ def parse_ticks(frame) -> list:
     return out
 
 
+def companions() -> list:
+    return [c for c in COMPANIONS if c != active_symbol()]
+
+
+def _is_companion(sym) -> bool:
+    return _norm(sym) in [_norm(c) for c in COMPANIONS]
+
+
 def _same_instrument(sym) -> bool:
     """Do these two names mean the same gold contract?
 
@@ -480,20 +532,21 @@ def ingest(ticks) -> int:
     added = 0
     now = time.time()
     with _LOCK:
-        last = _TICKS[-1][1] if _TICKS else None
         rows_to_write = []
         for t in ticks:
-            if not _same_instrument(t.get("sym")):
+            sym = t.get("sym") or active_symbol()
+            if not (_same_instrument(sym) or _is_companion(sym)):
                 continue
             price = t["price"]
+            last = _LAST_PX.get(sym)
             if last is None or price == last:
                 side = 0                      # a repeat of the same quote votes for nobody
             else:
                 side = 1 if price > last else -1
             stamp = t["ts"] or now
-            _TICKS.append((stamp, price, side, t.get("volume")))
-            rows_to_write.append((stamp, price, side, t.get("volume")))
-            last = price
+            _TICKS.append((stamp, price, side, t.get("volume"), sym))
+            _LAST_PX[sym] = price
+            rows_to_write.append((stamp, price, side, t.get("volume"), sym))
             added += 1
         if added:
             _STATE["last_tick"] = now
@@ -516,11 +569,12 @@ def ingest(ticks) -> int:
 
 
 # ------------------------------------------------------------------ the reading
-def snapshot() -> dict:
+def snapshot(sym: str = "") -> dict:
     """What the tape says now, over three windows. Every number is counted, not modelled."""
     now = time.time()
+    sym = sym or auto_symbol()
     with _LOCK:
-        ticks = list(_TICKS)
+        ticks = [t for t in _TICKS if _norm(t[4]) == _norm(sym)]
         state = dict(_STATE)
     last_price = ticks[-1][1] if ticks else None
     age = (now - state["last_tick"]) if state["last_tick"] else None
@@ -530,7 +584,7 @@ def snapshot() -> dict:
         buy = sell = flat = 0.0
         n = 0
         first_px = None
-        for ts, px, side, vol in ticks:
+        for ts, px, side, vol, *rest in ticks:
             if ts < cut:
                 continue
             n += 1
@@ -563,7 +617,7 @@ def snapshot() -> dict:
     return {
         "status": status,
         "proxy": True,
-        "sym": active_symbol(),
+        "sym": sym,
         "unit": ("lots" if any(t[3] for t in ticks) else "ticks"),
         "price": (round(last_price, 4) if last_price is not None else None),
         "age": (round(age, 1) if age is not None else None),
@@ -621,8 +675,10 @@ def _ws_loop():
             headers = signed_headers(path, method="GET")
             ws = websocket.create_connection("wss://" + host + path, header=headers, timeout=20)
             _set(connected=True, status="live", error="", started=time.time())
+            book = [sym] + companions()
             ws.send(json.dumps({"id": "ticks-%s" % _norm(sym).lower(),
-                                "subscribe": {"event": "ticks", "instruments": [sym]}}))
+                                "subscribe": {"event": "ticks", "instruments": book}}))
+            _set(book=book)
             while True:
                 raw = ws.recv()
                 if not raw:

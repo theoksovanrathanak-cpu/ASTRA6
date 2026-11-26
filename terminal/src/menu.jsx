@@ -50,7 +50,7 @@ function loadGis() {
   });
 }
 
-export default function Menu({ open, onClose, me, refreshOwner }) {
+export default function Menu({ open, onClose, me, refreshOwner, sym, onSym }) {
   const btn = useRef(null);
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
@@ -137,6 +137,21 @@ export default function Menu({ open, onClose, me, refreshOwner }) {
           <span className="mi-s">the gold page, alerts and lessons</span>
         </a>
 
+        <div className="sheet-sep" />
+        <div className="acct">
+          <div className="acct-t">Instrument</div>
+          <div className="seg" style={{ width: '100%' }}>
+            {[['auto', 'Auto'], ['XAUUSD', 'XAUUSD'], ['XAUUSD247', 'XAUUSD247']].map(([v, t]) => (
+              <button key={v} className={sym === v ? 'on' : ''} style={{ flex: 1 }}
+                onClick={() => { onSym(v); onClose(); }}>{t}</button>
+            ))}
+          </div>
+          <div className="acct-s">
+            Auto follows whichever gold contract is printing: the ordinary one while the
+            market is open, the 24/7 one through the daily break. The header always names
+            the contract being charted.
+          </div>
+        </div>
         <div className="sheet-sep" />
         <div className="sheet-note">
           Volumes here are counted quotes, not reported traded volume. The estimate badge

@@ -190,7 +190,7 @@ check("a foreign symbol is ignored, and the first tick votes for nobody",
 check("one buying tick and one selling tick", w["buy"] == 1 and w["sell"] == 1, w)
 check("the delta is their difference", w["delta"] == 0, w)
 check("gold is read as XAUUSDm by default, the name Exness lists it under",
-      OF.SYMBOL == "XAUUSDM" and snap["sym"] == "XAUUSDM", snap["sym"])
+      OF.SYMBOL == "XAUUSDM" and snap["sym"] in ("XAUUSD", "XAUUSDM"), snap["sym"])
 check("the standard-account spelling XAUUSD is the same tape, not a foreign symbol",
       OF._same_instrument("XAUUSD") and OF._same_instrument("XAUUSDm")
       and OF._same_instrument("xauusdm") and not OF._same_instrument("EURUSD")

@@ -490,15 +490,22 @@ class Store:
         self.db.commit()
 
     def add(self, rows) -> int:
-        """rows: (ts, price, side, size) tuples. Returns how many were written."""
-        rows = [tuple(r) for r in rows if r and r[0]]
-        if not rows:
+        """rows: (ts, price, side, size[, symbol]). Returns how many were written."""
+        clean = []
+        for r in rows:
+            r = tuple(r)
+            if not r or not r[0]:
+                continue
+            if len(r) == 4:
+                r = r + ("",)
+            clean.append((r[0], r[1], r[2], r[3], r[4]))
+        if not clean:
             return 0
         with self.lock:
             self.db.executemany(
-                "INSERT INTO ticks (ts, price, side, size, sym) VALUES (?,?,?,?,'')", rows)
+                "INSERT INTO ticks (ts, price, side, size, sym) VALUES (?,?,?,?,?)", clean)
             self.db.commit()
-        return len(rows)
+        return len(clean)
 
     def prune(self, now: float) -> int:
         with self.lock:
@@ -506,20 +513,33 @@ class Store:
             self.db.commit()
             return cur.rowcount or 0
 
-    def range(self, t0: float, t1: float, limit: int = 200000) -> list:
+    def range(self, t0: float, t1: float, limit: int = 200000, sym: str = None) -> list:
         with self.lock:
-            cur = self.db.execute(
-                "SELECT ts, price, side, size FROM ticks WHERE ts >= ? AND ts < ?"
-                " ORDER BY ts LIMIT ?", (t0, t1, limit))
+            if sym:
+                cur = self.db.execute(
+                    "SELECT ts, price, side, size FROM ticks WHERE ts >= ? AND ts < ?"
+                    " AND upper(sym) = upper(?) ORDER BY ts LIMIT ?",
+                    (t0, t1, sym, limit))
+            else:
+                cur = self.db.execute(
+                    "SELECT ts, price, side, size FROM ticks WHERE ts >= ? AND ts < ?"
+                    " ORDER BY ts LIMIT ?", (t0, t1, limit))
             return [(r[0], r[1], r[2], r[3]) for r in cur.fetchall()]
 
-    def side_totals(self, t0: float, t1: float):
+    def side_totals(self, t0: float, t1: float, sym: str = None):
         """(buy, sell, quotes) between two instants - used for the true session delta."""
         with self.lock:
-            cur = self.db.execute(
-                "SELECT SUM(CASE WHEN side > 0 THEN COALESCE(size, 1) ELSE 0 END),"
-                "       SUM(CASE WHEN side < 0 THEN COALESCE(size, 1) ELSE 0 END),"
-                "       COUNT(*) FROM ticks WHERE ts >= ? AND ts < ?", (t0, t1))
+            if sym:
+                cur = self.db.execute(
+                    "SELECT SUM(CASE WHEN side > 0 THEN COALESCE(size, 1) ELSE 0 END),"
+                    "       SUM(CASE WHEN side < 0 THEN COALESCE(size, 1) ELSE 0 END),"
+                    "       COUNT(*) FROM ticks WHERE ts >= ? AND ts < ? AND upper(sym)=upper(?)",
+                    (t0, t1, sym))
+            else:
+                cur = self.db.execute(
+                    "SELECT SUM(CASE WHEN side > 0 THEN COALESCE(size, 1) ELSE 0 END),"
+                    "       SUM(CASE WHEN side < 0 THEN COALESCE(size, 1) ELSE 0 END),"
+                    "       COUNT(*) FROM ticks WHERE ts >= ? AND ts < ?", (t0, t1))
             b, s, n = cur.fetchone()
         return (b or 0.0, s or 0.0, n or 0)
 

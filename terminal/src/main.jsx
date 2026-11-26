@@ -25,9 +25,9 @@ function useTape(q) {
 
   const url = useMemo(() => {
     const p = new URLSearchParams({ tf: q.tf, step: q.step, bars: q.bars, ratio: q.ratio,
-      stack: q.stack, minutes: q.minutes });
+      stack: q.stack, minutes: q.minutes, sym: q.sym || 'auto' });
     return p.toString();
-  }, [q.tf, q.step, q.bars, q.ratio, q.stack, q.minutes]);
+  }, [q.tf, q.step, q.bars, q.ratio, q.stack, q.minutes, q.sym]);
 
   const stopPoll = () => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; } };
 
@@ -86,7 +86,7 @@ function useTape(q) {
 }
 
 function App() {
-  const [q, setQ] = useState({ tf: 60, step: 0.05, bars: 90, ratio: 3.0, stack: 3, minutes: 240 });
+  const [q, setQ] = useState({ tf: 60, step: 0.05, bars: 90, ratio: 3.0, stack: 3, minutes: 240, sym: 'auto' });
   const [barW, setBarW] = useState(56);
   const [menu, setMenu] = useState(false);
   const [data, link] = useTape(q);
@@ -119,6 +119,12 @@ function App() {
           <i className={'dot ' + (feedState === 'live' ? 'live' : feedState === 'off' ? 'bad' : 'warn')} />
           {feedState === 'quiet' && <span className="age" style={{ color: '#e8c76a' }}>quiet</span>}
         </div>
+        {data?.symbol && /247$/.test(data.symbol) && (
+          <span className="badge" style={{ borderColor: '#2b3f57', background: '#0d1a26', color: '#9dc0e8' }}
+            title="XAUUSD247 is the 24/7 gold contract on this account. It trades through the daily break, and it is charted under its own name - never labelled XAUUSD.">
+            24/7 gold
+          </span>
+        )}
         <span className="badge est" title="Exness publishes bid/ask quotes, not traded volume at each price. This terminal counts ticks: an up-tick is booked as buying, a down-tick as selling, so every volume figure is an estimate, not reported volume.">
           estimated · tick rule
         </span>
@@ -202,7 +208,8 @@ function App() {
         <span>{data ? new Date(data.server_ts * 1000).toISOString().slice(11, 19) : '--:--:--'} UTC</span>
       </footer>
 
-      <Menu open={menu} onClose={() => setMenu(false)} me={me} refreshOwner={refreshOwner} />
+      <Menu open={menu} onClose={() => setMenu(false)} me={me} refreshOwner={refreshOwner}
+        sym={q.sym} onSym={(v) => set('sym', v)} />
     </div>
   );
 }

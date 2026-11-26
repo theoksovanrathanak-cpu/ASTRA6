@@ -6087,41 +6087,44 @@ def _tape_args(tf, step, bars, ratio, stack, minutes):
     return tf, step, bars, ratio, stack, minutes
 
 
-def _tape_payload(tf, step, bars, ratio, stack, minutes) -> dict:
+def _tape_payload(tf, step, bars, ratio, stack, minutes, sym="auto") -> dict:
     """One frame of the terminal, computed at most once a second for the same settings."""
     import orderflow as OF
     import tape as TP
     OF.start()                     # opening the terminal is enough to bring the feed up
-    key = (tf, step, bars, ratio, stack, minutes)
+    sym = OF.auto_symbol() if (not sym or sym == "auto") else sym
+    key = (tf, step, bars, ratio, stack, minutes, sym)
     now = time.time()
     with _TAPE_LOCK:
         hit = _TAPE_CACHE.get(key)
         if hit and now - hit[0] < 1.0:
             return hit[1]
     window = min(minutes * 60, 3600 * 6)
-    pts = OF.points(seconds=window)
+    pts = OF.points(seconds=window, sym=sym)
     # the session figure is taken from the whole archive, not just the chart's window
     sess0 = TP.session_start(now)
     sess_delta = sess_quotes = None
     st_obj = OF.store()
     if st_obj is not None:
         try:
-            buy, sell, quotes = st_obj.side_totals(sess0, now + 1)
+            buy, sell, quotes = st_obj.side_totals(sess0, now + 1, sym=sym)
             sess_delta, sess_quotes = buy - sell, quotes
         except Exception:
             pass
     snap = TP.snapshot(pts, tf=tf, step=step, bars=bars, ratio=ratio, stack=stack,
                        profile_minutes=minutes, session_delta=sess_delta,
                        session_quotes=sess_quotes)
-    st = OF.snapshot()
+    st = OF.snapshot(sym)
     arc = OF.archive_status()
-    snap["symbol"] = OF.active_symbol()
+    px, age = OF.feed_for(sym)
+    snap["symbol"] = sym
+    snap["instruments"] = [OF.active_symbol()] + list(OF.companions())
     snap["feed"] = {
         "status": st.get("status"),
         "connected": st.get("connected"),
-        "age": st.get("age"),
-        "stale": st.get("stale"),
-        "price": st.get("price"),
+        "age": (round(age, 1) if age is not None else None),
+        "stale": bool(age is None or age > 60),
+        "price": px,
         "error": st.get("error"),
         "source": "Exness Trading API - tick quotes",
     }
@@ -6135,10 +6138,13 @@ def _tape_payload(tf, step, bars, ratio, stack, minutes) -> dict:
     }
     try:
         mk = TP.market_state(now)
-        # a quote that arrived inside the last two minutes outranks the published hours
+        # the 24/7 contract trades through the break, and any live quote outranks a calendar
         age = snap["feed"].get("age")
         if age is not None and age < 120:
             mk = {"open": True, "reason": "quotes", "opens_at": None, "detail": ""}
+        elif sym != OF.active_symbol():
+            mk = {"open": True, "reason": "247", "opens_at": None,
+                  "detail": sym + " trades around the clock."}
         snap["market"] = mk
     except Exception:
         snap["market"] = {"open": True, "reason": "unknown", "opens_at": None, "detail": ""}
@@ -6156,10 +6162,10 @@ def _tape_payload(tf, step, bars, ratio, stack, minutes) -> dict:
 
 @app.get("/api/tape/snapshot")
 def tape_snapshot(tf: int = 60, step: float = 0.05, bars: int = 90, ratio: float = 3.0,
-                  stack: int = 3, minutes: int = 240):
+                  stack: int = 3, minutes: int = 240, sym: str = "auto"):
     """Footprint, delta, imbalances, absorption and volume profile for one frame."""
     tf, step, bars, ratio, stack, minutes = _tape_args(tf, step, bars, ratio, stack, minutes)
-    return _tape_payload(tf, step, bars, ratio, stack, minutes)
+    return _tape_payload(tf, step, bars, ratio, stack, minutes, sym)
 
 
 @app.get("/api/orderflow/probe")
@@ -6206,9 +6212,10 @@ async def ws_tape(ws: WebSocket):
         tf, step, bars, ratio, stack, minutes = _tape_args(
             q.get("tf", 60), q.get("step", 0.05), q.get("bars", 90),
             q.get("ratio", 3.0), q.get("stack", 3), q.get("minutes", 240))
+        sym = q.get("sym", "auto")
         while True:
             payload = await run_in_threadpool(_tape_payload, tf, step, bars, ratio,
-                                              stack, minutes)
+                                              stack, minutes, sym)
             await ws.send_json(payload)
             await asyncio.sleep(1.0)
     except WebSocketDisconnect:
