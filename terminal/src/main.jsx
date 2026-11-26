@@ -289,7 +289,7 @@ function App() {
 
         {prefs.sidebar ? (
           <aside className="side side-scroll">
-            <Sidebar data={data || {}} />
+            <Sidebar data={data || {}} bars={visible} />
           </aside>
         ) : null}
       </div>

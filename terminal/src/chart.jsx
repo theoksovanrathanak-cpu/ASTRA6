@@ -69,7 +69,16 @@ function geomOf(data, W, H, S) {
   const rows = Math.max(4, Math.min(allRows, Math.floor(plotH / rowH)));
   const maxOff = Math.max(0, allRows - rows);
   const off = Math.max(0, Math.min(maxOff, Math.round(pan || 0)));
-  return { view, start, n, barW, plotW, plotH, rows, allRows, off, top, step, rowH, maxOff };
+  // a short price range would leave a dead band under the tape: scale the rows up a little
+  // and centre them, so the chart always uses the height it was given
+  let rh = rowH;
+  let pad = 0;
+  if (allRows <= rows && allRows * rowH < plotH) {
+    rh = Math.min(rowH * 2, plotH / allRows);
+    pad = Math.max(0, (plotH - allRows * rh) / 2);
+  }
+  return { view, start, n, barW, plotW, plotH, rows, allRows, off, top, step, rowH, maxOff,
+    rh: Math.max(11, rh), y0: HEAD_H + Math.round(pad) };
 }
 
 export default function Footprint({ data, opts, onView, full, onFull }) {
@@ -124,7 +133,7 @@ export default function Footprint({ data, opts, onView, full, onFull }) {
     const col = Math.floor((px - PAD_L) / geom.barW);
     if (col < 0 || col >= geom.view.length) return null;
     const b = geom.view[col];
-    const row = Math.floor((py - HEAD_H) / geom.rowH) - geom.off;
+    const row = Math.floor((py - geom.y0) / geom.rh) - geom.off;
     if (row < 0 || row >= geom.rows) return { kind: 'bar', b };
     const price = geom.top - row * geom.step;
     const cell = (b.levels || []).find((r) => Math.abs(r[0] - price) < 1e-6);
@@ -272,10 +281,11 @@ function clock(ts, tf) {
 /* ---------------------------------------------------------------- the drawing */
 
 function draw(x, W, H, data, g, o, hover) {
-  const { rowH, mode, fmt, filter, intensity } = o;
+  const { mode, fmt, filter, intensity } = o;
+  const rowH = g.rh;
   const d = data.decimals ?? 2;
   const right = W - GUTTER;
-  const y0 = HEAD_H;
+  const y0 = g.y0;
   const yEnd = y0 + g.rows * rowH;
   const live = data.feed && data.feed.price;
   const prof = data.profile || {};
@@ -378,14 +388,18 @@ function draw(x, W, H, data, g, o, hover) {
         const room = cw - 6;
         const both = x.measureText(left + ' ' + right2).width;
         if (both <= room) {
-          const leftZero = Number(sell) === 0;
-          const rightZero = Number(buy) === 0;
-          x.textAlign = 'right';
-          x.fillStyle = leftZero ? '#39424f' : down ? '#e0757d' : '#b3606a';
-          x.fillText(left, cx - 3, cellY);
-          x.textAlign = 'left';
-          x.fillStyle = rightZero ? '#39424f' : up ? '#57c795' : '#57ae86';
-          x.fillText(right2, cx + 3, cellY);
+          // a side that saw nothing is left blank rather than printed as 0: the empty half
+          // is the cue, and it keeps the eye on the numbers that mean something
+          if (Number(sell) !== 0) {
+            x.textAlign = 'right';
+            x.fillStyle = down ? '#e0757d' : '#b3606a';
+            x.fillText(left, cx - 3, cellY);
+          }
+          if (Number(buy) !== 0) {
+            x.textAlign = 'left';
+            x.fillStyle = up ? '#57c795' : '#57ae86';
+            x.fillText(right2, cx + 3, cellY);
+          }
           x.strokeStyle = '#111a24';
           x.beginPath(); x.moveTo(cx + 0.5, y + 2); x.lineTo(cx + 0.5, y + rowH - 2); x.stroke();
         } else {
@@ -504,11 +518,11 @@ function draw(x, W, H, data, g, o, hover) {
     } else if (hover.b) {
       const label = clock(hover.b.t0, data.tf);
       x.fillStyle = '#111a24';
-      x.fillRect(Math.max(0, hover.x - 24), yEnd, 48, AXIS_H - 2);
+      x.fillRect(Math.max(0, hover.x - 24), H - AXIS_H, 48, AXIS_H - 2);
       x.fillStyle = '#cfdcec';
       x.textAlign = 'center';
       x.font = '600 9px ui-monospace,Menlo,monospace';
-      x.fillText(label, hover.x, yEnd + 8);
+      x.fillText(label, hover.x, H - 8);
       x.textAlign = 'left';
     }
   }
@@ -520,7 +534,7 @@ function draw(x, W, H, data, g, o, hover) {
   const stepCols = Math.max(1, Math.round(70 / g.barW));
   g.view.forEach((b, ci) => {
     if (ci % stepCols !== 0) return;
-    x.fillText(clock(b.t0, data.tf), PAD_L + ci * g.barW + (g.barW - 1) / 2, yEnd + 9);
+    x.fillText(clock(b.t0, data.tf), PAD_L + ci * g.barW + (g.barW - 1) / 2, H - 8);
   });
   x.textAlign = 'left';
 
@@ -528,7 +542,7 @@ function draw(x, W, H, data, g, o, hover) {
   x.strokeStyle = '#151c25';
   x.beginPath(); x.moveTo(right + 0.5, y0); x.lineTo(right + 0.5, yEnd); x.stroke();
   x.beginPath(); x.moveTo(0, y0 - 0.5); x.lineTo(W, y0 - 0.5); x.stroke();
-  x.beginPath(); x.moveTo(0, yEnd + 0.5); x.lineTo(W, yEnd + 0.5); x.stroke();
+  x.beginPath(); x.moveTo(0, H - AXIS_H + 0.5); x.lineTo(W, H - AXIS_H + 0.5); x.stroke();
 
   // ---- scroll affordance: how much history is off to the right
   if (g.start + g.n < (data.bars || []).length) {
@@ -541,7 +555,9 @@ function draw(x, W, H, data, g, o, hover) {
 
 function Empty({ data, onUse247 }) {
   const mk = (data && data.market) || {};
+  const fs = (data && data.feed) || {};
   const shut = mk.open === false;
+  const down = !shut && (fs.status === 'error' || fs.connected === false);
   const when = mk.opens_at ? new Date(mk.opens_at * 1000).toISOString().slice(11, 16) + ' UTC' : null;
   const local = mk.opens_at
     ? new Date(mk.opens_at * 1000).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
@@ -550,8 +566,19 @@ function Empty({ data, onUse247 }) {
     <div style={{ display: 'grid', placeItems: 'center', minHeight: 240, height: '100%' }}>
       <div className="empty">
         <div className="box">
-          <div className="h">{shut ? 'No footprint — gold is not trading' : 'Waiting for the first quote'}</div>
-          {shut ? (
+          <div className="h">
+            {shut ? 'No footprint — gold is not trading'
+              : down ? 'No quotes are reaching this account'
+                : 'Waiting for the first quote'}
+          </div>
+          {down ? (
+            <div className="b">
+              The stream for {data && data.symbol ? data.symbol : 'this instrument'} is reporting
+              <b> {fs.status || 'down'}</b>{fs.error ? <> — {fs.error}</> : null}.
+              {fs.age != null ? <> The last quote arrived <b>{Math.round(fs.age)}s</b> ago.</> : null}
+              {' '}Nothing is invented to fill the space; the chart starts at the next real quote.
+            </div>
+          ) : shut ? (
             <div className="b">
               {mk.detail || 'The gold market is closed.'}
               {when ? <> Reopens <b>{when}</b>{local ? <> — <b>{local}</b> on your clock.</> : null}</> : null}

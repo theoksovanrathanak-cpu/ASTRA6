@@ -23,8 +23,9 @@ function Row({ k, v, c, mono = true }) {
   );
 }
 
-export function Sidebar({ data }) {
-  const bars = data.bars || [];
+export function Sidebar({ data, bars: onScreen }) {
+  // the column describes the candles actually drawn in the footprint, not the whole payload
+  const bars = (onScreen && onScreen.length ? onScreen : data.bars) || [];
   const d = data.decimals ?? 2;
   const last = bars[bars.length - 1] || {};
   const cvd = data.cvd || [];
@@ -59,7 +60,7 @@ export function Sidebar({ data }) {
   return (
     <div className="side">
       <div className="sgrp">
-        <div className="sgrp-h">Market <span className="tag">{data.symbol || 'XAUUSD'}</span></div>
+        <div className="sgrp-h" title="The candles drawn in the footprint">Market <span className="tag">{data.symbol || 'XAUUSD'}</span></div>
         <div className="hero">
           <div className="p">{feed.price != null ? n2(feed.price, d) : '—'}</div>
           <div className="sub">
@@ -69,9 +70,9 @@ export function Sidebar({ data }) {
             <span>{feed.age != null ? feed.age.toFixed(1) + 's ago' : 'no quote'}</span>
           </div>
         </div>
-        <Row k="Window high" v={isFinite(st.hi) ? n2(st.hi, d) : '—'} />
-        <Row k="Window low" v={isFinite(st.lo) ? n2(st.lo, d) : '—'} />
-        <Row k="Quotes in window" v={n0(st.total + st.flat)} />
+        <Row k="High on screen" v={isFinite(st.hi) ? n2(st.hi, d) : '—'} />
+        <Row k="Low on screen" v={isFinite(st.lo) ? n2(st.lo, d) : '—'} />
+        <Row k="Quotes on screen" v={n0(st.total + st.flat)} />
         <Row k="Candles" v={n0(bars.length)} />
       </div>
 
@@ -79,7 +80,7 @@ export function Sidebar({ data }) {
         <div className="sgrp-h">Delta <span className="tag">tick rule</span></div>
         <Row k="Last candle" v={sg(last.delta)} c={cls(last.delta)} />
         <Row k="Session" v={sg(data.session && data.session.delta)} c={cls(data.session && data.session.delta)} />
-        <Row k="Cumulative (window)" v={sg(cvdNow)} c={cls(cvdNow)} />
+        <Row k="Cumulative (screen)" v={sg(cvdNow)} c={cls(cvdNow)} />
         <Row k="Positive candles" v={'+' + n0(st.pos)} c="g" />
         <Row k="Negative candles" v={n0(st.neg)} c="r" />
       </div>
