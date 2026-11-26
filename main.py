@@ -6064,6 +6064,7 @@ def get_gold_fundamentals(limit: int = 12):
     """
     try:
         import news as NEWS
+        NEWS.refresh_in_background()          # keep the wires warm from boot
         d = NEWS.gold_fundamentals(limit=max(6, min(24, int(limit or 12))))
         # the reading's own history, so the panel can show whether it has been right
         try:

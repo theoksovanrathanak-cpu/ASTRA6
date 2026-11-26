@@ -2792,11 +2792,20 @@ async function openCalendar(){
 }
 
 // ---------- gold fundamentals: one reading, rebuilt on the clock ----------
-// The server rebuilds the reading once per 5-minute bucket and hands back the timestamp of
+// The server rebuilds the reading every 90 seconds and hands back the timestamp of
 // the next one, so this client never guesses: it shows the countdown and fetches again when
 // that second arrives. Same inputs, same answer, and the change always lands on :00 :05 :10.
 let _gf=null,_gfBusy=false,_gfTimer=0,_gfAligned=false;
 function gfFmt(ts){ try{ return new Date(ts*1000).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); }catch(e){ return ''; } }
+function gfFreshLine(){
+  if(!_gf) return '';
+  const bits=[];
+  if(_gf.news_age!=null) bits.push('newest story '+(0 === _gf.news_age ? 'just now' : ago(Date.now()/1000 - _gf.news_age)));
+  if((_gf.feeds||[]).length) bits.push(_gf.feeds.length+' wires');
+  const fast=(_gf.feeds||[]).filter(f=>f.age!=null).sort((a,b)=>a.age-b.age)[0];
+  if(fast) bits.push('fastest: '+fast.name);
+  return bits.join(' · ');
+}
 function gfCountdown(){
   if(!_gf||!_gf.next_update) return '';
   const s=Math.max(0,Math.round(_gf.next_update - Date.now()/1000));
@@ -2843,7 +2852,8 @@ function renderGoldStrip(){
   box.innerHTML='<div class="fund-row"><span class="gf-tag'+cls+'">'+gfShortWord()+'</span>'
     +'<span class="fund-x">'+(top?esc(top.title):'no gold headline right now')+'</span></div>'
     +'<div class="fund-row"><span class="fund-x mono">next reading in <b id="gf-cd">'+gfCountdown()+'</b> · '
-    +(_gf.market_open?'every 5 min':'gold closed · 5-min clock')+'</span></div>';
+    +(_gf.market_open?'every 90 s':'gold closed · 90-second clock')+'</span></div>'
+    +'<div class="fund-row"><span class="fund-x mono">'+gfFreshLine()+'</span></div>';
 }
 function gfStoryHtml(s){
   const cls=s.impact==='BUY'?'':(s.impact==='SELL'?' sell':' hold');
@@ -2859,7 +2869,7 @@ function gfStoryHtml(s){
 }
 function goldFundHtml(){
   if(!_gf||_gf.status!=='ok')
-    return '<div class="jn-empty">The gold feeds are unreachable right now.<br>Nothing is invented - this retries on the next 5-minute mark.</div>';
+    return '<div class="jn-empty">The gold feeds are unreachable right now.<br>Nothing is invented - this retries on the next mark.</div>';
   const cls=(_gf.stale||_gf.bias==='NEUTRAL')?' hold':(_gf.bias==='SELL'?' sell':'');
   const pos=Math.round(((_gf.score+1)/2)*100);
   const what=_gf.stale?'no fresh headline to score - the market is quiet'
@@ -2889,7 +2899,7 @@ function goldFundHtml(){
     h+='</div>';
   }
   h+='<div class="gf-sched"><span>next reading <b id="gf-cd2">'+gfCountdown()+'</b> · '+esc(gfFmt(_gf.next_update))+'</span>'
-    +'<span>on the 5-minute clock (:00 :05 :10 …)</span></div>';
+    +'<span>every 90 seconds · wires re-read every 60</span></div>';
   // what the reading has actually done since it was recorded - facts, not a score
   const fr=_gf.flip_record;
   if(fr&&fr.n){
@@ -3387,7 +3397,7 @@ function initZoomGuard(){
   },{passive:false});
 }
 try{ initZoomGuard(); }catch(e){}
-// the gold reading starts on its own, on the same 5-minute grid as the server - opening the
+// the gold reading starts on its own, on the server's clock - opening the
 // menu later shows the reading that is already current instead of fetching a fresh one
 setTimeout(function(){ try{ loadGoldFundamentals(); }catch(e){} }, 1600);
 // Nobody should have to hunt for the switch that tells them a trade printed. The first

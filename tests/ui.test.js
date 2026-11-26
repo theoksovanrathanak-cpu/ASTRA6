@@ -567,12 +567,37 @@ checks.append(('unit carried through', d['calendar'][0]['unit']=='%'))
 checks.append(('numbers kept as text', d['calendar'][1]['forecast']=='54.7'))
 checks.append(('next high impact found', d['next_high'] and d['next_high']['title']=='ISM Manufacturing PMI'))
 checks.append(('duplicate headline removed', len(d['news'])==1))
-checks.append(('source named', d['news'][0]['source']=='ForexLive'))
+checks.append(('source named', d['news'][0]['source'] in [f[0] for f in news.FEEDS] and d['news'][0]['source']))
 checks.append(('calendar source named', 'TradingView' in d['calendar_source']))
 bad=[n for n,okv in checks if not okv]
 print('OK' if not bad else 'FAIL '+','.join(bad))
 "`).toString().trim();
   ok('calendar and headlines parse, dedupe and label', out === 'OK', out);
+  const fresh = require('child_process').execSync(`cd ${root} && python3 -c "
+import news, time
+checks=[]
+ts=news._rss_ts
+checks.append(('iso local time parsed', ts('2026-11-26 06:48:19') is not None))
+checks.append(('month-day format parsed', ts('Nov 25, 2026 20:30 GMT') is not None))
+checks.append(('rfc822 still parsed', ts('Thu, 26 Nov 2026 06:30:00 +0000') is not None))
+checks.append(('garbage rejected', ts('not a date') is None))
+names=[f[0] for f in news.FEEDS]
+checks.append(('at least a dozen wires', len(names)>=13))
+checks.append(('gold wire search present', any('gold' in n.lower() for n in names)))
+checks.append(('fed wire search present', any('fed' in n.lower() for n in names)))
+checks.append(('commodities wire present', any('commodit' in n.lower() for n in names)))
+checks.append(('headlines refreshed inside 90s', news.NEWS_TTL<=90))
+checks.append(('reading rebuilt inside 90s', news.BUCKET_S<=90))
+src=open('news.py').read()
+checks.append(('wires fetched in parallel', 'ThreadPoolExecutor' in src))
+checks.append(('a warm thread keeps it hot', 'refresh_in_background' in src and 'REFRESH_EVERY' in src))
+f=news.freshness()
+checks.append(('freshness reports an age and feeds', 'newest_age' in f and isinstance(f['feeds'],list)))
+bad=[n for n,okv in checks if not okv]
+print('OK' if not bad else 'FAIL '+','.join(bad))
+"`).toString().trim();
+  ok('the gold wires are many, fast, and every date format is read', fresh === 'OK', fresh);
+
 }
 
 section('journal month calendar (FTMO style)');

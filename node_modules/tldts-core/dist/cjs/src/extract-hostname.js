@@ -1,0 +1,604 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.extractedBracketedHost = exports.extractedHostnameValidated = void 0;
+exports.default = extractHostname;
+// `charCodeAt.call(url, i)`, not `url.charCodeAt(i)`: see `is-valid.ts`.
+// eslint-disable-next-line @typescript-eslint/unbound-method
+const charCodeAt = String.prototype.charCodeAt;
+/**
+ * Matches an ASCII tab (U+0009) or newline (U+000A / U+000D). The WHATWG URL
+ * parser strips these before parsing; we only allocate a cleaned copy (and
+ * re-parse) on the rare input that actually contains one.
+ */
+const CONTROL_CHARS = /[\t\n\r]/g;
+const HAS_CONTROL_CHAR = /[\t\n\r]/;
+/**
+ * Matches a forbidden domain code point
+ * (https://url.spec.whatwg.org/#forbidden-domain-code-point): a C0 control,
+ * space, '#', '%', '/', ':', '<', '>', '?', '@', '[', '\', ']', '^', '|' or DEL.
+ */
+// eslint-disable-next-line no-control-regex
+const FORBIDDEN_DOMAIN_CHAR = /[\x00-\x20#%/:<>?@[\\\]^|\x7f]/;
+// Set by `extractHostname` (a module-scope flag, read synchronously by
+// `parseImpl` right after the call — same pattern as the reused RESULT object).
+// `true` ONLY when extraction validated the returned host inline (a confirmed-
+// valid, "simple" authority) so `parseImpl` can skip the separate
+// `isValidHostname` pass. `false` in every other case (validation disabled, a
+// complex authority — userinfo/port/brackets/trailing-dot/control — an invalid
+// host, or a non-main return path); `parseImpl` then validates as usual. The
+// fast path can only ever SKIP a redundant scan for hosts already known valid,
+// never accept an invalid one.
+exports.extractedHostnameValidated = false;
+// Set by `extractHostname`, like `extractedHostnameValidated`: `true` ONLY when
+// the returned host was in brackets ("http://[::1]/"). `parseImpl` then checks
+// that it is an IPv6 address, as browsers do.
+exports.extractedBracketedHost = false;
+/**
+ * True if char `code` is a valid hostname character. This is the per-char half
+ * of `is-valid.ts`'s `isValidAscii` (a-z, 0-9, > U+007F) PLUS three additions:
+ * A-Z (the host is lowercased before validation, so uppercase ≡ a valid
+ * lowercase letter) and '-' / '_' (valid inside a label). KEEP IN SYNC with
+ * `is-valid.ts`: these rules are deliberately duplicated to validate during
+ * extraction, so any change to the accepted character set there must be
+ * mirrored here (and vice-versa).
+ */
+function isValidHostnameChar(code) {
+    return ((code >= 97 && code <= 122) || // a-z
+        (code >= 48 && code <= 57) || // 0-9
+        code > 127 || // non-ASCII (accepted, not punycode-checked)
+        (code >= 65 && code <= 90) || // A-Z (becomes valid once lowercased)
+        code === 45 || // '-'
+        code === 95 // '_'
+    );
+}
+/**
+ * No hostname in `url`, unless a tab or newline, which browsers remove before
+ * anything else, hides one ("sc:\t//host", "/\t/host"): `url` is then read
+ * again without them. Only reached on inputs without a host.
+ */
+function noHostname(url, urlIsValidHostname, validate) {
+    return HAS_CONTROL_CHAR.test(url)
+        ? extractHostname(url.replace(CONTROL_CHARS, ''), urlIsValidHostname, validate)
+        : null;
+}
+/**
+ * True if char `code` may follow the first letter of a scheme: an ASCII letter,
+ * a digit, '+', '-' or '.' (https://url.spec.whatwg.org/#scheme-state).
+ */
+function isSchemeChar(code) {
+    return (((code | 32) >= 97 && (code | 32) <= 122) || // [a-zA-Z] (fold letters only)
+        (code >= 48 && code <= 57) || // [0, 9]
+        code === 46 || // '.'
+        code === 45 || // '-'
+        code === 43 // '+'
+    );
+}
+/**
+ * `hostname` percent-decoded as browsers decode the host of a special URL,
+ * lower-cased and without trailing dots, or null where they find no valid host:
+ * bytes that are no UTF-8 ("%FF"), a '%' not followed by two hexadecimal digits
+ * ("%zz"), and characters forbidden in a domain once decoded ("%2F", "%3A",
+ * "%5B::1%5D"). https://url.spec.whatwg.org/#concept-host-parser
+ */
+function decodeHostname(hostname) {
+    let decoded;
+    try {
+        decoded = decodeURIComponent(hostname);
+    }
+    catch (_a) {
+        return null;
+    }
+    if (FORBIDDEN_DOMAIN_CHAR.test(decoded)) {
+        return null;
+    }
+    let end = decoded.length;
+    while (end > 1 && charCodeAt.call(decoded, end - 1) === 46 /* '.' */) {
+        end -= 1;
+    }
+    return decoded.slice(0, end).toLowerCase();
+}
+/**
+ * True if `url.slice(start, end)` is a scheme, as browsers read one: an ASCII
+ * letter, then scheme characters.
+ */
+function isScheme(url, start, end) {
+    const first = charCodeAt.call(url, start) | 32;
+    if (start === end || first < 97 || first > 122) {
+        return false;
+    }
+    for (let i = start + 1; i < end; i += 1) {
+        if (!isSchemeChar(charCodeAt.call(url, i))) {
+            return false;
+        }
+    }
+    return true;
+}
+/**
+ * Classify scheme `url.slice(schemeStart, colonIndex)` as a WHATWG special
+ * scheme without allocating a substring (case-insensitive via `| 32`).
+ * Special schemes: ftp, file, http, https, ws, wss
+ * (https://url.spec.whatwg.org/#special-scheme).
+ *
+ * @returns 0 = not special, 1 = special, 2 = file (its host sits only between
+ *          "//" and the next slash).
+ */
+function getSpecialScheme(url, schemeStart, colonIndex) {
+    const length = colonIndex - schemeStart;
+    const c0 = charCodeAt.call(url, schemeStart) | 32;
+    if (length === 2) {
+        return c0 === 119 && (charCodeAt.call(url, schemeStart + 1) | 32) === 115
+            ? 1
+            : 0; // ws
+    }
+    else if (length === 3) {
+        const c1 = charCodeAt.call(url, schemeStart + 1) | 32;
+        const c2 = charCodeAt.call(url, schemeStart + 2) | 32;
+        if (c0 === 119 && c1 === 115 && c2 === 115)
+            return 1; // wss
+        if (c0 === 102 && c1 === 116 && c2 === 112)
+            return 1; // ftp
+        return 0;
+    }
+    else if (length === 4) {
+        const c1 = charCodeAt.call(url, schemeStart + 1) | 32;
+        const c2 = charCodeAt.call(url, schemeStart + 2) | 32;
+        const c3 = charCodeAt.call(url, schemeStart + 3) | 32;
+        if (c0 === 104 && c1 === 116 && c2 === 116 && c3 === 112)
+            return 1; // http
+        if (c0 === 102 && c1 === 105 && c2 === 108 && c3 === 101)
+            return 2; // file
+        return 0;
+    }
+    else if (length === 5) {
+        return c0 === 104 &&
+            (charCodeAt.call(url, schemeStart + 1) | 32) === 116 &&
+            (charCodeAt.call(url, schemeStart + 2) | 32) === 116 &&
+            (charCodeAt.call(url, schemeStart + 3) | 32) === 112 &&
+            (charCodeAt.call(url, schemeStart + 4) | 32) === 115
+            ? 1
+            : 0; // https
+    }
+    return 0;
+}
+/**
+ * Extract a hostname from `url`, matching a WHATWG URL parser's host-boundary
+ * behaviour (https://url.spec.whatwg.org/#concept-basic-url-parser) for tldts'
+ * scope. It deliberately does NOT normalise the host (no IDNA/punycode or IPv4
+ * canonicalisation; IPv6 brackets are stripped, not compressed), strips trailing
+ * dots, and stays lenient where a strict parser rejects (bare host:port,
+ * out-of-range port, user@host) — all documented deviations.
+ *
+ * @param urlIsValidHostname - when true, `url` is already a valid hostname and is
+ *   returned by the same reference (factory.ts skips re-validation on that
+ *   identity), keeping the common path allocation-free.
+ * @param validate - when true, validate the host inline during the authority
+ *   scan and publish the verdict via `extractedHostnameValidated` so `parseImpl`
+ *   can skip the redundant `isValidHostname` pass for simple authorities.
+ */
+function extractHostname(url, urlIsValidHostname, validate = false) {
+    let start = 0;
+    let end = url.length;
+    let hasUpper = false;
+    let failedValidation = false; // inline validation failed (always so with a '%')
+    let isSpecial = true; // '\' ends the host, unless non-special "scheme://"
+    exports.extractedHostnameValidated = false;
+    exports.extractedBracketedHost = false;
+    if (!urlIsValidHostname) {
+        // WHATWG step 1: trim leading/trailing C0 control or space (<= U+0020).
+        // Tab/newline elsewhere are handled lazily below.
+        while (start < url.length && charCodeAt.call(url, start) <= 32) {
+            start += 1;
+        }
+        // "data:"/"javascript:" never reach a host (inline payload; data URLs may be
+        // huge). `| 32` lowercases letters only; tab/newline is re-parsed below.
+        if ((charCodeAt.call(url, start + 4) === 58 /* ':' */ &&
+            (charCodeAt.call(url, start) | 32) === 100 /* d */ &&
+            (charCodeAt.call(url, start + 1) | 32) === 97 /* a */ &&
+            (charCodeAt.call(url, start + 2) | 32) === 116 /* t */ &&
+            (charCodeAt.call(url, start + 3) | 32) === 97) /* a */ ||
+            (charCodeAt.call(url, start + 10) === 58 /* ':' */ &&
+                (charCodeAt.call(url, start) | 32) === 106 /* j */ &&
+                (charCodeAt.call(url, start + 1) | 32) === 97 /* a */ &&
+                (charCodeAt.call(url, start + 2) | 32) === 118 /* v */ &&
+                (charCodeAt.call(url, start + 3) | 32) === 97 /* a */ &&
+                (charCodeAt.call(url, start + 4) | 32) === 115 /* s */ &&
+                (charCodeAt.call(url, start + 5) | 32) === 99 /* c */ &&
+                (charCodeAt.call(url, start + 6) | 32) === 114 /* r */ &&
+                (charCodeAt.call(url, start + 7) | 32) === 105 /* i */ &&
+                (charCodeAt.call(url, start + 8) | 32) === 112 /* p */ &&
+                (charCodeAt.call(url, start + 9) | 32) === 116) /* t */) {
+            return null;
+        }
+        while (end > start + 1 && charCodeAt.call(url, end - 1) <= 32) {
+            end -= 1;
+        }
+        if ((charCodeAt.call(url, start) === 47 /* '/' */ ||
+            charCodeAt.call(url, start) === 92) /* '\' */ &&
+            (charCodeAt.call(url, start + 1) === 47 /* '/' */ ||
+                charCodeAt.call(url, start + 1) === 92) /* '\' */) {
+            // Scheme-relative reference ("//host/path"). Relative to a web page, a
+            // special URL, browsers skip any further slashes ("///host").
+            start += 2;
+            while (charCodeAt.call(url, start) === 47 /* '/' */ ||
+                charCodeAt.call(url, start) === 92 /* '\' */) {
+                start += 1;
+            }
+        }
+        else {
+            // The scheme ends at the first ":/". Most URLs start with "http://" or
+            // "https://", so check for those before searching.
+            let indexOfProtocol = charCodeAt.call(url, start + 4) === 115 /* 's' */
+                ? start + 5
+                : start + 4;
+            if (charCodeAt.call(url, start) !== 104 /* 'h' */ ||
+                charCodeAt.call(url, start + 1) !== 116 /* 't' */ ||
+                charCodeAt.call(url, start + 2) !== 116 /* 't' */ ||
+                charCodeAt.call(url, start + 3) !== 112 /* 'p' */ ||
+                charCodeAt.call(url, indexOfProtocol) !== 58 /* ':' */ ||
+                charCodeAt.call(url, indexOfProtocol + 1) !== 47 /* '/' */) {
+                indexOfProtocol = url.indexOf(':/', start);
+            }
+            if (indexOfProtocol !== -1) {
+                // "scheme://…". Classify the scheme, then position `start` at the host.
+                const special = getSpecialScheme(url, start, indexOfProtocol);
+                if (special === 1) {
+                    // Special scheme: skip the run of '/' and '\' after it
+                    // (special-authority-(ignore-)slashes states; '\' acts as '/').
+                    start = indexOfProtocol + 2;
+                    while (charCodeAt.call(url, start) === 47 /* '/' */ ||
+                        charCodeAt.call(url, start) === 92 /* '\' */) {
+                        start += 1;
+                    }
+                }
+                else if (special === 2) {
+                    // file: the host is only what sits between "//" and the next slash, so
+                    // "file://h/x" => "h" but "file:///x" / "file:/x" => no host.
+                    start = indexOfProtocol + 1;
+                    let slashes = 0;
+                    while ((charCodeAt.call(url, start) === 47 ||
+                        charCodeAt.call(url, start) === 92) &&
+                        slashes < 2) {
+                        start += 1;
+                        slashes += 1;
+                    }
+                    if (slashes < 2) {
+                        return noHostname(url, urlIsValidHostname, validate);
+                    }
+                }
+                else if (!isScheme(url, start, start + 1)) {
+                    // No scheme: one starts with an ASCII letter ("1a://x" is no URL for
+                    // browsers). Read the input as an authority, as below.
+                    indexOfProtocol = -1;
+                }
+                else {
+                    // Unknown scheme: validate the WHATWG scheme grammar [A-Za-z0-9+.-];
+                    // a control char means it was split by a tab/newline (strip + re-parse).
+                    for (let i = start; i < indexOfProtocol; i += 1) {
+                        const code = charCodeAt.call(url, i);
+                        if (!isSchemeChar(code)) {
+                            if (code === 9 /* tab */ ||
+                                code === 10 /* LF */ ||
+                                code === 13 /* CR */) {
+                                return extractHostname(url.replace(CONTROL_CHARS, ''), urlIsValidHostname, validate);
+                            }
+                            // A scheme ending at a first ':' (other than a slash-less special
+                            // one) makes this ':/' part of an opaque path ("foo:bar://x", no
+                            // host), unless a '/', '\', '?' or '#' first puts it in a path,
+                            // query or fragment ("a.com/r?u=https://x"). Otherwise no scheme
+                            // ends here: this ':/' is an empty port, after a slash-less
+                            // special scheme ("http:a.com:/x") or an authority
+                            // ("user@host:/x"). Read the input as such below.
+                            if (code === 58 /* ':' */ &&
+                                getSpecialScheme(url, start, i) !== 1) {
+                                for (let j = i; j < indexOfProtocol; j += 1) {
+                                    const c = charCodeAt.call(url, j);
+                                    if (c === 47 || c === 92 || c === 63 || c === 35) {
+                                        indexOfProtocol = -1;
+                                        break;
+                                    }
+                                }
+                                if (indexOfProtocol !== -1) {
+                                    return noHostname(url, urlIsValidHostname, validate);
+                                }
+                            }
+                            indexOfProtocol = -1;
+                            break;
+                        }
+                    }
+                    if (indexOfProtocol !== -1) {
+                        // A non-special scheme has an authority only after "//" (else it is
+                        // an opaque path with no host). `indexOf(':/')` already gave the
+                        // first '/'.
+                        if (charCodeAt.call(url, indexOfProtocol + 2) === 47 /* '/' */) {
+                            isSpecial = false;
+                            start = indexOfProtocol + 3;
+                        }
+                        else {
+                            return noHostname(url, urlIsValidHostname, validate);
+                        }
+                    }
+                }
+            }
+            if (indexOfProtocol === -1 &&
+                charCodeAt.call(url, start) !== 91 /* '[' */) {
+                // Cold path: no "scheme://" prefix, and not a bare IPv6 literal (whose
+                // first ':' would otherwise look like a scheme separator; "[…]" falls
+                // through to the ipv6 handling below). May be a bare host, a host:port,
+                // a user@host, a slash-less special scheme ("https:host"), or an opaque
+                // URI ("mailto:", "tel:", "urn:…").
+                let indexOfColon = -1;
+                for (let i = start; i < end; i += 1) {
+                    const code = charCodeAt.call(url, i);
+                    if (code === 9 || code === 10 || code === 13) {
+                        return extractHostname(url.replace(CONTROL_CHARS, ''), urlIsValidHostname, validate);
+                    }
+                    if (code === 58 /* ':' */) {
+                        indexOfColon = i;
+                        break;
+                    }
+                    if (code === 47 || code === 92 || code === 63 || code === 35) {
+                        break;
+                    }
+                }
+                if (indexOfColon !== -1) {
+                    // An '@' before the next delimiter => the ':' is userinfo, not a
+                    // scheme ("user:pass@host", "mailto:a@b"): keep the whole authority.
+                    // Not after "file:", which has no userinfo and no host without "//".
+                    const special = getSpecialScheme(url, start, indexOfColon);
+                    let hasIdentifier = false;
+                    for (let i = special === 2 ? end : indexOfColon + 1; i < end; i += 1) {
+                        const code = charCodeAt.call(url, i);
+                        if (code === 47 || code === 92 || code === 63 || code === 35) {
+                            break;
+                        }
+                        if (code === 64 /* '@' */) {
+                            hasIdentifier = true;
+                            break;
+                        }
+                    }
+                    if (!hasIdentifier) {
+                        // All-digits after ':' => a bare "host:port" (tldts accepts
+                        // hostnames too); keep `start` and let the port handling trim it.
+                        // Not after a special scheme though: "http:8080" is a URL.
+                        let allDigits = special === 0;
+                        let i = indexOfColon + 1;
+                        for (; i < end; i += 1) {
+                            const code = charCodeAt.call(url, i);
+                            if (code === 47 || code === 92 || code === 63 || code === 35) {
+                                break;
+                            }
+                            if (code < 48 /* '0' */ || code > 57 /* '9' */) {
+                                allDigits = false;
+                                break;
+                            }
+                        }
+                        if (i === indexOfColon + 1) {
+                            allDigits = false; // nothing after ':' => not a port
+                        }
+                        if (!allDigits) {
+                            if (special === 0) {
+                                // No "scheme://" on the cold path and not a special scheme.
+                                // A second ':' before the host's end marks a bare, unbracketed
+                                // IPv6 literal ("2a01:e35::1"): fall through and let the host
+                                // loop + isIp classify it. Without one this is an opaque path
+                                // with no host ("mailto:x", "foo:bar").
+                                let isBareIpv6 = false;
+                                for (let j = indexOfColon + 1; j < end; j += 1) {
+                                    const code = charCodeAt.call(url, j);
+                                    if (code === 47 ||
+                                        code === 92 ||
+                                        code === 63 ||
+                                        code === 35) {
+                                        break;
+                                    }
+                                    if (code === 58 /* ':' */) {
+                                        isBareIpv6 = true;
+                                        break;
+                                    }
+                                }
+                                // Not a scheme either ("@host:", "a_b:/x"): an authority, if
+                                // its ':' starts an empty port (digits were read above).
+                                // Browsers have no host for "a_b:x".
+                                const next = charCodeAt.call(url, i);
+                                if (!isBareIpv6 &&
+                                    (isScheme(url, start, indexOfColon) ||
+                                        (i < end &&
+                                            next !== 47 &&
+                                            next !== 92 &&
+                                            next !== 63 &&
+                                            next !== 35))) {
+                                    return noHostname(url, urlIsValidHostname, validate);
+                                }
+                            }
+                            else {
+                                start = indexOfColon + 1;
+                                if (special === 2) {
+                                    // file (e.g. "file:\\host"): host only between "//" and next slash.
+                                    let slashes = 0;
+                                    while ((charCodeAt.call(url, start) === 47 ||
+                                        charCodeAt.call(url, start) === 92) &&
+                                        slashes < 2) {
+                                        start += 1;
+                                        slashes += 1;
+                                    }
+                                    if (slashes < 2) {
+                                        return noHostname(url, urlIsValidHostname, validate);
+                                    }
+                                }
+                                else {
+                                    while (charCodeAt.call(url, start) === 47 ||
+                                        charCodeAt.call(url, start) === 92) {
+                                        start += 1;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        // Find the host's end: first '/', '?' or '#' (and '\' for special URLs,
+        // which WHATWG treats like '/'). Track the last '@' and ':' for userinfo
+        // and port, plus the first ':' of the host (reset at each
+        // '@') to tell a bare IPv6 (>= 2 colons) from a host:port (exactly one);
+        // flag uppercase and a stray tab/newline. The loop is split on `code < 64`
+        // so common host characters take fewer comparisons.
+        //
+        // When `validate`, also accumulate `is-valid.ts`'s checks over the scanned
+        // run so a simple authority's host can be validated in this single pass.
+        // `vValid` only stays meaningful for a "simple" authority (no userinfo, port,
+        // brackets, control or trailing dot); those cases clear it / are rejected by
+        // the guard below, falling back to `isValidHostname`.
+        let indexOfIdentifier = -1;
+        let indexOfPort = -1;
+        let indexOfFirstColon = -1;
+        let hasControl = false;
+        let vValid = validate; // seeded true when validating; cleared on the first invalid char
+        let vLastDot = start - 1; // mirrors is-valid.ts `lastDotIndex = -1` at host start
+        let vLastCode = -1;
+        if (validate && start < end) {
+            // First-char rule: must be a valid host char, '.', or '_' (NOT '-').
+            const c0 = charCodeAt.call(url, start);
+            if (
+            // Keep these parens: they scope /*@__INLINE__*/ for terser.
+            // prettier-ignore
+            !(
+            /*@__INLINE__*/ (isValidHostnameChar(c0) ||
+                c0 === 46 /* '.' */ ||
+                c0 === 95 /* '_' */)) ||
+                c0 === 45 /* '-' (isValidHostnameChar allows it mid-label, not first) */) {
+                vValid = false;
+            }
+        }
+        for (let i = start; i < end; i += 1) {
+            const code = charCodeAt.call(url, i);
+            if (code < 64) {
+                if (code === 47 || code === 35 || code === 63) {
+                    end = i;
+                    break;
+                }
+                else if (code === 58 /* ':' */) {
+                    if (indexOfFirstColon === -1) {
+                        indexOfFirstColon = i;
+                    }
+                    indexOfPort = i;
+                }
+                else if (code === 9 || code === 10 || code === 13) {
+                    hasControl = true;
+                }
+                else if (validate) {
+                    if (code === 46 /* '.' */) {
+                        if (i - vLastDot > 64 || vLastCode === 46 || vLastCode === 45) {
+                            vValid = false;
+                        }
+                        vLastDot = i;
+                    }
+                    else if (code < 48 || code > 57) {
+                        // < 64 and not a delimiter/dot/digit => only '-' (45) is a valid
+                        // host char here; everything else (space, %, !, etc.) is invalid.
+                        // A '-' must also not START a label (the byte right after a '.') —
+                        // mirrors is-valid.ts; the first label is covered by the first-char
+                        // rule above. (RFC 1034 §3.5 / RFC 1035 §2.3.1 LDH.)
+                        if (code !== 45 || vLastCode === 46 /* label-leading '-' */) {
+                            vValid = false;
+                        }
+                    }
+                }
+            }
+            else if (isSpecial && code === 92 /* '\' */) {
+                end = i;
+                break;
+            }
+            else if (code === 64 /* '@' */) {
+                indexOfIdentifier = i;
+                indexOfFirstColon = -1; // colons before '@' are userinfo, not the host
+            }
+            else if (code >= 65 && code <= 90) {
+                hasUpper = true;
+            }
+            else if (validate && !( /*@__INLINE__*/isValidHostnameChar(code))) {
+                // >= 64, not '@'/']'/upper: valid only if a-z, '_', or non-ASCII.
+                vValid = false;
+            }
+            if (validate) {
+                vLastCode = code;
+            }
+        }
+        // A tab/newline inside the authority: strip everything and re-parse (rare).
+        if (hasControl) {
+            return extractHostname(url.replace(CONTROL_CHARS, ''), urlIsValidHostname, validate);
+        }
+        // Skip userinfo. '>= start' so an empty userinfo ("http://@host") works too.
+        if (indexOfIdentifier !== -1 &&
+            indexOfIdentifier >= start &&
+            indexOfIdentifier < end) {
+            start = indexOfIdentifier + 1;
+        }
+        if (charCodeAt.call(url, start) === 91 /* '[' */) {
+            // ipv6 address: return what is between the brackets, or null if they are
+            // unclosed or followed by anything but a port ("[::1]x"). `parseImpl`
+            // checks that they hold an IPv6 address (see `extractedBracketedHost`).
+            const closingBracket = url.indexOf(']', start);
+            if (closingBracket !== -1 &&
+                closingBracket < end &&
+                (closingBracket + 1 === end ||
+                    charCodeAt.call(url, closingBracket + 1) === 58) /* ':' */) {
+                exports.extractedBracketedHost = true;
+                return url.slice(start + 1, closingBracket).toLowerCase();
+            }
+            return null;
+        }
+        else if (indexOfPort !== -1 &&
+            indexOfPort > start &&
+            indexOfPort < end &&
+            // A host:port has exactly one ':' in the host (so its first ':' is its
+            // last); a bare, unbracketed IPv6 literal ("2a01:e35::1") has >= 2, so
+            // its first ':' precedes the last. Only the former has a ':port' to trim.
+            indexOfFirstColon === indexOfPort) {
+            end = indexOfPort; // trim ':port'
+        }
+        // Empty authority ("http://", "file:///path", "//"), unless a tab or
+        // newline hides one ("/\t/host"); only reachable here via extraction — a
+        // bare valid hostname never lands here.
+        if (start >= end) {
+            return noHostname(url, urlIsValidHostname, validate);
+        }
+        // Publish the inline-validation verdict — but only for a "simple" authority,
+        // where the scanned run equals the final host: no userinfo skip, no port
+        // trim, no brackets, no trailing dot (trimmed below), and length within RFC
+        // limits. Anything else leaves it `false` so `parseImpl` re-validates.
+        //
+        // Every clause below is load-bearing for CORRECTNESS, not just speed: the
+        // loop accumulates `vValid` over the whole scanned run (it does not stop at
+        // ':' or '@', so any port/userinfo bytes are included), so the verdict is
+        // only sound when that run equals the final host. Do not drop a clause as
+        // "redundant" — e.g. without `indexOfPort === -1`, `host:8080` would be
+        // wrongly accepted.
+        if (validate &&
+            vValid &&
+            indexOfIdentifier === -1 &&
+            indexOfPort === -1 &&
+            charCodeAt.call(url, end - 1) !== 46 /* no trailing dot */ &&
+            end - start <= 255 && // total length
+            end - vLastDot - 1 <= 63 && // last label length
+            vLastCode !== 45 /* last char not '-' */) {
+            exports.extractedHostnameValidated = true;
+        }
+        failedValidation = validate && !vValid;
+    }
+    // Trim trailing dots
+    while (end > start + 1 && charCodeAt.call(url, end - 1) === 46 /* '.' */) {
+        end -= 1;
+    }
+    const hostname = start !== 0 || end !== url.length ? url.slice(start, end) : url;
+    // Browsers percent-decode the host of a special URL ("%74racker.com" is
+    // tracker.com). Only when validating: otherwise the host is kept as written.
+    if (failedValidation && isSpecial && hostname.includes('%')) {
+        return decodeHostname(hostname);
+    }
+    if (hasUpper) {
+        return hostname.toLowerCase();
+    }
+    return hostname;
+}
+//# sourceMappingURL=extract-hostname.js.map

@@ -11,12 +11,14 @@ from __future__ import annotations
 
 import datetime as _dt
 import email.utils as _eut
+import threading
 import time
 import xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor
 
 import requests
 
-_UA = {"User-Agent": "Mozilla/5.0 ASTRA6/1.0"}
+_UA = {"User-Agent": "Mozilla/5.0 (compatible; Desento/1.0; +news reader)"}
 
 CAL_URL = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
 CAL_SOURCE_FF = "ForexFactory calendar (this week)"
@@ -25,19 +27,32 @@ CAL_SOURCE_TV = "TradingView economic calendar"
 TV_COUNTRIES = "US,EU,GB,JP,AU,NZ,CA,CH,CN"   # the currencies that move gold and bitcoin
 
 # name, url, kind
-# market-focused feeds only: a personal-finance story cannot move gold or bitcoin
+# market-focused feeds only: a personal-finance story cannot move gold or bitcoin.
+# The list is ordered so the quickest wires are read first, and every feed is fetched in
+# parallel: the reading is never older than the slowest one, not the sum of all of them.
 FEEDS = [
+    ("MarketWatch", "https://feeds.content.dowjones.io/public/rss/mw_topstories", "macro"),
     ("ForexLive", "https://www.forexlive.com/feed/news", "fx"),
+    ("ZeroHedge", "https://feeds.feedburner.com/zerohedge/feed", "macro"),
     ("Investing FX", "https://www.investing.com/rss/news_1.rss", "fx"),
-    ("CoinDesk", "https://www.coindesk.com/arc/outboundfeeds/rss/", "crypto"),
+    ("Investing commodities", "https://www.investing.com/rss/news_11.rss", "macro"),
+    ("Investing economy", "https://www.investing.com/rss/news_14.rss", "macro"),
     ("CNBC Markets", "https://www.cnbc.com/id/20910258/device/rss/rss.html", "macro"),
+    ("CNBC Finance", "https://www.cnbc.com/id/10000664/device/rss/rss.html", "macro"),
     ("WSJ Markets", "https://feeds.a.dj.com/rss/RSSMarketsMain.xml", "macro"),
     ("BBC Business", "https://feeds.bbci.co.uk/news/business/rss.xml", "macro"),
+    ("Nasdaq commodities", "https://www.nasdaq.com/feed/rssoutbound?category=Commodities", "macro"),
+    ("CoinDesk", "https://www.coindesk.com/arc/outboundfeeds/rss/", "crypto"),
+    # wire searches: the fastest way a new gold or Fed headline reaches this box
+    ("Google News · gold", "https://news.google.com/rss/search?q=%22gold+price%22+OR+XAUUSD&hl=en-US&gl=US&ceid=US:en", "gold"),
+    ("Google News · Fed", "https://news.google.com/rss/search?q=federal+reserve+OR+inflation+OR+%22dollar+index%22&hl=en-US&gl=US&ceid=US:en", "macro"),
 ]
 
 CAL_TTL = 900.0
-NEWS_TTL = 240.0
-_cache = {"cal": {"t": 0.0, "d": None, "src": None}, "news": {"t": 0.0, "d": None, "sources": []}}
+NEWS_TTL = 75.0        # a headline older than a minute and a bit is stale
+REFRESH_EVERY = 60.0   # a warm thread keeps the cache hot, so the page never waits
+_cache = {"cal": {"t": 0.0, "d": None, "src": None},
+          "news": {"t": 0.0, "d": None, "sources": [], "ages": {}, "newest": 0}}
 
 IMPACT_RANK = {"High": 3, "Medium": 2, "Low": 1, "Holiday": 0}
 
@@ -50,13 +65,43 @@ def _iso_ts(s):
 
 
 def _rss_ts(s):
+    """RFC 822, 'Sun, 22 Nov 2026 10:00:00 +0000', '2026-11-26 06:48:19', 'Nov 25, 2026 20:30 GMT'."""
+    raw = str(s or "").strip()
+    if not raw:
+        return None
     try:
-        d = _eut.parsedate_to_datetime(str(s))
+        d = _eut.parsedate_to_datetime(raw)
         if d.tzinfo is None:
             d = d.replace(tzinfo=_dt.timezone.utc)
         return int(d.timestamp())
     except Exception:
+        pass
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M", "%Y/%m/%d %H:%M:%S",
+                "%b %d, %Y %H:%M %Z", "%b %d, %Y %H:%M", "%d %b %Y %H:%M:%S", "%Y-%m-%d"):
+        try:
+            d = _dt.datetime.strptime(raw.replace("GMT", "UTC").replace("UTC", "+0000"), fmt)
+            if fmt.endswith("%Z") or "UTC" in raw:
+                d = d.replace(tzinfo=_dt.timezone.utc)
+            if d.tzinfo is None:
+                d = d.replace(tzinfo=_dt.timezone.utc)
+            return int(d.timestamp())
+        except Exception:
+            continue
+    try:
+        return int(_dt.datetime.fromisoformat(raw.replace("Z", "+00:00")).timestamp())
+    except Exception:
         return None
+
+
+def _clean_title(t):
+    """Strip the ' - Reuters' style suffix the wire searches bolt on."""
+    t = " ".join(str(t or "").split())
+    for sep in (" - ", " | ", " — "):
+        if sep in t:
+            head = t.rsplit(sep, 1)[0]
+            if 25 <= len(head) <= len(t) - 3:
+                t = head
+    return t
 
 
 def _calendar_tv(days_ahead):
@@ -128,30 +173,66 @@ def calendar(days_ahead=10):
     return _cache["cal"]["d"] or []
 
 
-def headlines(limit=30):
-    """Latest real headlines from the public feeds, newest first."""
+_WARM = {"on": False, "last": 0.0}
+
+
+def _one_feed(feed):
+    """Fetch and parse a single wire. Returns (name, kind, items, newest_ts) or a miss."""
+    name, url, kind = feed
+    try:
+        r = requests.get(url, timeout=9, headers=_UA)
+        r.raise_for_status()
+        root = ET.fromstring(r.content)
+    except Exception as e:
+        print(f"feed {name} unavailable:", str(e)[:70])
+        return (name, kind, [], 0)
     now = time.time()
-    if _cache["news"]["d"] is not None and now - _cache["news"]["t"] < NEWS_TTL:
-        return _cache["news"]["d"][:limit]
-    items, reachable = [], []
-    for name, url, kind in FEEDS:
-        try:
-            r = requests.get(url, timeout=12, headers=_UA)
-            r.raise_for_status()
-            root = ET.fromstring(r.content)
-        except Exception as e:
-            print(f"feed {name} unavailable:", e)
+    items, newest = [], 0
+    for it in root.findall(".//item")[:40]:
+        title = _clean_title(it.findtext("title"))
+        link = (it.findtext("link") or "").strip()
+        ts = _rss_ts(it.findtext("pubDate"))
+        if not title or not link or ts is None:
             continue
-        reachable.append(name)
-        for it in root.findall(".//item")[:40]:
-            title = (it.findtext("title") or "").strip()
-            link = (it.findtext("link") or "").strip()
-            ts = _rss_ts(it.findtext("pubDate"))
-            if not title or not link or ts is None:
+        if ts < now - 3 * 86400 or ts > now + 6 * 3600:
+            continue                     # a stale or future-dated item is not news
+        newest = max(newest, ts)
+        items.append({"title": title, "url": link, "time": ts, "source": name, "kind": kind})
+    return (name, kind, items, newest)
+
+
+def _warm_loop():
+    """Keep the cache hot: every wire is read once a minute whether or not a page asked."""
+    while True:
+        try:
+            headlines(force=True)
+        except Exception as e:
+            print("news warmer:", str(e)[:70])
+        time.sleep(REFRESH_EVERY)
+
+
+def refresh_in_background():
+    """Start the one warm thread. Cheap, and only ever one."""
+    if _WARM["on"]:
+        return
+    _WARM["on"] = True
+    threading.Thread(target=_warm_loop, daemon=True).start()
+
+
+def headlines(limit=30, force=False):
+    """Latest real headlines from every wire, in parallel, newest first."""
+    now = time.time()
+    if not force and _cache["news"]["d"] is not None and now - _cache["news"]["t"] < NEWS_TTL:
+        return _cache["news"]["d"][:limit]
+    refresh_in_background()          # the first caller leaves a warmer behind
+    items, reachable, ages = [], [], {}
+    with ThreadPoolExecutor(max_workers=min(12, len(FEEDS) or 1)) as ex:
+        for name, _kind, got, newest in ex.map(_one_feed, FEEDS):
+            if not got:
                 continue
-            if ts < now - 3 * 86400 or ts > now + 6 * 3600:
-                continue   # a stale or future-dated item is not news
-            items.append({"title": title, "url": link, "time": ts, "source": name, "kind": kind})
+            reachable.append(name)
+            ages[name] = max(0, int(now - newest)) if newest else None
+            items.extend(got)
     # newest first, then interleaved by source: one busy feed (CoinDesk posts all day)
     # must not bury the FX and macro stories that actually move gold
     seen, by_src = set(), {}
@@ -161,16 +242,30 @@ def headlines(limit=30):
             continue
         seen.add(key)
         by_src.setdefault(it["source"], []).append(it)
-    out = []
-    while len(out) < 60 and any(by_src.values()):
-        for name, _url, _kind in FEEDS:
+    out, order = [], [f[0] for f in FEEDS]
+    while len(out) < 90 and any(by_src.values()):
+        for name in order:
             bucket = by_src.get(name) or []
             if bucket:
                 out.append(bucket.pop(0))
-            if len(out) >= 60:
+            if len(out) >= 90:
                 break
-    _cache["news"] = {"t": now, "d": out, "sources": reachable}
-    return out[:limit]      # the cache keeps 60; the caller gets what it asked for
+    newest_ts = max((it["time"] for it in out), default=0)
+    _cache["news"] = {"t": now, "d": out, "sources": reachable, "ages": ages, "newest": newest_ts}
+    return out[:limit]      # the cache keeps 90; the caller gets what it asked for
+
+
+def freshness():
+    """How old the newest headline is, and which wires answered."""
+    c = _cache["news"]
+    ages = c.get("ages") or {}
+    newest = c.get("newest") or 0
+    return {
+        "updated": int(c.get("t") or 0),
+        "newest_age": (max(0, int(time.time() - newest)) if newest else None),
+        "every": REFRESH_EVERY,
+        "feeds": [{"name": n, "age": ages.get(n)} for n in (c.get("sources") or [])],
+    }
 
 
 def fundamentals(limit=30):
@@ -277,7 +372,7 @@ GOLD_DRIVER = _re.compile(
     r"tariff|sanctions|geopolitic|war|conflict|nonfarm|payrolls|jobless|unemployment)\b", _re.I)
 
 HALF_LIFE_H = 24.0          # a story half as important after a day (a weekend is not a gap)
-BUCKET_S = 300              # the reading is rebuilt on the :00 :05 :10 ... clock
+BUCKET_S = 90               # the reading is rebuilt every 90 seconds, off the newest wires
 _gold_cache = {"bucket": -1, "d": None}
 
 
@@ -446,7 +541,10 @@ def gold_fundamentals(limit=12, now_ts=None):
         "now": now_ts,
         "next_in": max(0, next_at - now_ts),
         "period_s": BUCKET_S,
-        "schedule": "rebuilt every 5 minutes on the clock (:00, :05, :10, ...)",
+        "schedule": "rebuilt every 90 seconds, from wires read every 60 seconds",
+        "news_updated": int(_cache["news"].get("t") or 0),
+        "news_age": (max(0, int(now_ts - _cache["news"]["newest"])) if _cache["news"].get("newest") else None),
+        "feeds": freshness()["feeds"],
         "method": ("Every gold headline is read by a fixed rule table: Fed and rate language, "
                    "inflation, the dollar, Treasury yields, safe-haven flows, central-bank buying "
                    "and ETF flows. Newer stories weigh more (12-hour half-life). The sum is the "
