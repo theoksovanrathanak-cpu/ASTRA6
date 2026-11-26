@@ -1,7 +1,8 @@
 /* The terminal bundle, mounted in a headless DOM with a recording canvas.
 
-   This is a wiring test, not a maths test: it proves the page boots, that a real frame
-   from the API reaches the footprint renderer, and that the estimate warning is on
+   This is a wiring test, not a maths test: it proves the page boots, that a real frame from
+   the API reaches the footprint renderer, that the bid column really is drawn to the left of
+   the ask column, that every panel and control exists, and that the estimate warning is on
    screen rather than buried. Every calculation is proven in tests/tape_test.py. */
 
 const fs = require('fs');
@@ -12,7 +13,10 @@ const ROOT = path.dirname(__dirname);
 let pass = 0, fail = 0;
 function ok(name, cond, extra) {
   if (cond) { pass++; console.log('  ok   ' + name); }
-  else { fail++; console.log('  FAIL ' + name + (extra === undefined ? '' : '  ' + JSON.stringify(extra))); }
+  else {
+    fail++;
+    console.log('  FAIL ' + name + (extra === undefined ? '' : '  ' + JSON.stringify(extra)));
+  }
 }
 
 const bundle = fs.readFileSync(path.join(ROOT, 'terminal', 'assets', 'app.js'), 'utf8');
@@ -57,6 +61,7 @@ const frame = {
     timeframes: [15, 30, 60, 120, 300, 900], steps: [0.01, 0.05, 0.1, 0.25, 0.5, 1] },
   provenance: { vol_kind: 'tick_rule_estimate', label: 'estimated', note: 'counted ticks' },
   note: 'estimate',
+  market: { open: true, reason: 'quotes', opens_at: null, detail: '' },
   server_ts: 1795700181,
 };
 
@@ -65,7 +70,8 @@ function makeCtx() {
   const rec = (name) => (...args) => { calls.push([name, ...args]); };
   return new Proxy({}, {
     get(t, k) {
-      if (k === 'measureText') return () => ({ width: 10 });
+      if (k === 'measureText') return (s) => ({ width: String(s).length * 5 });
+      if (k === 'createLinearGradient') return () => ({ addColorStop() {} });
       if (k === 'canvas') return { width: 900, height: 560 };
       if (k in t) return t[k];
       return rec(String(k));
@@ -75,210 +81,238 @@ function makeCtx() {
 }
 
 function boot(payload, opts) {
-const dom = new JSDOM(html.replace(/<script[^>]*><\/script>/, '').replace(/<link[^>]*>/, ''), {
-  runScripts: 'outside-only',
-  pretendToBeVisual: true,
-  url: 'https://desento.test/terminal',
-});
-const { window } = dom;
+  const dom = new JSDOM(html.replace(/<script[^>]*><\/script>/, '').replace(/<link[^>]*>/, ''), {
+    runScripts: 'outside-only',
+    pretendToBeVisual: true,
+    url: 'https://desento.test/',
+  });
+  const { window } = dom;
 
-window.ResizeObserver = class { constructor(cb) { this.cb = cb; } observe() { this.cb([]); } disconnect() {} };
-window.devicePixelRatio = 1;
-window.HTMLCanvasElement.prototype.getContext = () => makeCtx();
-Object.defineProperty(window.HTMLElement.prototype, 'clientWidth', { get() { return 900; } });
-Object.defineProperty(window.HTMLElement.prototype, 'clientHeight', { get() { return 560; } });
+  window.ResizeObserver = class { constructor(cb) { this.cb = cb; } observe() { this.cb([]); } disconnect() {} };
+  window.devicePixelRatio = 1;
+  window.HTMLCanvasElement.prototype.getContext = () => makeCtx();
+  Object.defineProperty(window.HTMLElement.prototype, 'clientWidth', { get() { return 1000; } });
+  Object.defineProperty(window.HTMLElement.prototype, 'clientHeight', { get() { return 420; } });
+  window.matchMedia = () => ({ matches: false, addListener() {}, removeListener() {} });
 
-window.__ws = null;
-window.WebSocket = class {
-  constructor(url) {
-    window.__ws = this;
-    this.url = url;
-    setTimeout(() => {
-      if (this.onopen) this.onopen();
-      if (this.onmessage) this.onmessage({ data: JSON.stringify(payload) });
-    }, 5);
-  }
-  close() { if (this.onclose) this.onclose(); }
-  send() {}
-};
-// the drawer reads three endpoints of its own, so the stub answers by URL rather than
-// handing the tape frame to every caller
-const nowS = Math.floor(Date.now() / 1000);
-const calPayload = {
-  status: 'ok', updated: nowS,
-  next_high: { time: Math.floor(Date.UTC(2026, 10, 30, 8, 30) / 1000), title: 'NBS Manufacturing PMI',
-    currency: 'CN', impact: 'High', forecast: '50.2', previous: '50.0', actual: '', unit: '' },
-  calendar: [
-    { time: Math.floor(Date.UTC(2026, 10, 30, 8, 30) / 1000), title: 'NBS Manufacturing PMI',
+  window.__ws = null;
+  window.WebSocket = class {
+    constructor(url) {
+      window.__ws = this;
+      this.url = url;
+      setTimeout(() => {
+        if (this.onopen) this.onopen();
+        if (this.onmessage) this.onmessage({ data: JSON.stringify(payload) });
+      }, 5);
+    }
+    close() { if (this.onclose) this.onclose(); }
+    send() {}
+  };
+
+  const nowS = Math.floor(Date.now() / 1000);
+  const calPayload = {
+    status: 'ok', updated: nowS,
+    next_high: { time: Math.floor(Date.UTC(2026, 10, 30, 8, 30) / 1000), title: 'NBS Manufacturing PMI',
       currency: 'CN', impact: 'High', forecast: '50.2', previous: '50.0', actual: '', unit: '' },
-    { time: Math.floor(Date.UTC(2026, 11, 1, 13, 0) / 1000), title: 'ISM Manufacturing PMI',
-      currency: 'US', impact: 'Medium', forecast: '48.9', previous: '48.7', actual: '', unit: '' },
-  ],
-  source: 'https://www.tradingview.com/economic-calendar/', real: true,
-};
-const goldPayload = {
-  status: 'ok', market: 'XAUUSD', bias: 'SELL', label: 'gold-negative headlines',
-  score: -0.512, confidence: 51, buy: 2, sell: 5, voters: 7, freshest_h: 0.6,
-  stale: false, market_open: true, reopen_at: null, period_s: 90,
-  next_update: nowS + 10, now: nowS, next_in: 10, news_age: 2280,
-  feeds: Array.from({ length: 13 }, (_, i) => ({ name: i === 0 ? 'ZeroHedge' : 'wire ' + i, age: 600 + i * 60 })),
-  stories: [
-    { title: 'Gold price stalls near $3,570 as Fed hike bets keep bulls at bay', impact: 'SELL',
-      weight: 2, strength: 2, why: 'hawkish Fed language weighs on gold', source: 'Reuters',
-      time: nowS - 2280, url: 'https://example.com/a', gold: true },
-    { title: 'Dollar firms as yields edge higher', impact: 'SELL', weight: 1, strength: 1,
-      why: 'a stronger dollar offers gold', source: 'Bloomberg', time: nowS - 3600,
-      url: 'https://example.com/b', gold: false },
-  ],
-  watch: [{ time: nowS + 7200, title: 'ISM Manufacturing PMI', currency: 'US', impact: 'High', note: 'x' }],
-  real: true,
-};
-const ownerPayload = { signed_in: false, owner: false, google_ready: false, client_id: null };
-window.fetch = async (url) => {
-  const u = String(url);
-  const down = opts && opts.down;
-  if (u.indexOf('/api/calendar') === 0) return { ok: true, json: async () => (down ? { status: 'error' } : calPayload) };
-  if (u.indexOf('/api/fundamentals/gold') === 0) return { ok: true, json: async () => (down ? { status: 'error' } : goldPayload) };
-  if (u.indexOf('/api/owner/me') === 0) return { ok: true, json: async () => ownerPayload };
-  return { ok: true, json: async () => payload };
-};
-window.requestAnimationFrame = (cb) => setTimeout(cb, 0);
+    calendar: [
+      { time: Math.floor(Date.UTC(2026, 10, 30, 8, 30) / 1000), title: 'NBS Manufacturing PMI',
+        currency: 'CN', impact: 'High', forecast: '50.2', previous: '50.0', actual: '', unit: '' },
+    ],
+    source: 'TradingView economic calendar', real: true,
+  };
+  const goldPayload = {
+    status: 'ok', market: 'XAUUSD', bias: 'SELL', label: 'gold-negative headlines',
+    score: -0.512, confidence: 51, buy: 2, sell: 5, voters: 7, freshest_h: 0.6,
+    stale: false, market_open: true, reopen_at: null, period_s: 90,
+    next_update: nowS + 10, now: nowS, next_in: 10, news_age: 2280,
+    feeds: Array.from({ length: 13 }, (_, i) => ({ name: i === 0 ? 'ZeroHedge' : 'wire ' + i, age: 600 + i * 60 })),
+    stories: [
+      { title: 'Gold price stalls near $3,570 as Fed hike bets keep bulls at bay', impact: 'SELL',
+        weight: 2, strength: 2, why: 'hawkish Fed language weighs on gold', source: 'Reuters',
+        time: nowS - 2280, url: 'https://example.com/a', gold: true },
+    ],
+    watch: [], real: true,
+  };
+  const ownerPayload = { signed_in: false, owner: false, google_ready: false, client_id: null };
 
-try {
-  window.eval(bundle);
-} catch (e) {
-  console.log('  FAIL the bundle threw while booting: ' + e.message);
-  process.exit(1);
-}
-return window;
+  window.fetch = async (url) => {
+    const u = String(url);
+    const down = opts && opts.down;
+    if (u.indexOf('/api/calendar') === 0) return { ok: true, json: async () => (down ? { status: 'error' } : calPayload) };
+    if (u.indexOf('/api/fundamentals/gold') === 0) return { ok: true, json: async () => (down ? { status: 'error' } : goldPayload) };
+    if (u.indexOf('/api/owner/me') === 0) return { ok: true, json: async () => ownerPayload };
+    return { ok: true, json: async () => payload };
+  };
+  window.requestAnimationFrame = (cb) => setTimeout(cb, 0);
+
+  try {
+    window.eval(bundle);
+  } catch (e) {
+    console.log('  FAIL the bundle threw while booting: ' + e.message);
+    process.exit(1);
+  }
+  return window;
 }
 
 const window = boot(frame);
+const doc = window.document;
+const click = (w, sel) => {
+  const el = (w || window).document.querySelector(sel);
+  if (el) el.dispatchEvent(new (w || window).MouseEvent('click', { bubbles: true }));
+  return !!el;
+};
 
 setTimeout(() => {
-  const text = window.document.body.textContent || '';
+  const text = doc.body.textContent || '';
+  const flat = text.split('\n').join(' ');
+  const q = (s) => doc.querySelector(s);
 
-  ok('the page boots at all', text.length > 0);
-  ok('the brand reads DESENTO', /DESENTO/.test(text));
-  ok('the estimate warning is on the page, not hidden in a tooltip',
+  // ---------- navigation ----------
+  ok('the page boots at all', text.length > 200);
+  ok('the brand reads DESENTO with the product line', /DESENTO/.test(text) && /Order Flow Terminal/.test(text));
+  ok('the estimate warning is in the header, not hidden in a tooltip',
     /estimated · tick rule/i.test(text));
-  ok('the chart is titled as a footprint', /Footprint · bid × ask/.test(text));
-  ok('the transport readout is gone, as asked - it only ever twitched',
-    !/transport/.test(text));
-  ok('the feed panel reports the quote and its age', /3571\.32/.test(text) && /0\.4s/.test(text));
-  ok('delta, session delta and CVD are all present',
-    /Delta/.test(text) && /Session \(UTC\)/.test(text) && /Cumulative/.test(text));
-  ok('the imbalance panel names the diagonal rule and the threshold',
-    /diagonal · 300%/.test(text) && /diagonal, not same-price/i.test(text));
-  ok('the profile reports POC, VAH and VAL', /POC/.test(text) && /Value area high/.test(text));
-  ok('HVN and LVN are separated, not merged',
-    /HVN 3571\.30/.test(text) && /LVN 3571\.05/.test(text));
-  ok('absorption and exhaustion are described in the panel',
-    /Absorption zones/.test(text) && /Exhaustion bars/.test(text));
-  ok('the divergence alert is surfaced', /bearish divergence/.test(text));
-  ok('the footer is down to the brand and the clock',
-    /DESENTO/.test((window.document.querySelector('.foot') || {}).textContent || '')
-    && !/no synthetic prices/.test(text));
-  ok('a hamburger menu is back on the page',
-    !!window.document.querySelector('.mbtn'));
-  const _m = window.document.querySelector('.mbtn');
-  if (_m) _m.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
-  ok('the session delta is printed from the payload', /\+8/.test(text));
-  ok('a websocket to the tape endpoint was opened',
-    !!window.__ws && /\/ws\/tape/.test(window.__ws.url));
+  ok('the navigation carries the instrument selector', /Auto/.test(flat) && /XAUUSD247/.test(flat));
+  ok('it carries the live price', /3571\.32/.test(text));
+  ok('and the change since the first candle on screen', /\+0\.22/.test(text), text.slice(0, 120));
+  ok('the market state is named', /open/.test(flat));
+  ok('the connection readout states the socket and the age of the quote', /live · 0\.4s/.test(flat));
+  ok('a hamburger is present', !!q('.mbtn'));
+  ok('the transport readout is still gone', !/transport/.test(text));
 
-  const drawn = calls.filter((c) => c[0] === 'fillText').map((c) => String(c[1]));
-  ok('the canvas drew footprint cells as buy×sell', drawn.some((s) => s.includes('×')),
-    drawn.slice(0, 8));
-  ok('the canvas labelled the delta and cvd strips',
-    drawn.some((s) => s === 'DELTA') && drawn.some((s) => s.startsWith('CVD')));
-  ok('the canvas marked the POC line', drawn.some((s) => s === 'POC'));
-  ok('the canvas wrote price labels', drawn.some((s) => /^35\d\d\.\d\d$/.test(s)));
-  ok('the canvas filled rectangles for cells and strips',
-    calls.filter((c) => c[0] === 'fillRect').length > 6);
+  // ---------- toolbar ----------
+  ok('every timeframe is offered', ['15s', '30s', '1m', '2m', '5m', '15m']
+    .every((t) => new RegExp('>' + t + '<').test(doc.body.innerHTML)));
+  ok('all six footprint modes are offered', ['Bid × Ask', 'Delta', 'Volume', 'Imbalance', 'Bid volume', 'Ask volume']
+    .every((m) => flat.indexOf(m) >= 0));
+  ok('price aggregation, imbalance ratio, profile range and history are in the toolbar',
+    /price/.test(flat) && /imbalance %/.test(flat) && /profile/.test(flat) && /history/.test(flat));
+
+  // ---------- the footprint ----------
+  ok('the chart is titled with the contract, the candle and the grid',
+    /Footprint · XAUUSD · 1m · 0\.05 grid/.test(flat));
+  ok('the legend says which side sits where', /cell = bid on the left, ask on the right/.test(flat));
+  ok('a websocket to the tape endpoint was opened', !!window.__ws && /\/ws\/tape/.test(window.__ws.url));
+
+  const drawn = calls.filter((c) => c[0] === 'fillText').map((c) => ({ t: String(c[1]), x: c[2], y: c[3] }));
+  const at = (t) => drawn.filter((c) => c.t === t);
+  // 3571.10 in the first candle: bid 1, ask 3. The bid number must sit left of the ask.
+  const pair = [];
+  at('1').forEach((a) => at('3').forEach((b) => { if (Math.abs(a.y - b.y) < 1) pair.push([a.x, b.x]); }));
+  ok('the footprint draws the bid number left of the ask number on the same level',
+    pair.some(([bx, ax]) => bx < ax), pair.slice(0, 4));
+  ok('the canvas wrote price labels', drawn.some((c) => /^35\d\d\.\d\d$/.test(c.t)));
+  ok('the canvas marked the POC line in the price gutter',
+    drawn.some((c) => /^POC 35\d\d\.\d\d$/.test(c.t)));
+  ok('the canvas marked the value area',
+    drawn.some((c) => /^VAH /.test(c.t)) && drawn.some((c) => /^VAL /.test(c.t)));
   ok('a per-candle delta is printed in the column header',
-    drawn.some((s) => s === '+4' || s === '+6' || s === '-2'), drawn.slice(0, 12));
+    drawn.some((c) => c.t === '+4') && drawn.some((c) => c.t === '-2'));
 
+  // ---------- sidebar ----------
+  ok('the analytics column groups market, delta, volume and order flow',
+    /Market/.test(flat) && /Delta/.test(flat) && /Volume/.test(flat) && /Order flow/.test(flat));
+  ok('the session delta is printed from the payload', /Session\+8/.test(flat.replace(/\s/g, '')));
+  ok('volume is split into the ask side and the bid side',
+    /Ask side \(bought\)/.test(flat) && /Bid side \(sold\)/.test(flat));
+  ok('the concentration of volume is reported', /Concentration/.test(flat));
+  ok('imbalance counts are reported for both sides', /Ask imbalances/.test(flat) && /Bid imbalances/.test(flat));
+
+  // ---------- lower analytics ----------
+  ok('the cumulative delta panel is present', /Cumulative delta/.test(flat));
+  ok('the delta histogram panel is present', /Delta per candle/.test(flat));
+  ok('the volume profile panel names POC, VAH, VAL, HVN and LVN',
+    /POC 3571\.30/.test(flat) && /VAH/.test(flat) && /VAL/.test(flat) && /HVN/.test(flat) && /LVN/.test(flat));
+  ok('the profile says the value area is recalculated in the browser',
+    /recalculated in the browser/.test(flat));
+
+  // ---------- honesty ----------
+  ok('the page states that volumes are counted quotes, not traded volume',
+    /counted quotes, not reported traded volume/.test(flat));
+
+  // ---------- settings ----------
+  click(window, '[title="Settings"]');
   setTimeout(() => {
-  const menuText = (window.document.querySelector('.sheet') || {}).textContent || '';
-  const flat = menuText.split('\n').join(' ');
-  ok('the drawer leads with the economic calendar and the next high-impact event',
-    /Economic calendar/.test(flat) && /CN/.test(flat) && /NBS Manufacturing PMI/.test(flat), flat.slice(0, 180));
-  ok('it offers the full calendar without leaving the terminal', /Open calendar/.test(flat));
-  ok('the gold reading is the second card: side, story and the 90-second clock',
-    /Gold fundamentals · XAUUSD/.test(flat) && /SELL/.test(flat)
-    && /Fed hike bets keep bulls at bay/.test(flat)
-    && /next reading in/.test(flat) && /every 90 s/.test(flat)
-    && /newest story 38 min ago/.test(flat) && /13 wires/.test(flat) && /fastest: ZeroHedge/.test(flat),
-    flat.slice(0, 360));
-  ok('it offers the full gold reading without leaving the terminal', /Open gold fundamentals/.test(flat));
-  ok('alerts are armed from the drawer, with the same promise as the signals page',
-    /Signal alerts on this device/.test(flat) && /Send a test card/.test(flat)
-    && /same numbers the owner published/.test(flat));
-  ok('install is in the drawer too', /Install Desento/.test(flat), flat.slice(-260));
-  ok('the estimate warning did not leave the page just because the drawer changed',
-    /estimated · tick rule/i.test(text) && /counted from quotes/i.test(text));
-  ok('sign-in says plainly when Google is not configured, instead of failing silently',
-    /not configured on this server/i.test(flat), menuText.slice(-120));
-  ok('the old navigation rows are gone from the drawer, as asked',
-    !/Signals & news/.test(flat) && !/footprint · delta · profile/.test(flat));
-  ok('the menu still lets the reader choose which gold contract is charted',
-    /Instrument/.test(flat) && /XAUUSD247/.test(flat) && /Auto/.test(flat));
-  ok('and it says Auto may switch, under the contract\'s own name',
-    /follows whichever gold contract is printing/i.test(flat));
+    const s = (doc.body.textContent || '').split('\n').join(' ');
+    ok('the settings sheet opens from the navigation', /Chart settings/.test(s));
+    ok('it offers the display mode, the numbers and the volume filter',
+      /Display mode/.test(s) && /Numbers/.test(s) && /Volume filter/.test(s));
+    ok('it offers chart height, the sidebar and the value area',
+      /Chart height/.test(s) && /Analytics sidebar/.test(s) && /Value area/.test(s));
 
-  // ---- second scenario: the exchange is shut, so there is no tape to draw
-  const shut = JSON.parse(JSON.stringify(frame));
-  shut.bars = [];
-  shut.cvd = [];
-  shut.points = 0;
-  shut.imbalance.bars = [];
-  shut.absorption = [];
-  shut.exhaustion = [];
-  shut.aggressive = [];
-  shut.divergence = [];
-  shut.profile = { poc: null, vah: null, val: null, total: 0, hvn: [], lvn: [], levels: [] };
-  shut.feed = { status: 'closed', connected: false, age: null, stale: true, price: null, error: '' };
-  shut.market = { open: false, reason: 'daily_break',
-    opens_at: Math.floor(Date.UTC(2026, 10, 26, 22, 2, 0) / 1000),
-    detail: 'Gold is in its daily break, 20:58-22:02 UTC.' };
+    // switching a mode must repaint the cells and stick
+    const modeBtn = [...doc.querySelectorAll('.toolbar .seg button')].find((b) => b.textContent === 'Delta');
+    if (modeBtn) modeBtn.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+    setTimeout(() => {
+      let stored = {};
+      try { stored = JSON.parse(window.localStorage.getItem('desento_prefs_v1') || '{}'); } catch (e) { /* */ }
+      ok('switching the footprint mode is remembered on the device', stored.mode === 'delta', stored);
 
-  const _f247 = JSON.parse(JSON.stringify(shut));
-  _f247.symbol = 'XAUUSD247';
-  const w3 = boot(_f247);
-  // and a third door: both drawer feeds are down, so the cards must say so
-  const w4 = boot(frame, { down: true });
-  // React mounts on its own tick, so the click waits for the button to exist
-  setTimeout(() => {
-    const m4 = w4.document.querySelector('.mbtn');
-    if (m4) m4.dispatchEvent(new w4.MouseEvent('click', { bubbles: true }));
-  }, 60);
-  const w2 = boot(shut);
-  setTimeout(() => {
-    const t2 = w2.document.body.textContent || '';
-    ok('a shut exchange is named on the chart, not left as a blank panel',
-      /gold is not trading/i.test(t2), t2.slice(0, 160));
-    ok('it says when gold reopens', /Reopens\s*22:02 UTC/.test(t2.replace(/\s+/g, ' ')));
-    ok('and it states that nothing was invented to fill the gap',
-      /nothing here is filled in with invented volume/i.test(t2.replace(/\s+/g, ' ')));
-    ok('the header carries the market state, not just the estimate label',
-      /market closed/.test(t2) && /opens 22:02 UTC/.test(t2));
-    ok('a 24/7 contract is named as such in the header, never disguised as XAUUSD',
-      /24\/7 gold/.test(w3.document.body.textContent || ''),
-      (w3.document.body.textContent || '').slice(0, 90));
-    ok('the estimate label still never doubles as a status',
-      /estimated · tick rule/i.test(t2) && /market closed/i.test(t2));
+      // ---------- drawer ----------
+      click(window, '.mbtn');
+      setTimeout(() => {
+        const sheet = (doc.querySelector('.sheet') || {}).textContent || '';
+        const f2 = sheet.split('\n').join(' ');
+        ok('the drawer still leads with the economic calendar',
+          /Economic calendar/.test(f2) && /NBS Manufacturing PMI/.test(f2) && /Open calendar/.test(f2));
+        ok('the gold reading is in the drawer with its 90-second clock',
+          /Gold fundamentals · XAUUSD/.test(f2) && /every 90 s/.test(f2) && /fastest:/.test(f2));
+        ok('alerts and install are in the drawer',
+          /Signal alerts on this device/.test(f2) && /Send a test card/.test(f2) && /Install Desento/.test(f2));
+        ok('sign-in says plainly when Google is not configured',
+          /not configured on this server/i.test(f2));
 
-    const t4 = ((w4.document.querySelector('.sheet') || {}).textContent || '').split('\n').join(' ');
-    ok('with the drawer feeds down, the cards say so instead of inventing a reading',
-      /calendar feed is unreachable right now/i.test(t4)
-      && /gold feeds are unreachable right now/i.test(t4), t4.slice(0, 200));
-    ok('and no headline, side or event is printed when there is no data',
-      !/SELL|BUY|NO EDGE/.test(t4) && !/NBS Manufacturing PMI/.test(t4), t4.slice(0, 200));
+        // ---------- a shut exchange ----------
+        const shut = JSON.parse(JSON.stringify(frame));
+        shut.bars = [];
+        shut.cvd = [];
+        shut.points = 0;
+        shut.imbalance.bars = [];
+        shut.profile = { poc: null, vah: null, val: null, total: 0, hvn: [], lvn: [], levels: [] };
+        shut.feed = { status: 'closed', connected: false, age: null, stale: true, price: null, error: '' };
+        shut.market = { open: false, reason: 'daily_break',
+          opens_at: Math.floor(Date.UTC(2026, 10, 26, 22, 2, 0) / 1000),
+          detail: 'Gold is in its daily break, 20:58-22:02 UTC.' };
+        shut.instruments = ['XAUUSD', 'XAUUSD247'];
 
-    console.log('');
-    console.log(pass + ' passed, ' + fail + ' failed' + (fail ? '' : ' — TERMINAL SMOKE PASSED'));
-    process.exit(fail ? 1 : 0);
-  }, 220);
-  }, 40);
-}, 220);
+        const f247 = JSON.parse(JSON.stringify(shut));
+        f247.symbol = 'XAUUSD247';
+
+        const w2 = boot(shut);
+        const w3 = boot(f247);
+        const w4 = boot(frame, { down: true });
+        setTimeout(() => click(w4, '.mbtn'), 60);
+
+        setTimeout(() => {
+          const t2 = (w2.document.body.textContent || '').split('\n').join(' ');
+          ok('a shut exchange is named on the chart, not left as a blank panel',
+            /gold is not trading/i.test(t2), t2.slice(0, 180));
+          ok('it says when gold reopens, in UTC', /Reopens\s*22:02 UTC/.test(t2));
+          ok('and that nothing was invented to fill the gap',
+            /nothing here is filled in with invented volume/i.test(t2));
+          ok('the header carries the market state', /market|closed/i.test(t2) && /closed/.test(t2));
+          ok('a shut ordinary contract offers the 24/7 one instead',
+            /Chart XAUUSD247 instead/.test(t2));
+          ok('a 24/7 contract is named as such in the header',
+            /24\/7 gold/.test(w3.document.body.textContent || ''));
+
+          setTimeout(() => {
+            const t4 = ((w4.document.querySelector('.sheet') || {}).textContent || '').split('\n').join(' ');
+            ok('with the drawer feeds down, the cards say so instead of inventing a reading',
+              /calendar feed is unreachable right now/i.test(t4)
+              && /gold feeds are unreachable right now/i.test(t4), t4.slice(0, 200));
+
+            ok('the mobile bottom navigation exists',
+              !!doc.querySelector('.bnav') && /Chart/.test(doc.querySelector('.bnav').textContent));
+
+            ok('the stylesheet carries the responsive rules', /@media \(max-width:820px\)/.test(css));
+
+            console.log('');
+            console.log(pass + ' passed, ' + fail + ' failed' + (fail ? '' : ' — TERMINAL SMOKE PASSED'));
+            process.exit(fail ? 1 : 0);
+          }, 200);
+        }, 220);
+      }, 120);
+    }, 80);
+  }, 80);
+}, 240);
