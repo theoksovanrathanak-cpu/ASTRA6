@@ -52,12 +52,28 @@ export default function Footprint({ data, barW, onBarW, show }) {
   }, [size, data, barW, pan, show]);
 
   if (!data || !data.bars || !data.bars.length) {
+    const mk = (data && data.market) || {};
+    const shut = mk.open === false;
+    const when = mk.opens_at ? new Date(mk.opens_at * 1000).toISOString().slice(11, 16) + ' UTC' : null;
     return (
       <div ref={box} className="chartwrap" style={{ height: 520, display: 'grid', placeItems: 'center' }}>
-        <div className="empty" style={{ textAlign: 'center', maxWidth: 460 }}>
-          Recording the tape. The footprint is built from the quotes this account receives,
-          so it appears as soon as the feed prints - there is no synthetic history to fill
-          the space.
+        <div className="empty" style={{ textAlign: 'center', maxWidth: 520 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#c8d6e6', marginBottom: 6 }}>
+            {shut ? 'No footprint - gold is not trading' : 'Waiting for the first quote'}
+          </div>
+          {shut ? (
+            <div>
+              {mk.detail || 'The gold market is closed.'}
+              {when ? <> Reopens <b style={{ color: '#e8eef6' }}>{when}</b>.</> : null}
+              {' '}A footprint cell is a counted quote, so there is nothing to draw until
+              quotes resume - and nothing here is filled in with invented volume.
+            </div>
+          ) : (
+            <div>
+              The feed is up; the chart fills as soon as this account receives quotes.
+              Every cell is a counted tick, never a synthetic one.
+            </div>
+          )}
         </div>
       </div>
     );

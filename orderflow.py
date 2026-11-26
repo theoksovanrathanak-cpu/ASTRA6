@@ -602,6 +602,12 @@ def _ws_loop():
     backoff = RECONNECT_S
     while True:
         try:
+            import tape as _TP
+            ms = _TP.market_state(time.time())
+            if not ms["open"]:                 # nothing will print: do not thrash the socket
+                _set(status="closed", connected=False, error="")
+                time.sleep(20)
+                continue
             _set(status="connecting", connected=False, error="")
             ap = access_point()
             host = ap.split("://", 1)[1]
@@ -633,7 +639,13 @@ def _ws_loop():
                     ingest(got)
         except Exception as e:            # auth, network, schema - all recoverable
             msg = str(e)[:160]
-            _set(connected=False, status="error", error=msg)
+            try:
+                import tape as _TP
+                shut = not _TP.market_state(time.time())["open"]
+            except Exception:
+                shut = False
+            _set(connected=False, status="closed" if shut else "error",
+                 error="" if shut else msg)
             print("orderflow:", msg)
             time.sleep(backoff)
             backoff = min(backoff * 1.6, 60.0)

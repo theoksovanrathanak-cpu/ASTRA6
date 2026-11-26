@@ -6118,6 +6118,10 @@ def _tape_payload(tf, step, bars, ratio, stack, minutes) -> dict:
         "durable": bool(arc.get("durable")),
         "kept_days": 4,
     }
+    try:
+        snap["market"] = TP.market_state(now)
+    except Exception:
+        snap["market"] = {"open": True, "reason": "unknown", "opens_at": None, "detail": ""}
     snap["settings"] = {"tf": tf, "step": step, "bars": bars, "ratio": ratio,
                         "stack": stack, "minutes": minutes,
                         "timeframes": list(TP.TIMEFRAMES),

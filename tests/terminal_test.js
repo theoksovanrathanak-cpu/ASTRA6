@@ -74,6 +74,7 @@ function makeCtx() {
   });
 }
 
+function boot(payload) {
 const dom = new JSDOM(html.replace(/<script[^>]*><\/script>/, '').replace(/<link[^>]*>/, ''), {
   runScripts: 'outside-only',
   pretendToBeVisual: true,
@@ -87,20 +88,20 @@ window.HTMLCanvasElement.prototype.getContext = () => makeCtx();
 Object.defineProperty(window.HTMLElement.prototype, 'clientWidth', { get() { return 900; } });
 Object.defineProperty(window.HTMLElement.prototype, 'clientHeight', { get() { return 560; } });
 
-let wsInstance = null;
+window.__ws = null;
 window.WebSocket = class {
   constructor(url) {
-    wsInstance = this;
+    window.__ws = this;
     this.url = url;
     setTimeout(() => {
       if (this.onopen) this.onopen();
-      if (this.onmessage) this.onmessage({ data: JSON.stringify(frame) });
+      if (this.onmessage) this.onmessage({ data: JSON.stringify(payload) });
     }, 5);
   }
   close() { if (this.onclose) this.onclose(); }
   send() {}
 };
-window.fetch = async () => ({ ok: true, json: async () => frame });
+window.fetch = async () => ({ ok: true, json: async () => payload });
 window.requestAnimationFrame = (cb) => setTimeout(cb, 0);
 
 try {
@@ -109,6 +110,10 @@ try {
   console.log('  FAIL the bundle threw while booting: ' + e.message);
   process.exit(1);
 }
+return window;
+}
+
+const window = boot(frame);
 
 setTimeout(() => {
   const text = window.document.body.textContent || '';
@@ -133,7 +138,8 @@ setTimeout(() => {
   ok('the footer says there are no synthetic prices and no predictive signals',
     /no synthetic prices, no predictive signals/.test(text));
   ok('the session delta is printed from the payload', /\+8/.test(text));
-  ok('a websocket to the tape endpoint was opened', !!wsInstance && /\/ws\/tape/.test(wsInstance.url));
+  ok('a websocket to the tape endpoint was opened',
+    !!window.__ws && /\/ws\/tape/.test(window.__ws.url));
 
   const drawn = calls.filter((c) => c[0] === 'fillText').map((c) => String(c[1]));
   ok('the canvas drew footprint cells as buy×sell', drawn.some((s) => s.includes('×')),
@@ -147,7 +153,37 @@ setTimeout(() => {
   ok('a per-candle delta is printed in the column header',
     drawn.some((s) => s === '+4' || s === '+6' || s === '-2'), drawn.slice(0, 12));
 
-  console.log('');
-  console.log(pass + ' passed, ' + fail + ' failed' + (fail ? '' : ' — TERMINAL SMOKE PASSED'));
-  process.exit(fail ? 1 : 0);
+  // ---- second scenario: the exchange is shut, so there is no tape to draw
+  const shut = JSON.parse(JSON.stringify(frame));
+  shut.bars = [];
+  shut.cvd = [];
+  shut.points = 0;
+  shut.imbalance.bars = [];
+  shut.absorption = [];
+  shut.exhaustion = [];
+  shut.aggressive = [];
+  shut.divergence = [];
+  shut.profile = { poc: null, vah: null, val: null, total: 0, hvn: [], lvn: [], levels: [] };
+  shut.feed = { status: 'closed', connected: false, age: null, stale: true, price: null, error: '' };
+  shut.market = { open: false, reason: 'daily_break',
+    opens_at: Math.floor(Date.UTC(2026, 10, 26, 22, 2, 0) / 1000),
+    detail: 'Gold is in its daily break, 20:58-22:02 UTC.' };
+
+  const w2 = boot(shut);
+  setTimeout(() => {
+    const t2 = w2.document.body.textContent || '';
+    ok('a shut exchange is named on the chart, not left as a blank panel',
+      /gold is not trading/i.test(t2), t2.slice(0, 160));
+    ok('it says when gold reopens', /Reopens\s*22:02 UTC/.test(t2.replace(/\s+/g, ' ')));
+    ok('and it states that nothing was invented to fill the gap',
+      /nothing here is filled in with invented volume/i.test(t2.replace(/\s+/g, ' ')));
+    ok('the header carries the market state, not just the estimate label',
+      /market closed/.test(t2) && /opens 22:02 UTC/.test(t2));
+    ok('the estimate label still never doubles as a status',
+      /estimated · tick rule/i.test(t2) && /market closed/i.test(t2));
+
+    console.log('');
+    console.log(pass + ' passed, ' + fail + ' failed' + (fail ? '' : ' — TERMINAL SMOKE PASSED'));
+    process.exit(fail ? 1 : 0);
+  }, 220);
 }, 220);

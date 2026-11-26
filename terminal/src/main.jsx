@@ -114,6 +114,15 @@ function App() {
         <span className="badge est" title="Exness publishes bid/ask quotes, not traded volume at each price. This terminal counts ticks: an up-tick is booked as buying, a down-tick as selling, so every volume figure is an estimate, not reported volume.">
           estimated · tick rule
         </span>
+        {data?.market && (
+          <span className="badge" style={data.market.open ? { borderColor: '#12513a', background: '#0a2018', color: '#5fe0aa' }
+            : { borderColor: '#3d3410', background: '#161305', color: '#e8c76a' }}
+            title={data.market.detail || 'Gold trades Sunday 22:05 to Friday 20:58 UTC with a daily break 20:58-22:02 UTC.'}>
+            {data.market.open ? 'market open' : 'market closed'}
+            {!data.market.open && data.market.opens_at
+              ? ' · opens ' + new Date(data.market.opens_at * 1000).toISOString().slice(11, 16) + ' UTC' : ''}
+          </span>
+        )}
         <div className="spacer" />
         <div className="ctrls">
           <div className="seg" role="group" aria-label="Candle size">

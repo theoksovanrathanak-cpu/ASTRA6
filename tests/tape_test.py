@@ -178,6 +178,31 @@ check("price up with delta up is not a divergence", T.divergence(bars_up) == [],
 check("a divergence needs enough closed candles",
       T.divergence(T.footprint(pts([1.0, 2.0], dt=61), tf=60, step=0.1)) == [])
 
+print("market hours")
+import calendar
+
+
+def _utc(y, mo, d, h, mi=0):
+    return calendar.timegm((y, mo, d, h, mi, 0, 0, 0, 0))
+
+
+check("gold is shut during its daily break", T.market_state(_utc(2026, 11, 26, 21, 30))["open"] is False
+      and T.market_state(_utc(2026, 11, 26, 21, 30))["reason"] == "daily_break")
+check("and it is open one minute before the break",
+      T.market_state(_utc(2026, 11, 26, 20, 57))["open"] is True)
+check("the break ends at 22:02 UTC", T.market_state(_utc(2026, 11, 26, 22, 2))["open"] is True)
+check("the weekend starts at Friday 20:58 UTC",
+      T.market_state(_utc(2026, 11, 27, 21, 0))["open"] is False
+      and T.market_state(_utc(2026, 11, 27, 21, 0))["reason"] == "weekend")
+check("Sunday is shut until 22:05 UTC",
+      T.market_state(_utc(2026, 11, 29, 21, 0))["open"] is False
+      and T.market_state(_utc(2026, 11, 29, 22, 6))["open"] is True)
+check("a shut market says when it opens, in UTC seconds",
+      T.market_state(_utc(2026, 11, 26, 21, 30))["opens_at"] == _utc(2026, 11, 26, 22, 2))
+check("an open market names no reopening time",
+      T.market_state(_utc(2026, 11, 26, 12, 0))["opens_at"] is None
+      and T.market_state(_utc(2026, 11, 26, 12, 0))["detail"] == "")
+
 print("snapshot and provenance")
 snap = T.snapshot([(1000.0 + i, 100.0 + (i % 3) * 0.1, 0, None) for i in range(40)],
                   tf=60, step=0.05, bars=20, ratio=3.0)

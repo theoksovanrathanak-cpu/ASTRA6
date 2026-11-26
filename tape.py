@@ -146,6 +146,47 @@ def session_start(ts: float) -> float:
     return day + SESSION_START_UTC * 3600
 
 
+# ------------------------------------------------------------------ market hours
+# XAUUSD on Exness: opens Sunday 22:05 GMT, closes Friday 20:58 GMT, and takes a
+# daily break from 20:58 to 22:02 GMT. Outside those windows no quote exists at all,
+# so a silent tape is the truth, not a fault - and the terminal should say which.
+GOLD_OPEN_S = 22 * 3600 + 5 * 60         # Sunday
+GOLD_CLOSE_S = 20 * 3600 + 58 * 60       # Friday
+BREAK_START_S = 20 * 3600 + 58 * 60      # daily
+BREAK_END_S = 22 * 3600 + 2 * 60
+
+
+def market_state(now: float) -> dict:
+    """Is the gold market open, and if not, when does it open again (UTC seconds)."""
+    import datetime
+    dt = datetime.datetime.fromtimestamp(now, tz=datetime.timezone.utc)
+    wd = dt.weekday()                     # Mon 0 ... Sun 6
+    secs = dt.hour * 3600 + dt.minute * 60 + dt.second
+    day0 = now - secs                     # this UTC midnight
+
+    def at(day_offset, sec):
+        return day0 + day_offset * 86400 + sec
+
+    if wd == 5:                                            # Saturday
+        return {"open": False, "reason": "weekend", "opens_at": at(1, GOLD_OPEN_S),
+                "detail": "Gold is closed for the weekend."}
+    if wd == 6:                                            # Sunday
+        if secs < GOLD_OPEN_S:
+            return {"open": False, "reason": "weekend",
+                    "opens_at": at(0, GOLD_OPEN_S),
+                    "detail": "Gold opens Sunday 22:05 UTC."}
+        return {"open": True, "reason": "open", "opens_at": None, "detail": ""}
+    if wd == 4 and secs >= GOLD_CLOSE_S:                    # Friday after the close
+        return {"open": False, "reason": "weekend",
+                "opens_at": at(2, GOLD_OPEN_S),
+                "detail": "Gold closed for the weekend at Friday 20:58 UTC."}
+    if BREAK_START_S <= secs < BREAK_END_S:                 # Mon-Thu daily break
+        return {"open": False, "reason": "daily_break",
+                "opens_at": at(0, BREAK_END_S),
+                "detail": "Gold is in its daily break, 20:58-22:02 UTC."}
+    return {"open": True, "reason": "open", "opens_at": None, "detail": ""}
+
+
 # ------------------------------------------------------------------ imbalances
 def imbalances(bar: dict, ratio: float = 3.0, stack: int = 3) -> dict:
     """Diagonal bid/ask imbalance inside one candle.
