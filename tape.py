@@ -20,7 +20,7 @@ import sqlite3
 import threading
 
 PRICE_STEPS = (0.01, 0.05, 0.10, 0.25, 0.50, 1.00)   # configurable price aggregation
-TIMEFRAMES = (15, 30, 60, 120, 300, 900)            # seconds per footprint candle
+TIMEFRAMES = (15, 30, 60, 120, 180, 300, 600, 900, 1800, 3600, 7200, 14400, 86400)
 SESSION_START_UTC = 0                                # the trading day starts at 00:00 UTC
 
 PROVENANCE = {
@@ -513,18 +513,23 @@ class Store:
             self.db.commit()
             return cur.rowcount or 0
 
-    def range(self, t0: float, t1: float, limit: int = 200000, sym: str = None) -> list:
+    def range(self, t0: float, t1: float, limit: int = 60000, sym: str = None) -> list:
+        """Ticks between two instants, oldest first.
+
+        When a window holds more than `limit` quotes the newest ones are kept: a long
+        timeframe is drawn from the recent tape rather than from the tail of an old one.
+        """
         with self.lock:
             if sym:
                 cur = self.db.execute(
                     "SELECT ts, price, side, size FROM ticks WHERE ts >= ? AND ts < ?"
-                    " AND upper(sym) = upper(?) ORDER BY ts LIMIT ?",
+                    " AND upper(sym) = upper(?) ORDER BY ts DESC LIMIT ?",
                     (t0, t1, sym, limit))
             else:
                 cur = self.db.execute(
                     "SELECT ts, price, side, size FROM ticks WHERE ts >= ? AND ts < ?"
-                    " ORDER BY ts LIMIT ?", (t0, t1, limit))
-            return [(r[0], r[1], r[2], r[3]) for r in cur.fetchall()]
+                    " ORDER BY ts DESC LIMIT ?", (t0, t1, limit))
+            return [(r[0], r[1], r[2], r[3]) for r in reversed(cur.fetchall())]
 
     def side_totals(self, t0: float, t1: float, sym: str = None):
         """(buy, sell, quotes) between two instants - used for the true session delta."""

@@ -14,10 +14,12 @@ export const DEFAULTS = {
   filter: 0,
   intensity: 1,
   rowH: 15,
-  chartH: 520,
+  chartH: 560,
   sidebar: true,
   vaPct: 0.7,
   cvdRebase: false,
+  volume: true,
+  split: 0.48,
 };
 
 const clamp = (v, lo, hi, dflt) => {
@@ -39,6 +41,8 @@ function read() {
       sidebar: s.sidebar !== false,
       vaPct: clamp(s.vaPct, 0.5, 0.95, 0.7),
       cvdRebase: !!s.cvdRebase,
+      volume: s.volume !== false,
+      split: clamp(s.split, 0.22, 0.72, 0.48),
     };
   } catch (e) { return { ...DEFAULTS }; }
 }
@@ -129,6 +133,19 @@ export default function Settings({ open, onClose, prefs, set }) {
               <button className={!prefs.sidebar ? 'on' : ''} onClick={() => set({ sidebar: false })}>Hidden</button>
             </div>
           </Line>
+          <Line k="Chart split" hint={'price ' + Math.round((prefs.split || 0.42) * 100) + '% · footprint ' + (100 - Math.round((prefs.split || 0.42) * 100)) + '%'}>
+            <div className="seg">
+              <button className={prefs.split < 0.34 ? 'on' : ''} onClick={() => set({ split: 0.28 })}>Footprint</button>
+              <button className={prefs.split >= 0.34 && prefs.split <= 0.5 ? 'on' : ''} onClick={() => set({ split: 0.42 })}>Balanced</button>
+              <button className={prefs.split > 0.5 ? 'on' : ''} onClick={() => set({ split: 0.6 })}>Price</button>
+            </div>
+          </Line>
+          <Line k="Price chart volume" hint="quote count per candle, not traded size">
+            <div className="seg">
+              <button className={prefs.volume ? 'on' : ''} onClick={() => set({ volume: true })}>Shown</button>
+              <button className={!prefs.volume ? 'on' : ''} onClick={() => set({ volume: false })}>Hidden</button>
+            </div>
+          </Line>
           <Line k="Value area" hint={Math.round(prefs.vaPct * 100) + '% of the profile'}>
             <input type="range" min="0.5" max="0.95" step="0.05" value={prefs.vaPct}
               onChange={(e) => set({ vaPct: Number(e.target.value) })} style={{ width: 110 }} />
@@ -139,7 +156,8 @@ export default function Settings({ open, onClose, prefs, set }) {
           <button className="mbtn2" onClick={() => set({ ...DEFAULTS })}>Reset to defaults</button>
           <div className="mnote">
             Saved on this device only. Nothing here changes what the server counts — it changes
-            how much of it is drawn, and in which of the six footprints.
+            how much of it is drawn, in which of the six footprints, and how the two charts
+            share the column.
           </div>
         </div>
       </div>

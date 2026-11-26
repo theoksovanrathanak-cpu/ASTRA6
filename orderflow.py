@@ -52,6 +52,7 @@ _STORE_FAILED = False
 _LOCK = threading.Lock()
 _TICKS = collections.deque()             # (ts, price, side, volume, symbol)
 _LAST_PX = {}                            # symbol -> last quoted price
+_LAST_BOOK = {}                          # symbol -> (bid, ask, ts) as the wire sent them
 _STATE = {
     "worker": False,                     # a thread is running
     "connected": False,
@@ -114,6 +115,23 @@ def points(seconds: int = 900, sym: str = ""):
     with _LOCK:
         return [(t[0], t[1], t[2], t[3]) for t in _TICKS
                 if t[0] >= now - seconds and (not sym or _norm(t[4]) == _norm(sym))]
+
+
+def quote(sym: str = "") -> dict:
+    """The last bid/ask the account was quoted, exactly as the wire sent it.
+
+    Returns an empty dict when this feed has not carried both sides - a spread is never
+    inferred from a mid, so a page that cannot show a real one says nothing instead.
+    """
+    sym = sym or auto_symbol()
+    now = time.time()
+    with _LOCK:
+        for name, (bid, ask, ts) in reversed(list(_LAST_BOOK.items())):
+            if _norm(name) == _norm(sym):
+                return {"bid": bid, "ask": ask, "ts": ts,
+                        "spread": round(ask - bid, 8), "age": round(now - ts, 1),
+                        "symbol": name}
+    return {}
 
 
 def auto_symbol() -> str:
@@ -500,6 +518,10 @@ def parse_ticks(frame) -> list:
             "price": price,
             "volume": vol if (vol is not None and vol > 0) else None,
             "ts": ts or time.time(),
+            # the two sides of the quote are kept: they are the only honest source for a
+            # bid, an ask and a spread, and they are never derived from the mid
+            "bid": bid if (bid is not None and bid > 0) else None,
+            "ask": ask if (ask is not None and ask > 0) else None,
         })
     return out
 
@@ -546,6 +568,9 @@ def ingest(ticks) -> int:
             stamp = t["ts"] or now
             _TICKS.append((stamp, price, side, t.get("volume"), sym))
             _LAST_PX[sym] = price
+            bid, ask = t.get("bid"), t.get("ask")
+            if bid and ask and ask >= bid:
+                _LAST_BOOK[sym] = (bid, ask, stamp)
             rows_to_write.append((stamp, price, side, t.get("volume"), sym))
             added += 1
         if added:

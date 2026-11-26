@@ -51,11 +51,11 @@ const sgn = (v) => (v > 0 ? '+' : '') + v;
 
 function geomOf(data, W, H, S) {
   const bars = (data && data.bars) || [];
-  const { barW, hoff, pan, rowH } = S;
+  const { barW, pan, rowH } = S;
   const plotW = Math.max(60, W - GUTTER - PAD_L);
-  const n = Math.max(1, Math.min(bars.length || 1, Math.floor(plotW / barW)));
+  const n = Math.max(1, Math.min(bars.length || 1, S.n || Math.floor(plotW / barW)));
   const maxStart = Math.max(0, bars.length - n);
-  const start = Math.max(0, Math.min(maxStart, maxStart - (hoff || 0)));
+  const start = Math.max(0, Math.min(maxStart, S.start || 0));
   const view = bars.slice(start, start + Math.max(1, n));
   const step = (data && data.step) || 0.01;
   let top = -Infinity, bottom = Infinity;
@@ -81,17 +81,17 @@ function geomOf(data, W, H, S) {
     rh: Math.max(11, rh), y0: HEAD_H + Math.round(pad) };
 }
 
-export default function Footprint({ data, opts, onView, full, onFull }) {
+export default function Footprint({ data, view, opts, hover: shared, onHover, onPan, onZoom, full }) {
   const box = useRef(null);
   const cvs = useRef(null);
   const [size, setSize] = useState({ w: 900, h: 460 });
-  const [barW, setBarW] = useState(58);
-  const [hoff, setHoff] = useState(0);
   const [pan, setPan] = useState(0);
-  const [hover, setHover] = useState(null);
+  const [local, setLocal] = useState(null);
   const gesture = useRef(null);
 
-  const { mode, fmt, filter, intensity, rowH } = opts;
+  const { mode, fmt, filter, intensity, rowH, onUse247 } = opts;
+  const barW = (view && view.barW) || 58;
+  const hover = local || shared || null;
 
   useEffect(() => {
     const el = box.current;
@@ -104,16 +104,11 @@ export default function Footprint({ data, opts, onView, full, onFull }) {
     return () => { ro.disconnect(); window.removeEventListener('resize', measure); };
   }, []);
 
-  const S = { barW, hoff, pan, rowH };
+  const S = { barW, pan, rowH, start: view && view.start, n: view && view.n };
   const geom = useMemo(
     () => geomOf(data, size.w, size.h, S),
-    [data, size.w, size.h, barW, hoff, pan, rowH],
+    [data, size.w, size.h, barW, pan, rowH, view && view.start, view && view.n],
   );
-
-  // the lower charts read the same window as the footprint
-  useEffect(() => {
-    if (onView) onView({ start: geom.start, n: geom.n, barW: geom.barW });
-  }, [geom.start, geom.n, geom.barW, onView]);
 
   useEffect(() => {
     const c = cvs.current;
@@ -144,10 +139,10 @@ export default function Footprint({ data, opts, onView, full, onFull }) {
     e.preventDefault();
     if (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
       const d = (Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY);
-      setHoff((h) => Math.max(0, h + (d > 0 ? 1 : -1) * 2));
+      if (onPan) onPan(d > 0 ? -2 : 2);
       return;
     }
-    setBarW((w) => Math.max(MIN_BARW, Math.min(MAX_BARW, w + (e.deltaY > 0 ? -5 : 5))));
+    if (onZoom) onZoom(e.deltaY > 0 ? -5 : 5);
   };
 
   const onDown = (e) => {
@@ -159,7 +154,7 @@ export default function Footprint({ data, opts, onView, full, onFull }) {
     p.set(e.pointerId, { x: e.clientX - r.left, y: e.clientY - r.top });
     gesture.current = {
       points: p,
-      barW, hoff, pan,
+      barW, pan,
       x0: e.clientX, y0: e.clientY,
       dist: p.size === 2 ? dist(p) : 0,
     };
@@ -175,18 +170,21 @@ export default function Footprint({ data, opts, onView, full, onFull }) {
       g.points.set(e.pointerId, { x: px, y: py });
       if (g.points.size >= 2) {
         const d = dist(g.points);
-        if (g.dist > 0) {
-          setBarW(Math.max(MIN_BARW, Math.min(MAX_BARW, Math.round(g.barW * (d / g.dist)))));
+        if (g.dist > 0 && onZoom) {
+          const want = Math.round(g.barW * (d / g.dist));
+          onZoom(want - g.barW);
         }
         return;
       }
       const dx = e.clientX - g.x0, dy = e.clientY - g.y0;
-      if (Math.abs(dx) > 2) setHoff(Math.max(0, g.hoff - Math.round(dx / Math.max(20, g.barW))));
-      if (Math.abs(dy) > 1) setPan(g.pan + Math.round(dy / (opts.rowH || 14)));
-      setHover(null);
+      if (Math.abs(dx) > 2 && onPan) onPan(-dx / Math.max(20, g.barW));
+      if (Math.abs(dy) > 1) setPan(g.pan + Math.round(dy / (opts.rowH || 15)));
+      setLocal(null);
       return;
     }
-    setHover({ ...hit(px, py), x: px, y: py });
+    const h = hit(px, py);
+    setLocal(h ? { ...h, x: px, y: py } : null);
+    if (onHover) onHover(h ? { t0: h.b.t0, price: h.kind === 'cell' ? h.price : null } : null);
   };
 
   const onUp = (e) => {
@@ -195,7 +193,9 @@ export default function Footprint({ data, opts, onView, full, onFull }) {
   };
 
   const hasBars = !!(data && data.bars && data.bars.length);
-  const tip = hasBars && hover && (hover.kind === 'cell' ? cellTip(hover, data, fmt) : barTip(hover, data, fmt));
+  const tip = hasBars && hover && hover.x != null
+    ? (hover.kind === 'cell' ? cellTip(hover, data, fmt) : barTip(hover, data, fmt))
+    : null;
   // the wrapper is always mounted, so the resize observer measures the real box even when
   // the first thing on screen is the empty state (the old version attached it to a node
   // that did not exist yet and never learned the chart's size)
@@ -210,7 +210,7 @@ export default function Footprint({ data, opts, onView, full, onFull }) {
           onPointerUp={onUp}
           onPointerCancel={onUp}
           onPointerLeave={() => { setHover(null); gesture.current = null; }}
-          onDoubleClick={() => { setBarW(58); setHoff(0); setPan(0); }}
+          onDoubleClick={() => { setPan(0); if (onZoom) onZoom(58 - (view.barW || 58)); }}
           style={{ cursor: gesture.current ? 'grabbing' : 'crosshair' }}
         />
       ) : (
@@ -504,12 +504,17 @@ function draw(x, W, H, data, g, o, hover) {
     }
   }
 
-  // ---- crosshair
-  if (hover && hover.x != null) {
+  // ---- crosshair: the page owns it, so a hover on the price chart lights this one up too
+  let hx = hover && hover.x;
+  if (hx == null && hover && hover.t0 != null) {
+    const i = g.view.findIndex((b) => b.t0 === hover.t0);
+    if (i >= 0) hx = 4 + i * g.barW + g.barW / 2;
+  }
+  if (hover && hx != null) {
     x.strokeStyle = 'rgba(180,198,219,.22)'; x.lineWidth = 1;
-    x.beginPath(); x.moveTo(hover.x, y0); x.lineTo(hover.x, yEnd); x.stroke();
-    x.beginPath(); x.moveTo(0, hover.y); x.lineTo(W - GUTTER, hover.y); x.stroke();
-    if (hover.kind === 'cell' && hover.price != null) {
+    x.beginPath(); x.moveTo(hx, y0); x.lineTo(hx, yEnd); x.stroke();
+    if (hover.y != null) { x.beginPath(); x.moveTo(0, hover.y); x.lineTo(W - GUTTER, hover.y); x.stroke(); }
+    if (hover.kind === 'cell' && hover.price != null && hover.y != null) {
       x.fillStyle = '#111a24';
       x.fillRect(W - GUTTER, hover.y - 8, GUTTER, 16);
       x.fillStyle = '#cfdcec';
@@ -518,11 +523,11 @@ function draw(x, W, H, data, g, o, hover) {
     } else if (hover.b) {
       const label = clock(hover.b.t0, data.tf);
       x.fillStyle = '#111a24';
-      x.fillRect(Math.max(0, hover.x - 24), H - AXIS_H, 48, AXIS_H - 2);
+      x.fillRect(Math.max(0, hx - 24), H - AXIS_H, 48, AXIS_H - 2);
       x.fillStyle = '#cfdcec';
       x.textAlign = 'center';
       x.font = '600 9px ui-monospace,Menlo,monospace';
-      x.fillText(label, hover.x, H - 8);
+      x.fillText(label, hx, H - 8);
       x.textAlign = 'left';
     }
   }

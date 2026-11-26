@@ -288,9 +288,28 @@ export function valueArea(levels, pct) {
   return { poc: rows[pocIdx].p, vah: rows[lo].p, val: rows[hi].p, inside: new Set(rows.slice(lo, hi + 1).map((r) => r.p)) };
 }
 
-export function Profile({ data, pct, onPct }) {
-  const prof = data.profile || {};
+/* the profile of exactly the candles the two charts are showing, so the POC and the value
+   area line up with what is drawn rather than with a range chosen somewhere else */
+export function screenProfile(bars) {
+  const acc = new Map();
+  bars.forEach((b) => {
+    (b.levels || []).forEach((r) => {
+      const cur = acc.get(r[0]) || [0, 0, 0];
+      cur[0] += r[1] || 0;
+      cur[1] += r[2] || 0;
+      cur[2] += r[3] || 0;
+      acc.set(r[0], cur);
+    });
+  });
+  return Array.from(acc.entries())
+    .map(([p, v]) => [p, v[0], v[1], v[2], v[0] + v[1] + v[2]])
+    .sort((a, b) => b[0] - a[0]);
+}
+
+export function Profile({ data, pct, onPct, bars }) {
   const d = data.decimals ?? 2;
+  const fromScreen = useMemo(() => (bars && bars.length ? screenProfile(bars) : null), [bars]);
+  const prof = fromScreen ? { ...(data.profile || {}), levels: fromScreen } : (data.profile || {});
   const levels = prof.levels || [];
   const va = useMemo(() => valueArea(levels, pct), [levels, pct]);
   const max = Math.max(1, ...levels.map((r) => r[4] || 0));
@@ -302,6 +321,7 @@ export function Profile({ data, pct, onPct }) {
     <>
       <div className="p-head">
         Volume profile
+        <span className="m" style={{ fontSize: 9.5 }}>{fromScreen ? 'on screen' : 'toolbar range'}</span>
         <span className="r">
           <button className="tiny" onClick={() => onPct(Math.max(50, pct - 5))} aria-label="smaller value area">−</button>
           <span>{Math.round(pct * 100)}% VA</span>
@@ -337,9 +357,10 @@ export function Profile({ data, pct, onPct }) {
         </div>
       )}
       <div className="note">
-        Counted quotes per price over the range in the toolbar. The value area is grown outwards
-        from the POC to the percentage above; it is recalculated in the browser from the server's
-        own level totals, so changing it changes nothing but the two lines.
+        Counted quotes per price over the {fromScreen ? 'candles on screen' : 'range in the toolbar'} —
+        the same window the two charts above are drawing. The value area is grown outwards from the
+        POC to the percentage above; it is recalculated in the browser from the level totals, so
+        changing it changes nothing but the two lines.
       </div>
     </>
   );

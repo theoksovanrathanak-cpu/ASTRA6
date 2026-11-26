@@ -55,10 +55,11 @@ const frame = {
     hvn: [3571.30], lvn: [3571.05], value_area: 0.7, estimate: true,
     levels: [[3571.30, 7, 1, 0, 8], [3571.25, 2, 0, 0, 2], [3571.20, 2, 4, 0, 6],
       [3571.15, 4, 1, 0, 5], [3571.10, 3, 1, 0, 4], [3571.05, 1, 2, 0, 3]] },
-  feed: { status: 'live', connected: true, age: 0.4, stale: false, price: 3571.32, error: '' },
+  feed: { status: 'live', connected: true, age: 0.4, stale: false, price: 3571.32, error: '',
+    bid: 3571.12, ask: 3571.16, spread: 0.04, quote_ts: 1795700180, quote_age: 0.3 },
   archive: { ticks: 412, first_ts: 1795699000, last_ts: 1795700180, persistent: true, kept_days: 4 },
   settings: { tf: 60, step: 0.05, bars: 90, ratio: 3, stack: 3, minutes: 240,
-    timeframes: [15, 30, 60, 120, 300, 900], steps: [0.01, 0.05, 0.1, 0.25, 0.5, 1] },
+    timeframes: [15, 30, 60, 120, 180, 300, 600, 900, 1800, 3600, 7200, 14400, 86400], steps: [0.01, 0.05, 0.1, 0.25, 0.5, 1] },
   provenance: { vol_kind: 'tick_rule_estimate', label: 'estimated', note: 'counted ticks' },
   note: 'estimate',
   market: { open: true, reason: 'quotes', opens_at: null, detail: '' },
@@ -302,14 +303,73 @@ setTimeout(() => {
               /calendar feed is unreachable right now/i.test(t4)
               && /gold feeds are unreachable right now/i.test(t4), t4.slice(0, 200));
 
-            ok('the mobile bottom navigation exists',
-              !!doc.querySelector('.bnav') && /Chart/.test(doc.querySelector('.bnav').textContent));
+            const bn = doc.querySelector('.bnav');
+            // ---------- round 48: the price chart, the quote book, the shared view ----------
+            ok('the price chart is a panel of its own, above the footprint',
+              !!doc.querySelector('.pricepanel') && !!doc.querySelector('.footprintpanel'));
+            const pcan = doc.querySelectorAll('.pricepanel canvas');
+            ok('the price chart has drawn its candles',
+              pcan.length === 1 && calls.filter((c) => c[0] === 'fillRect').length > 40);
+            const drawn = calls.filter((c) => c[0] === 'fillText').map((c) => String(c[1]));
+            ok('the price axis is labelled in the instrument\'s precision',
+              drawn.some((t) => /^357\d\.\d\d$/.test(t)), drawn.slice(0, 6));
+            ok('the chart prints the bid and the ask the wire sent',
+              drawn.includes('BID 3571.12') && drawn.includes('ASK 3571.16'),
+              drawn.filter((t) => /BID|ASK/.test(t)));
+            ok('the current price line carries the live quote', drawn.includes('3571.32'));
+            const flatH = flat.replace(/\s+/g, '');
+            ok('the header quotes bid, ask and spread together',
+              /bid3571\.12/.test(flatH) && /ask3571\.16/.test(flatH) && /spr0\.04/.test(flatH),
+              flat.slice(0, 200));
+            const ohlcEl = doc.querySelector('.pricepanel .ohlc');
+            ok('the price panel carries an OHLC readout for the candle in view',
+              !!ohlcEl && /O\s*357\d/.test(ohlcEl.textContent) && /C\s*357\d/.test(ohlcEl.textContent),
+              ohlcEl && ohlcEl.textContent);
+            ok('the two charts are separated by a draggable divider', !!doc.querySelector('.splitter'));
+            const tb = (doc.querySelector('.toolbar') || {}).textContent || '';
+            ok('every timeframe the archive can build is offered, and the daily one too',
+              /1D/.test(tb) && !/1W/.test(tb), tb.slice(0, 120));
 
-            ok('the stylesheet carries the responsive rules', /@media \(max-width:820px\)/.test(css));
+            const w5 = boot({ ...frame, feed: { status: 'live', connected: true, age: 0.4, stale: false,
+              price: 3571.32, bid: null, ask: null, spread: null, error: '' } });
+            setTimeout(() => {
+              const t5 = (w5.document.body.textContent || '').replace(/\s+/g, ' ');
+              ok('a wire with no bid or ask shows no quote rather than a made-up one',
+                /bid—/.test(t5) && /ask—/.test(t5) && /spr—/.test(t5), t5.slice(0, 160));
+              ok('and its chart draws no bid or ask line for it',
+                !calls.slice(-300).some((c) => c[0] === 'fillText' && /BID|ASK/.test(String(c[1]))));
 
-            console.log('');
-            console.log(pass + ' passed, ' + fail + ' failed' + (fail ? '' : ' — TERMINAL SMOKE PASSED'));
-            process.exit(fail ? 1 : 0);
+              // a wider frame, so a zoom has room to show up in the candle count
+              const many = [];
+              for (let i = 0; i < 30; i += 1) {
+                many.push(bar(1795700000 + i * 60, i % 2 ? 2 : -2,
+                  [[3571.10 + (i % 3) * 0.05, 2, 1, 0], [3571.05 + (i % 3) * 0.05, 1, 2, 0]]));
+              }
+              const w6 = boot({ ...frame, bars: many, cvd: many.map((_, i) => i) });
+              setTimeout(() => {
+                const head = (w) => ((w.document.querySelector('.footprintpanel .p-head') || {}).textContent || '');
+                const before = (head(w6).match(/(\d+) candles/) || [])[1];
+                const pv = w6.document.querySelector('.pricepanel canvas');
+                pv.dispatchEvent(new w6.WheelEvent('wheel', { deltaY: -200, bubbles: true, cancelable: true }));
+                setTimeout(() => {
+                  const after = (head(w6).match(/(\d+) candles/) || [])[1];
+                  ok('zooming the price chart zooms the footprint with it — one shared view',
+                    before && after && Number(after) < Number(before), before + ' -> ' + after);
+                  ok('the footprint was drawn from the same window, not its own',
+                    Number(after) > 1, after);
+
+                  ok('the mobile bottom navigation exists',
+                    !!bn && ['Price', 'Footprint', 'Delta', 'Profile', 'Menu']
+                      .every((l) => new RegExp(l, 'i').test(bn.textContent || '')), bn && bn.textContent);
+
+                  ok('the stylesheet carries the responsive rules', /@media \(max-width:820px\)/.test(css));
+
+                  console.log('');
+                  console.log(pass + ' passed, ' + fail + ' failed' + (fail ? '' : ' — TERMINAL SMOKE PASSED'));
+                  process.exit(fail ? 1 : 0);
+                }, 150);
+              }, 150);
+            }, 150);
           }, 200);
         }, 220);
       }, 120);

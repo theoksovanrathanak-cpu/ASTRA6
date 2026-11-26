@@ -6099,7 +6099,10 @@ def _tape_payload(tf, step, bars, ratio, stack, minutes, sym="auto") -> dict:
         hit = _TAPE_CACHE.get(key)
         if hit and now - hit[0] < 1.0:
             return hit[1]
-    window = min(minutes * 60, 3600 * 6)
+    # the window has to cover the candles asked for: an hour of tape for 1h candles, four
+    # days for 4h ones (the archive keeps four), and the profile range when that is longer
+    span = max(minutes * 60, tf * (bars + 2))
+    window = min(span, (86400 * 4) if tf >= 3600 else 86400)
     pts = OF.points(seconds=window, sym=sym)
     # the session figure is taken from the whole archive, not just the chart's window
     sess0 = TP.session_start(now)
@@ -6119,12 +6122,23 @@ def _tape_payload(tf, step, bars, ratio, stack, minutes, sym="auto") -> dict:
     px, age = OF.feed_for(sym)
     snap["symbol"] = sym
     snap["instruments"] = [OF.active_symbol()] + list(OF.companions())
+    # bid, ask and spread are only ever what the wire sent; when it sends a single price
+    # they stay null rather than being made up from the mid
+    try:
+        quote = OF.quote(sym)
+    except Exception:
+        quote = {}
     snap["feed"] = {
         "status": st.get("status"),
         "connected": st.get("connected"),
         "age": (round(age, 1) if age is not None else None),
         "stale": bool(age is None or age > 60),
         "price": px,
+        "bid": quote.get("bid"),
+        "ask": quote.get("ask"),
+        "spread": quote.get("spread"),
+        "quote_ts": quote.get("ts"),
+        "quote_age": quote.get("age"),
         "error": st.get("error"),
         "source": "Exness Trading API - tick quotes",
     }
