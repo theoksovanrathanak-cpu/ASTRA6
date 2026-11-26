@@ -92,7 +92,8 @@ function App() {
 
   const f = (data && data.feed) || {};
   const d = (data && data.decimals) ?? 2;
-  const feedState = f.connected ? 'live' : f.status === 'not_configured' ? 'off' : 'down';
+  const feedState = f.status === 'quiet' ? 'quiet'
+    : f.connected ? 'live' : f.status === 'not_configured' ? 'off' : 'down';
   const last = data && data.bars && data.bars[data.bars.length - 1];
 
   return (
@@ -110,6 +111,7 @@ function App() {
           <span className="px">{f.price != null ? Number(f.price).toFixed(d) : '—'}</span>
           <span className="age">{f.age != null ? f.age.toFixed(1) + 's' : ''}</span>
           <i className={'dot ' + (feedState === 'live' ? 'live' : feedState === 'off' ? 'bad' : 'warn')} />
+          {feedState === 'quiet' && <span className="age" style={{ color: '#e8c76a' }}>quiet</span>}
         </div>
         <span className="badge est" title="Exness publishes bid/ask quotes, not traded volume at each price. This terminal counts ticks: an up-tick is booked as buying, a down-tick as selling, so every volume figure is an estimate, not reported volume.">
           estimated · tick rule

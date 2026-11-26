@@ -207,6 +207,18 @@ check("a down tick is selling", OF.snapshot()["windows"]["60s"]["delta"] == 0)
 _OF_STALE = dict(OF._STATE)
 OF._STATE["last_tick"] = time.time() - 300
 check("a silent feed is called stale, not live", OF.snapshot()["stale"] is True)
+os.environ["EXN_API_KEY"] = "exnsk-quiet-check"
+os.environ["EXN_PRIVATE_KEY"] = "0" * 128
+os.environ["EXN_ACCOUNT_ID"] = "12345678"
+OF._STATE["status"] = "live"
+OF._STATE["last_tick"] = time.time() - 300
+check("a connected socket with no quotes for minutes is called quiet, not live",
+      OF.snapshot()["status"] == "quiet", OF.snapshot()["status"])
+OF._STATE["last_tick"] = time.time() - 5
+check("and it goes back to live the moment a quote lands",
+      OF.snapshot()["status"] == "live", OF.snapshot()["status"])
+for _v in ("EXN_API_KEY", "EXN_PRIVATE_KEY", "EXN_ACCOUNT_ID"):
+    os.environ.pop(_v, None)
 OF._STATE.update(_OF_STALE)
 check("the method says plainly that it is a proxy",
       "proxy" in OF.snapshot()["method"].lower())

@@ -70,7 +70,10 @@ export default function Footprint({ data, barW, onBarW, show }) {
             </div>
           ) : (
             <div>
-              The feed is up; the chart fills as soon as this account receives quotes.
+              The feed is up, so the chart fills as soon as this account receives quotes
+              {data && data.feed && data.feed.age != null
+                ? <> - the last one arrived <b style={{ color: '#e8eef6' }}>{Math.round(data.feed.age)}s</b> ago</>
+                : null}.
               Every cell is a counted tick, never a synthetic one.
             </div>
           )}

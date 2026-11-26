@@ -12,7 +12,8 @@ export function Feed({ data }) {
   const f = data.feed || {};
   const a = data.archive || {};
   const d = data.decimals ?? 2;
-  const state = f.connected ? 'live' : f.status === 'not_configured' ? 'off' : 'reconnect';
+  const state = f.status === 'quiet' ? 'quiet'
+    : f.connected ? 'live' : f.status === 'not_configured' ? 'off' : 'reconnect';
   return (
     <div className="card">
       <div className="card-h">Feed <span className="r">
