@@ -165,6 +165,17 @@ check("bids and asks become a mid price", got[0]["price"] == 3520.2, got[0])
 check("a plain price is kept as it is", got[1]["price"] == 3520.6 and got[1]["volume"] == 2)
 check("milliseconds are turned into seconds", abs(got[2]["ts"] - 1773656072) < 1, got[2])
 check("a frame with no price yields no tick", OF.parse_ticks({"type": "heartbeat"}) == [])
+_real_tick = {"instrument": "XAUUSD", "bid": 3574.178, "ask": 3574.377,
+              "timestamp": "2026-11-26T15:35:21.28Z"}
+_rt = OF.parse_ticks(_real_tick)
+check("the frame Exness actually sends is read: mid price, the ISO stamp, its instrument",
+      len(_rt) == 1 and abs(_rt[0]["price"] - 3574.2775) < 1e-6
+      and abs(_rt[0]["ts"] - 1795707321.28) < 2 and _rt[0]["sym"] == "XAUUSD",
+      _rt)
+check("an ISO stamp is turned into seconds, not dropped",
+      OF._to_ts("2026-11-26T15:35:21.28Z") is not None
+      and abs(OF._to_ts("2026-11-26T15:35:21Z") - OF._to_ts("2026-11-26T15:35:21.28Z")) < 1
+      and OF._to_ts("not a time") is None)
 
 # the delta itself: up, up, down, flat
 _OF_NOW = int(time.time())

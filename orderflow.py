@@ -309,7 +309,8 @@ _NUM_PATHS = {
     "price": ("price", "p", "last", "lastPrice", "last_price", "value"),
     "volume": ("volume", "vol", "v", "size", "qty", "quantity", "amount"),
     "sym": ("symbol", "instrument", "sym", "ticker", "instrument_id"),
-    "ts": ("ts", "time", "timestamp", "t", "time_ms", "timestamp_ms"),
+    "ts": ("ts", "time", "timestamp", "t", "datetime", "created_at",
+           "time_ms", "timestamp_ms"),
 }
 
 
@@ -341,7 +342,21 @@ def _to_float(v):
 
 
 def _to_ts(v):
-    """Seconds, from seconds, milliseconds, microseconds or nanoseconds."""
+    """Seconds, from an ISO stamp, seconds, milliseconds, microseconds or nanoseconds.
+
+    Exness stamps its ticks as ISO-8601 text ("2026-11-26T15:35:21.28Z"), so a number
+    parser alone would drop every timestamp and fall back to arrival time.
+    """
+    if isinstance(v, str) and ("-" in v and ":" in v):
+        import datetime
+        try:
+            txt = v.strip().replace("Z", "+00:00")
+            dt = datetime.datetime.fromisoformat(txt)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=datetime.timezone.utc)
+            return dt.timestamp()
+        except Exception:
+            return None
     f = _to_float(v)
     if f is None or f <= 0:
         return None
