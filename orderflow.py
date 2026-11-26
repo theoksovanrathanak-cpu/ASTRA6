@@ -50,6 +50,7 @@ _STATE = {
     "status": "idle",                    # idle / connecting / live / error / not_configured
     "error": "",
     "access_point": "",
+    "gateway": "",
     "last_tick": 0.0,
     "started": 0.0,
     "messages": 0,                       # frames seen
@@ -64,9 +65,14 @@ def _env(name):
     return (os.getenv(name) or "").strip()
 
 
+def missing():
+    """Which of the required settings are still absent. Names only, never values."""
+    need = ("EXN_API_KEY", "EXN_PRIVATE_KEY", "EXN_ACCOUNT_ID")
+    return [n for n in need if not _env(n)]
+
+
 def configured():
-    return bool(_env("EXN_API_KEY") and _env("EXN_PRIVATE_KEY")
-                and _env("EXN_ACCOUNT_ID") and _env("EXN_DISCOVERY_BASE_URL"))
+    return not missing()
 
 
 def _b64url(raw: bytes) -> str:
@@ -83,9 +89,10 @@ def _load_key(text: str):
         if not isinstance(key, Ed25519PrivateKey):
             raise ValueError("expected an Ed25519 private key")
         return key
-    if not re.fullmatch(r"[0-9a-fA-F]{128}", text):
+    hexed = re.sub(r"[\s'\"]+", "", text)          # a copy from the portal may carry either
+    if not re.fullmatch(r"[0-9a-fA-F]{128}", hexed):
         raise ValueError("expected 128 hex characters or an unencrypted PKCS#8 PEM")
-    raw = bytes.fromhex(text)
+    raw = bytes.fromhex(hexed)
     key = Ed25519PrivateKey.from_private_bytes(raw[:32])
     pub = key.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
     if pub != raw[32:]:
@@ -135,24 +142,45 @@ def _get_json(host: str, path_with_query: str) -> dict:
     return r.json()
 
 
+# The docs name these as review hosts for the Trader API and say the DNS widget host is
+# the real one. They are only tried, in order, when EXN_DISCOVERY_BASE_URL is not set -
+# and whichever answers is recorded, so the setting can be pinned afterwards.
+REVIEW_HOSTS = ("https://api.exness.com", "https://api.exness-api.com")
+
+
+def gateways() -> list:
+    given = _env("EXN_DISCOVERY_BASE_URL")
+    if given:
+        return [_base_url(given)]
+    return list(REVIEW_HOSTS)
+
+
 def access_point(force: bool = False) -> str:
     """Resolve (and cache) the account's Access Point from the Gateway."""
     with _LOCK:
         hit = _STATE["access_point"]
     if hit and not force:
         return hit
-    gw = _base_url(_env("EXN_DISCOVERY_BASE_URL"))
     acc = _env("EXN_ACCOUNT_ID")
     if not re.fullmatch(r"[1-9][0-9]*", acc):
-        raise ValueError("EXN_ACCOUNT_ID must be a positive integer")
-    d = _get_json(gw, "/v1/trading/access-point?account_id=" + acc)
-    ap = d.get("access_point")
-    if not isinstance(ap, str) or not ap:
-        raise RuntimeError("discovery returned no access_point")
-    ap = ap.rstrip("/")
-    with _LOCK:
-        _STATE["access_point"] = ap
-    return ap
+        raise ValueError("EXN_ACCOUNT_ID must be the numeric trading account number")
+    tried = []
+    for gw in gateways():
+        try:
+            d = _get_json(gw, "/v1/trading/access-point?account_id=" + acc)
+        except Exception as e:
+            tried.append("%s (%s)" % (gw, str(e)[:60]))
+            continue
+        ap = d.get("access_point") if isinstance(d, dict) else None
+        if not isinstance(ap, str) or not ap:
+            tried.append("%s (no access_point)" % gw)
+            continue
+        ap = ap.rstrip("/")
+        with _LOCK:
+            _STATE["access_point"] = ap
+            _STATE["gateway"] = gw
+        return ap
+    raise RuntimeError("discovery failed: " + "; ".join(tried))
 
 
 def account() -> dict:
@@ -347,6 +375,8 @@ def state() -> dict:
     with _LOCK:
         s = dict(_STATE)
     s["configured"] = configured()
+    s["missing"] = missing()
+    s["gateway"] = s.get("gateway") or ""
     s["symbol"] = SYMBOL
     s["crypto"] = _CRYPTO
     return s

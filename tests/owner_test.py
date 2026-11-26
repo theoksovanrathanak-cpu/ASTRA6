@@ -199,6 +199,62 @@ check("a silent feed is called stale, not live", OF.snapshot()["stale"] is True)
 OF._STATE.update(_OF_STALE)
 check("the method says plainly that it is a proxy",
       "proxy" in OF.snapshot()["method"].lower())
+
+# --- two keys and an account number are enough; the DNS-widget host is optional
+os.environ["EXN_API_KEY"] = "exnsk-not-a-real-key"
+os.environ["EXN_PRIVATE_KEY"] = "0" * 128
+os.environ["EXN_ACCOUNT_ID"] = "12345678"
+check("the key pair plus the account number configure it, with no gateway host set",
+      OF.configured() is True and OF.missing() == [], OF.missing())
+check("without the DNS-widget host the documented review hosts are tried in order",
+      OF.gateways() == ["https://api.exness.com", "https://api.exness-api.com"], OF.gateways())
+os.environ["EXN_DISCOVERY_BASE_URL"] = "https://gw.example/"
+check("a host from the DNS widget is used alone, with any trailing slash dropped",
+      OF.gateways() == ["https://gw.example"], OF.gateways())
+os.environ.pop("EXN_DISCOVERY_BASE_URL", None)
+
+_real_get = OF._get_json
+def _fake_get(host, path):
+    if host == "https://api.exness.com":
+        raise RuntimeError("HTTP 403 from /v1/trading/access-point")
+    return {"access_point": "https://ap-9.example/"}
+OF._STATE["access_point"] = ""
+OF._STATE["gateway"] = ""
+OF._get_json = _fake_get
+try:
+    _ap = OF.access_point()
+finally:
+    OF._get_json = _real_get
+check("when the first review host refuses, the next one answers and is remembered",
+      _ap == "https://ap-9.example" and OF._STATE["gateway"] == "https://api.exness-api.com",
+      (OF._STATE.get("gateway"), _ap))
+
+try:
+    from cryptography.hazmat.primitives import serialization as _ser
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey as _Ed
+    _k = _Ed.generate()
+    _seed = _k.private_bytes(_ser.Encoding.Raw, _ser.PrivateFormat.Raw, _ser.NoEncryption())
+    _pub = _k.public_key().public_bytes(_ser.Encoding.Raw, _ser.PublicFormat.Raw)
+    _good = (_seed + _pub).hex()
+    _pasted = "\n  " + _good[:64] + "\n" + _good[64:] + "  \"\n"
+    check("a private key pasted with line breaks, spaces or quotes is read cleanly",
+          isinstance(OF._load_key(_pasted), _Ed))
+    try:
+        OF._load_key(("11" * 32) + _pub.hex())
+        _refused = False
+    except ValueError:
+        _refused = True
+    check("a key whose halves do not match is refused, not used anyway", _refused)
+except Exception as _e:
+    check("the key loader can be exercised in this environment", False, repr(_e))
+
+check("the diagnostic state names the missing settings, never their values",
+      set(OF.state()["missing"]) <= {"EXN_API_KEY", "EXN_PRIVATE_KEY", "EXN_ACCOUNT_ID"}
+      and "exnsk-not-a-real-key" not in repr(OF.state()))
+for _v in ("EXN_API_KEY", "EXN_PRIVATE_KEY", "EXN_ACCOUNT_ID"):
+    os.environ.pop(_v, None)
+OF._STATE["access_point"] = OF._STATE["gateway"] = ""
+check("with the settings removed again it is unconfigured, not pretending", OF.configured() is False)
 _of_reset()
 
 print("site settings are clamped, never trusted")

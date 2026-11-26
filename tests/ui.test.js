@@ -1278,6 +1278,11 @@ section('signals: read-only on the page, posting lives in the owner menu');
      /def configured\(\)/.test(fs.readFileSync(path.join(root, 'orderflow.py'), 'utf8'))
      && /"not_configured"/.test(fs.readFileSync(path.join(root, 'orderflow.py'), 'utf8'))
      && !/EXN_PRIVATE_KEY/.test(html));
+  ok('the page never asks anybody to paste a broker key',
+     !/exnsk/i.test(html) && !/EXN_API_KEY|EXN_PRIVATE_KEY/.test(html));
+  ok('two keys and the account number are enough to switch it on',
+     /def missing\(\)/.test(fs.readFileSync(path.join(root, 'orderflow.py'), 'utf8'))
+     && /REVIEW_HOSTS/.test(fs.readFileSync(path.join(root, 'orderflow.py'), 'utf8')));
   ok('the diagnostics endpoint is owner-only', /def get_orderflow_state\(request: Request\)/.test(fs.readFileSync(path.join(root, 'main.py'), 'utf8'))
      && /_owner\.require_owner\(request\)\n    try:\n        import orderflow as OF/.test(fs.readFileSync(path.join(root, 'main.py'), 'utf8')));
   ok('the flow meter is gone from the chart', !/id="flow-meter"/.test(html));
