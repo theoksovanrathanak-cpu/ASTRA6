@@ -76,7 +76,14 @@ def store():
         return _STORE
     try:
         import tape
-        path = _env("TAPE_DB") or os.path.join("data", "tape.sqlite3")
+        # A mounted disk wins if there is one: on Render that is /var/data, which is the
+        # only place that survives a deploy. Without it the archive is per-instance and
+        # the terminal says so rather than implying history it cannot keep.
+        path = _env("TAPE_DB")
+        if not path:
+            mounted = "/var/data"
+            path = (os.path.join(mounted, "tape.sqlite3") if os.path.isdir(mounted)
+                    else os.path.join("data", "tape.sqlite3"))
         d = os.path.dirname(path)
         if d:
             os.makedirs(d, exist_ok=True)
@@ -102,6 +109,12 @@ def points(seconds: int = 900):
         return [(t[0], t[1], t[2], t[3]) for t in _TICKS if t[0] >= now - seconds]
 
 
+def archive_durable() -> bool:
+    """True only when the tape sits on a mounted disk, so it outlives the instance."""
+    p = _env("TAPE_DB") or ("/var/data/tape.sqlite3" if os.path.isdir("/var/data") else "")
+    return bool(p) and p.startswith("/var/data/")
+
+
 def archive_status() -> dict:
     st = store()
     if st is None:
@@ -114,6 +127,8 @@ def archive_status() -> dict:
     try:
         s = st.span()
         s["ok"] = True
+        s["durable"] = archive_durable()
+        s["path"] = getattr(st, "path", "")
         return s
     except Exception as e:                    # pragma: no cover
         return {"ok": False, "error": str(e)[:120]}

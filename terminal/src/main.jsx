@@ -185,6 +185,8 @@ function App() {
         <span>data <b>Exness Trading API</b> · quotes only</span>
         <span className="sep" />
         <span>no synthetic prices, no predictive signals</span>
+        <span className="sep" />
+        <a href="/app" style={{ color: '#93a5ba', textDecoration: 'none' }}>signals &amp; news →</a>
         <span style={{ flex: 1 }} />
         <span>{data ? new Date(data.server_ts * 1000).toISOString().slice(11, 19) : '--:--:--'} UTC</span>
       </footer>

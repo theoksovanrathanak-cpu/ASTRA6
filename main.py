@@ -3525,20 +3525,53 @@ def keepalive():
 def health():
     return {"status": "ok", "name": "ASTRA6", "uptime": "24/7", "timestamp": time.time(), "message": "Elite 85%+ 5-layer AI+Finance+TradingView+Vibe v1.3","ai":"pythonidae+financedb+tradingview+vibe","version":"ai-5layer-1.3"}
 
-@app.get("/", response_class=HTMLResponse)
-def home(request: Request):
-    # the door: with REQUIRE_LOGIN on, only a proved owner session sees the app
+NO_CACHE = {"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+            "Pragma": "no-cache", "Expires": "0"}
+
+
+def page_file(which: str):
+    """Which page the front door shows. The terminal is the product; the signals page
+    stays reachable, and falls back to being the front page if the bundle is missing."""
+    terminal = Path("terminal") / "index.html"
+    classic = Path("index.html")
+    if which == "classic":
+        return classic
+    return terminal if terminal.exists() else classic
+
+
+def _gate(request: Request):
+    """The door: with REQUIRE_LOGIN on, only a proved owner session sees either page."""
     try:
         import owner as _owner
         if _owner.login_required() and not _owner.read_session(request):
-            return HTMLResponse(content=_owner.signin_page(request),
-                                headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"})
-    except Exception as _gate:
-        print("login gate:", _gate)
-    # always serve the freshest build - a cached page is why a new feature can look "missing"
-    return HTMLResponse(content=open("index.html", encoding="utf-8").read(),
-                        headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
-                                 "Pragma": "no-cache", "Expires": "0"})
+            return HTMLResponse(content=_owner.signin_page(request), headers=dict(NO_CACHE))
+    except Exception as _e:
+        print("login gate:", _e)
+    return None
+
+
+def _render(which: str, request: Request):
+    blocked = _gate(request)
+    if blocked is not None:
+        return blocked
+    p = page_file(which)
+    try:
+        body = p.read_text(encoding="utf-8")
+    except Exception:
+        raise HTTPException(404, "page not found")
+    return HTMLResponse(content=body, headers=dict(NO_CACHE))
+
+
+@app.get("/", response_class=HTMLResponse)
+def home(request: Request):
+    """The order-flow terminal."""
+    return _render("terminal", request)
+
+
+@app.get("/app", response_class=HTMLResponse)
+def classic_app(request: Request):
+    """The signals and news page that came before the terminal."""
+    return _render("classic", request)
 
 @app.get("/login.html", response_class=HTMLResponse)
 def login_page():
@@ -6082,6 +6115,7 @@ def _tape_payload(tf, step, bars, ratio, stack, minutes) -> dict:
         "first_ts": arc.get("first_ts"),
         "last_ts": arc.get("last_ts"),
         "persistent": bool(arc.get("ok")),
+        "durable": bool(arc.get("durable")),
         "kept_days": 4,
     }
     snap["settings"] = {"tf": tf, "step": step, "bars": bars, "ratio": ratio,
@@ -6118,7 +6152,8 @@ def tape_meta():
         "feed": {"status": st.get("status"), "connected": st.get("connected"),
                  "price": st.get("price"), "age": st.get("age")},
         "archive": {"ticks": arc.get("ticks", 0), "first_ts": arc.get("first_ts"),
-                    "last_ts": arc.get("last_ts"), "persistent": bool(arc.get("ok"))},
+                    "last_ts": arc.get("last_ts"), "persistent": bool(arc.get("ok")),
+                    "durable": bool(arc.get("durable"))},
         "timeframes": list(TP.TIMEFRAMES),
         "price_steps": list(TP.PRICE_STEPS),
         "provenance": TP.PROVENANCE,

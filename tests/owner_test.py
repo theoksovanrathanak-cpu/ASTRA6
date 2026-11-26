@@ -409,5 +409,14 @@ check("asking for a frame is enough to wake the feed, no separate warm-up call",
 check("the same second is served from cache, not recomputed per request",
       M._tape_payload(60, 0.05, 41, 3.0, 3, 240) is M._tape_payload(60, 0.05, 41, 3.0, 3, 240))
 
+print("the front door and the tape's durability are stated, not assumed")
+check("the terminal is the front page", str(M.page_file("terminal")).endswith("terminal/index.html"))
+check("the signals page is still served, at its own address",
+      str(M.page_file("classic")) == "index.html")
+check("history is only called durable when it sits on a mounted disk",
+      OF.archive_durable() is False)
+check("the frame says whether the archive outlives this instance",
+      M._tape_payload(60, 0.05, 44, 3.0, 3, 240)["archive"]["durable"] is False)
+
 print("\n%d passed, %d failed" % (PASS, FAIL))
 sys.exit(1 if FAIL else 0)
