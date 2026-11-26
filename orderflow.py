@@ -195,15 +195,33 @@ def account() -> dict:
     return _get_json(ap, "/v1/configuration/accounts/%s/account" % _env("EXN_ACCOUNT_ID"))
 
 
-def _names(node) -> list:
-    """Every instrument name a list response carries, whatever its shape."""
-    out = []
-    for d in _walk(node, []):
-        for k in ("name", "symbol", "instrument", "code", "id"):
-            v = d.get(k)
-            if isinstance(v, str) and v and v not in out:
-                out.append(v)
+def _names(node, out=None) -> list:
+    """Every instrument name a list response carries, whatever its shape.
+
+    Exness answers {"instruments": ["XAUUSD", ...]} - plain strings - but other shapes
+    are accepted too, so a schema change cannot quietly empty the list.
+    """
+    if out is None:
+        out = []
+    if isinstance(node, str):
+        name = node.strip()
+        if name and name not in out:
+            out.append(name)
+    elif isinstance(node, dict):
+        picked = False
+        for k in ("name", "symbol", "instrument", "code", "ticker"):
+            v = node.get(k)
+            if isinstance(v, str) and v.strip():
+                if v.strip() not in out:
+                    out.append(v.strip())
+                picked = True
                 break
+        for v in node.values():
+            if isinstance(v, (dict, list, str)) and not (picked and v is node.get(k)):
+                _names(v, out)
+    elif isinstance(node, list):
+        for v in node:
+            _names(v, out)
     return out
 
 

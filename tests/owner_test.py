@@ -214,6 +214,10 @@ try:
     _picked = OF.resolve_symbol(force=True)
 finally:
     OF._get_json = _real_get
+check("the real shape - a bare list of names - is read, and so are object lists",
+      OF._names({"instruments": ["AAPL", "XAUUSD", "XAGUSD"]}) == ["AAPL", "XAUUSD", "XAGUSD"]
+      and OF._names({"data": [{"symbol": "XAUUSDm"}]}) == ["XAUUSDm"]
+      and OF._names({"instruments": []}) == [])
 check("the instrument list is read from the account that owns the key",
       _calls.get("path", "").endswith("/instruments") and "/configuration/accounts/" in _calls["path"],
       _calls)
