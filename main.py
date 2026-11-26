@@ -5994,6 +5994,33 @@ def push_scan():
         return {"status": "error", "error": str(e)}
 
 
+# === order flow: the trader's own Exness ticks, read as a tick-rule delta ===
+@app.get("/api/orderflow")
+def get_orderflow():
+    """Buy/sell pressure from the account's own tick stream. Nothing here is modelled."""
+    try:
+        import orderflow as OF
+        OF.start()
+        return OF.snapshot()
+    except Exception as e:
+        print("orderflow err", str(e)[:120])
+        return {"status": "error", "error": str(e)[:120], "proxy": True,
+                "windows": {}, "source": "Exness Trading API · ticks"}
+
+
+@app.get("/api/orderflow/state")
+def get_orderflow_state(request: Request):
+    """Owner-only diagnostics: is the socket up, and what shape do the frames have?"""
+    import owner as _owner
+    _owner.require_owner(request)
+    try:
+        import orderflow as OF
+        OF.start()
+        return OF.state()
+    except Exception as e:
+        return {"status": "error", "error": str(e)[:160]}
+
+
 @app.post("/api/push/test")
 async def push_test(request: Request):
     """Send the card now, so the trader can see it work."""
@@ -6065,6 +6092,11 @@ def get_gold_fundamentals(limit: int = 12):
     try:
         import news as NEWS
         NEWS.refresh_in_background()          # keep the wires warm from boot
+        try:
+            import orderflow as _OF
+            _OF.start()
+        except Exception as _of:
+            print('orderflow start:', str(_of)[:80])
         d = NEWS.gold_fundamentals(limit=max(6, min(24, int(limit or 12))))
         # the reading's own history, so the panel can show whether it has been right
         try:

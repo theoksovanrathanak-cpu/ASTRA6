@@ -4,6 +4,7 @@ python-dotenv==1.0.1
 oandapyV20==0.7.2
 requests==2.32.3
 websocket-client==1.8.0
+cryptography>=42
 numpy
 pandas
 yfinance

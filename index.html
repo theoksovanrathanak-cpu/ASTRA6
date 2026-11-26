@@ -2049,6 +2049,28 @@ body[data-view="chart"] #mysig-section{margin-bottom:14px}
   .mysig-list{max-height:none;overflow:visible}   /* the page scrolls, the list is never cut */
 }
 .mysig-empty{font-size:11px;color:var(--muted);padding:10px 2px}
+/* ---------- order flow: the broker's own ticks, read as a proxy ---------- */
+.oflow{display:flex;flex-direction:column;gap:10px;min-width:0;max-width:100%}
+.oflow-hd{display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.oflow-chip{font-size:9px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:2px 7px}
+.oflow-bar{display:flex;height:10px;border-radius:999px;overflow:hidden;background:var(--line-soft);
+  border:1px solid var(--line)}
+.oflow-bar i{display:block;height:100%}
+.oflow-bar .ob{background-image:linear-gradient(90deg,#0f9d67,#12b981)}
+.oflow-bar .os{background-image:linear-gradient(90deg,#dc4444,#f4525f)}
+.oflow-num{display:flex;justify-content:space-between;gap:10px;font-family:ui-monospace,monospace;font-size:11px}
+.oflow-num b{color:var(--ink)}
+.oflow-num .ob{color:#12b981}
+.oflow-num .os{color:#f4525f}
+.oflow-tabs{display:flex;gap:6px}
+.oflow-tabs button{flex:1;padding:6px 0;border-radius:8px;border:1px solid var(--line);
+  background:transparent;color:var(--muted);font-size:10.5px;font-weight:800;cursor:pointer}
+.oflow-tabs button.on{color:var(--ink);border-color:var(--brand);background:var(--line-soft)}
+.oflow-foot{font-size:10px;color:var(--muted);display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.oflow-dot{width:6px;height:6px;border-radius:50%;background:#12b981;display:inline-block}
+.oflow-dot.stale{background:#f4525f}
+
 .mrow{display:flex;align-items:center;flex-wrap:wrap;gap:9px;padding:8px 10px;max-width:100%;border:1px solid var(--line);
   border-radius:10px;background:var(--line-soft)}
 .mmid{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
@@ -2354,6 +2376,25 @@ body::before,[data-theme="dark"] body::before{
       <div class="mysig-count mono" id="mysig-count">0 published</div>
     </div>
     <div class="mysig-list" id="mysig-list"><div class="mysig-empty">The owner has not published a signal yet.</div></div>
+  </section>
+
+  <section class="card oflow" id="oflow" hidden aria-label="Order flow">
+    <div class="oflow-hd">
+      <div class="card-title">Order flow · XAUUSD</div>
+      <span class="oflow-chip" id="oflow-chip" title="A retail broker does not publish per-trade aggressor side. This is a tick-rule proxy: a tick is booked as buying when the quoted price rises, selling when it falls.">proxy · broker ticks</span>
+    </div>
+    <div class="oflow-bar" aria-hidden="true"><i class="ob" id="oflow-buy" style="width:50%"></i><i class="os" id="oflow-sell" style="width:50%"></i></div>
+    <div class="oflow-num">
+      <span class="ob">buy <b id="oflow-bv">—</b></span>
+      <span>delta <b id="oflow-dv">—</b></span>
+      <span class="os">sell <b id="oflow-sv">—</b></span>
+    </div>
+    <div class="oflow-tabs" role="group" aria-label="Window">
+      <button type="button" data-w="60">1m</button>
+      <button type="button" data-w="300" class="on">5m</button>
+      <button type="button" data-w="900">15m</button>
+    </div>
+    <div class="oflow-foot"><span class="oflow-dot" id="oflow-dot"></span><span id="oflow-age">—</span><span>·</span><span id="oflow-px">—</span></div>
   </section>
 
   <footer class="foot">
@@ -10422,6 +10463,66 @@ async function saveSite() {
 document.addEventListener('DOMContentLoaded', function () { setTimeout(function () { try { ownerBoot(); } catch (e) { console.log(e); } }, 350);
   setTimeout(function () { try { signalWatch(); } catch (e) {} }, 900);
   setInterval(function () { try { signalWatch(); } catch (e) {} }, 20000);
+/* ---- order flow: buy/sell pressure from the owner's own Exness ticks ----
+   Hidden until the broker feed is actually live: no card is better than a fake bar. */
+let _of = null, _ofWin = 300;
+function ofNum(v) {
+  if (v == null) return '—';
+  const n = Number(v);
+  if (!isFinite(n)) return '—';
+  return (Math.abs(n) >= 100 ? n.toFixed(0) : n.toFixed(n === Math.round(n) ? 0 : 2));
+}
+function ofAge(s) {
+  if (s == null) return 'no tick yet';
+  if (s < 5) return 'live';
+  if (s < 90) return 'last tick ' + Math.round(s) + 's ago';
+  const m = Math.round(s / 60);
+  return 'stale ' + m + 'm';
+}
+async function ofLoad() {
+  try {
+    const r = await fetch('/api/orderflow', { cache: 'no-store' });
+    if (!r.ok) return;
+    const d = await r.json();
+    _of = d;
+    ofPaint();
+  } catch (e) {}
+}
+function ofPaint() {
+  const sec = document.getElementById('oflow');
+  if (!sec) return;
+  const d = _of;
+  const w = d && d.windows ? d.windows[_ofWin + 's'] : null;
+  const ok = !!(d && d.status === 'ok' && w && w.ticks > 0);
+  sec.hidden = !ok;
+  if (!ok) return;
+  const total = (w.buy + w.sell) || 0;
+  const pct = total ? Math.round((w.buy / total) * 100) : 50;
+  const b = document.getElementById('oflow-buy'), s = document.getElementById('oflow-sell');
+  if (b) b.style.width = pct + '%';
+  if (s) s.style.width = (100 - pct) + '%';
+  const put = function (id, txt) { const el = document.getElementById(id); if (el) el.textContent = txt; };
+  put('oflow-bv', ofNum(w.buy));
+  put('oflow-sv', ofNum(w.sell));
+  put('oflow-dv', (w.delta > 0 ? '+' : '') + ofNum(w.delta));
+  put('oflow-age', ofAge(d.age));
+  put('oflow-px', d.price != null ? 'XAUUSD ' + Number(d.price).toFixed(2) : 'no price');
+  put('oflow-chip', 'proxy · ' + (d.unit || 'ticks'));
+  const dot = document.getElementById('oflow-dot');
+  if (dot) dot.classList.toggle('stale', !!d.stale);
+  document.querySelectorAll('#oflow .oflow-tabs button').forEach(function (btn) {
+    btn.classList.toggle('on', Number(btn.getAttribute('data-w')) === _ofWin);
+  });
+}
+document.addEventListener('click', function (e) {
+  const btn = e.target.closest && e.target.closest('#oflow .oflow-tabs button');
+  if (!btn) return;
+  _ofWin = Number(btn.getAttribute('data-w')) || 300;
+  ofPaint();
+});
+document.addEventListener('visibilitychange', function () { if (!document.hidden) ofLoad(); });
+setTimeout(ofLoad, 2500);
+setInterval(ofLoad, 5000);
 });
 
 

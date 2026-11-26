@@ -13,6 +13,8 @@ os.environ.setdefault("ASTRA6_DATA_DIR", tempfile.mkdtemp(prefix="astra6-owner-"
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import owner as O  # noqa: E402
+import orderflow as OF  # noqa: E402
+import time  # noqa: E402
 
 PASS = FAIL = 0
 
@@ -131,6 +133,66 @@ try:
     check("a visitor cannot delete a signal", raises(lambda: O.signals_delete("s-edit", RGuest()), 401))
 finally:
     O._write("signals.json", [])
+
+print("order flow reads the broker's ticks and never invents one")
+
+
+def _of_reset():
+    OF._TICKS.clear()
+    for k, v in (("last_tick", 0.0), ("parsed", 0), ("messages", 0), ("status", "idle")):
+        OF._STATE[k] = v
+
+
+_of_reset()
+for env in ("EXN_API_KEY", "EXN_PRIVATE_KEY", "EXN_ACCOUNT_ID", "EXN_DISCOVERY_BASE_URL"):
+    os.environ.pop(env, None)
+check("with no credentials it says so, and shows nothing else",
+      OF.snapshot()["status"] == "not_configured" and OF.snapshot()["windows"]["60s"]["ticks"] == 0)
+check("it reports itself as a proxy", OF.snapshot()["proxy"] is True)
+check("starting without credentials starts no thread", OF.start() is False)
+
+# three shapes a tick stream can take
+frames = [
+    {"type": "tick", "data": {"symbol": "XAUUSD", "bid": 3520.10, "ask": 3520.30, "ts": 1773656070}},
+    {"event": "ticks", "ticks": [{"instrument": "XAUUSD", "price": 3520.60, "volume": 2, "time": 1773656071}]},
+    {"stream": "XAUUSD", "p": 3520.40, "v": 1, "t": 1773656072000},
+]
+got = []
+for f in frames:
+    got.extend(OF.parse_ticks(f))
+check("bids and asks become a mid price", got[0]["price"] == 3520.2, got[0])
+check("a plain price is kept as it is", got[1]["price"] == 3520.6 and got[1]["volume"] == 2)
+check("milliseconds are turned into seconds", abs(got[2]["ts"] - 1773656072) < 1, got[2])
+check("a frame with no price yields no tick", OF.parse_ticks({"type": "heartbeat"}) == [])
+
+# the delta itself: up, up, down, flat
+_OF_NOW = int(time.time())
+OF.ingest([{"sym": "XAUUSD", "price": 100.0, "volume": None, "ts": _OF_NOW - 10},
+           {"sym": "XAUUSD", "price": 101.0, "volume": None, "ts": _OF_NOW - 8},
+           {"sym": "OTHER", "price": 5.0, "volume": None, "ts": _OF_NOW - 7},
+           {"sym": "XAUUSD", "price": 100.5, "volume": None, "ts": _OF_NOW - 5}])
+snap = OF.snapshot()
+w = snap["windows"]["60s"]
+check("a foreign symbol is ignored, and the first tick votes for nobody",
+      w["ticks"] == 3 and w["flat"] == 1, w)
+check("one buying tick and one selling tick", w["buy"] == 1 and w["sell"] == 1, w)
+check("the delta is their difference", w["delta"] == 0, w)
+check("the price is the last one seen", snap["price"] == 100.5)
+check("the unit is ticks when no size arrives", snap["unit"] == "ticks")
+OF.ingest([{"sym": "XAUUSD", "price": 101.5, "volume": None, "ts": int(time.time())}])
+w = OF.snapshot()["windows"]["60s"]
+check("a fresh up tick is buying, and the delta follows", w["delta"] == 1, w)
+check("stale is false while the tick is fresh", OF.snapshot()["stale"] is False)
+
+OF.ingest([{"sym": "XAUUSD", "price": 99.0, "volume": None, "ts": int(time.time())}])
+check("a down tick is selling", OF.snapshot()["windows"]["60s"]["delta"] == 0)
+_OF_STALE = dict(OF._STATE)
+OF._STATE["last_tick"] = time.time() - 300
+check("a silent feed is called stale, not live", OF.snapshot()["stale"] is True)
+OF._STATE.update(_OF_STALE)
+check("the method says plainly that it is a proxy",
+      "proxy" in OF.snapshot()["method"].lower())
+_of_reset()
 
 print("site settings are clamped, never trusted")
 saved = {"title": "x" * 80, "accent": "javascript:alert(1)", "theme": "neon",

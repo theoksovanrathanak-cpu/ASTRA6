@@ -1258,6 +1258,24 @@ section('signals: read-only on the page, posting lives in the owner menu');
   ok('the alerts toggle talks about every device, not just a phone',
      /Signal alerts on this device/.test(html) && !/Signal alerts on this phone/.test(html)
      && /on another tab, on the lock screen, or with the app shut/.test(html));
+  ok('the order-flow card exists but stays invisible until the broker feed is live',
+     /<section class="card oflow" id="oflow" hidden/.test(html)
+     && /sec\.hidden = !ok/.test(grab('ofPaint')));
+  ok('it reads the owner\'s own ticks from the server, never a made-up series',
+     /fetch\('\/api\/orderflow'/.test(grab('ofLoad')) && !/Math\.random/.test(grab('ofPaint'))
+     && !/Math\.random/.test(grab('ofLoad')));
+  ok('it is labelled a proxy everywhere it shows a number',
+     /proxy · broker ticks/.test(html) && /proxy · ' \+ \(d\.unit/.test(grab('ofPaint')));
+  ok('it offers the three windows and re-reads every five seconds',
+     /data-w="60"/.test(html) && /data-w="300"/.test(html) && /data-w="900"/.test(html)
+     && /setInterval\(ofLoad, 5000\)/.test(html));
+  ok('a silent feed shows as stale instead of a live bar', /dot\.classList\.toggle\('stale'/.test(grab('ofPaint')));
+  ok('the broker worker is server-side only and says when it is unconfigured',
+     /def configured\(\)/.test(fs.readFileSync(path.join(root, 'orderflow.py'), 'utf8'))
+     && /"not_configured"/.test(fs.readFileSync(path.join(root, 'orderflow.py'), 'utf8'))
+     && !/EXN_PRIVATE_KEY/.test(html));
+  ok('the diagnostics endpoint is owner-only', /def get_orderflow_state\(request: Request\)/.test(fs.readFileSync(path.join(root, 'main.py'), 'utf8'))
+     && /_owner\.require_owner\(request\)\n    try:\n        import orderflow as OF/.test(fs.readFileSync(path.join(root, 'main.py'), 'utf8')));
   ok('the flow meter is gone from the chart', !/id="flow-meter"/.test(html));
   ok('no copy still promises alerts the app cannot send',
      !/alerts ring with the app closed/.test(html) && !/journal, alerts and drawings/.test(html));
