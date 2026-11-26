@@ -119,6 +119,7 @@ export default function Footprint({ data, barW, onBarW, show }) {
               <div><span className="g">buy {fmtVol(hover.buy)}</span> · <span className="r">sell {fmtVol(hover.sell)}</span></div>
               <div><span className="m">delta</span> <b className={hover.buy - hover.sell >= 0 ? 'g' : 'r'}>
                 {(hover.buy - hover.sell >= 0 ? '+' : '') + fmtVol(hover.buy - hover.sell)}</b></div>
+              {hover.flat ? <div className="m">{hover.flat} quote(s) repeated the price — no side</div> : null}
               {hover.imbalance && <div className="a">imbalance {hover.imbalance}% {hover.side}</div>}
             </>
           ) : (
@@ -156,6 +157,7 @@ function hitTest(data, W, H, barW, pan, px, py) {
       const marks = (data.imbalance.bars || []).find((m) => m.t0 === b.t0);
       const mark = marks && marks.marks.find((m) => Math.abs(m.price - price) < 1e-6);
       return { kind: 'cell', x: px, y: py, price: cell[0], buy: cell[1], sell: cell[2],
+               flat: cell[3] || 0,
                imbalance: mark ? Math.round(mark.ratio * 100) : null, side: mark && mark.side };
     }
   }
@@ -229,9 +231,15 @@ function draw(x, W, H, data, barW, pan, show) {
         x.fillStyle = mark.side === 'buy' ? '#16c784' : '#ea3943';
         x.fillRect(mark.side === 'buy' ? bx + 1 : bx + barW - 3, y, 2, ROW_H - 1);
       }
+      const flat = row[3] || 0;
+      // A quote that repeated the last price votes for neither side. A dim count says so:
+      // the level saw activity and none of it was directional.
+      const label = (buy + sell === 0 && flat > 0)
+        ? '·' + fmtVol(flat)
+        : fmtVol(buy) + '×' + fmtVol(sell);
       const bias = buy > sell ? '#7fe6bb' : sell > buy ? '#ff9aa2' : '#8fa2b5';
-      x.fillStyle = buy === 0 || sell === 0 ? '#6c7f92' : bias;
-      x.fillText(fmtVol(buy) + '×' + fmtVol(sell), bx + barW / 2, y + ROW_H / 2);
+      x.fillStyle = (buy + sell === 0) ? '#5c6d80' : (buy === 0 || sell === 0 ? '#6c7f92' : bias);
+      x.fillText(label, bx + barW / 2, y + ROW_H / 2);
     });
     // column delta, above the plot
     const pos = b.delta >= 0;

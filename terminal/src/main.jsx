@@ -190,6 +190,7 @@ function App() {
             <span><i style={{ background: '#3d6ea8' }} />VAH / VAL</span>
             <span><i style={{ background: '#4c8dff' }} />cumulative delta</span>
             <span className="m">cells read buys × sells, counted from quotes</span>
+            <span className="m">· a dim number is quotes that repeated the price and voted for neither side</span>
           </div>
         </div>
 
