@@ -6162,6 +6162,17 @@ def tape_snapshot(tf: int = 60, step: float = 0.05, bars: int = 90, ratio: float
     return _tape_payload(tf, step, bars, ratio, stack, minutes)
 
 
+@app.get("/api/orderflow/probe")
+def orderflow_probe(request: Request, symbols: str = "XAUUSD,EURUSD,BTCUSD",
+                    seconds: int = 5):
+    """Owner-only: which instruments is the exchange printing right now?"""
+    import owner as _owner
+    _owner.require_owner(request)
+    import orderflow as OF
+    secs = max(2, min(int(seconds), 10))
+    return OF.probe(symbols.split(","), secs)
+
+
 @app.get("/api/tape/meta")
 def tape_meta():
     """What this terminal is, what it can show, and what it cannot."""

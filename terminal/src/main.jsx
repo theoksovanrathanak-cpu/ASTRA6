@@ -128,7 +128,8 @@ function App() {
             title={data.market.detail || 'Gold trades Sunday 22:05 to Friday 20:58 UTC with a daily break 20:58-22:02 UTC.'}>
             {data.market.open ? 'market open' : 'market closed'}
             {!data.market.open && data.market.opens_at
-              ? ' · opens ' + new Date(data.market.opens_at * 1000).toISOString().slice(11, 16) + ' UTC' : ''}
+              ? ' · opens ' + new Date(data.market.opens_at * 1000).toLocaleTimeString(
+                  undefined, { hour: '2-digit', minute: '2-digit' }) : ''}
           </span>
         )}
         <div className="spacer" />

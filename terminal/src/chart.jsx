@@ -55,6 +55,9 @@ export default function Footprint({ data, barW, onBarW, show }) {
     const mk = (data && data.market) || {};
     const shut = mk.open === false;
     const when = mk.opens_at ? new Date(mk.opens_at * 1000).toISOString().slice(11, 16) + ' UTC' : null;
+    const local = mk.opens_at
+      ? new Date(mk.opens_at * 1000).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+      : null;
     return (
       <div ref={box} className="chartwrap" style={{ height: 520, display: 'grid', placeItems: 'center' }}>
         <div className="empty" style={{ textAlign: 'center', maxWidth: 520 }}>
@@ -64,7 +67,8 @@ export default function Footprint({ data, barW, onBarW, show }) {
           {shut ? (
             <div>
               {mk.detail || 'The gold market is closed.'}
-              {when ? <> Reopens <b style={{ color: '#e8eef6' }}>{when}</b>.</> : null}
+              {when ? <> Reopens <b style={{ color: '#e8eef6' }}>{when}</b>{local ? <>
+                {' '}— <b style={{ color: '#e8eef6' }}>{local}</b> on your clock.</> : null}</> : null}
               {' '}A footprint cell is a counted quote, so there is nothing to draw until
               quotes resume - and nothing here is filled in with invented volume.
             </div>

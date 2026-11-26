@@ -658,6 +658,63 @@ def _ws_loop():
             time.sleep(RECONNECT_S)
 
 
+def probe(symbols, seconds: int = 5) -> dict:
+    """Owner-only: ask the exchange, per instrument, whether it is printing anything.
+
+    This is the difference between "my calendar says gold is shut" and "the exchange
+    answered for these instruments and stayed silent for gold" - so a quiet feed can be
+    diagnosed instead of argued about.
+    """
+    import websocket
+    out = {"at": time.time(), "access_point": "", "results": {}, "known_gold": []}
+    try:
+        ap = access_point()
+        out["access_point"] = ap
+        host = ap.split("://", 1)[1]
+        try:
+            out["known_gold"] = [n for n in instruments() if _norm(n).startswith("XAU")][:12]
+        except Exception:
+            pass
+        path = "/v1/server-events/accounts/%s/ws/ticks" % _env("EXN_ACCOUNT_ID")
+        for sym in [s.strip() for s in symbols if s and s.strip()][:6]:
+            row = {"ticks": 0, "frames": 0, "error": "", "sample": None}
+            try:
+                ws = websocket.create_connection("wss://" + host + path,
+                                                 header=signed_headers(path, method="GET"),
+                                                 timeout=6)
+                ws.send(json.dumps({"id": "probe-%s-%d" % (_norm(sym).lower(), int(time.time())),
+                                    "subscribe": {"event": "ticks", "instruments": [sym]}}))
+                t0 = time.time()
+                ws.settimeout(1.0)
+                while time.time() - t0 < seconds:
+                    try:
+                        raw = ws.recv()
+                    except Exception:
+                        continue
+                    if not raw:
+                        continue
+                    row["frames"] += 1
+                    try:
+                        frame = json.loads(raw)
+                    except Exception:
+                        continue
+                    err = frame.get("error_message") if isinstance(frame, dict) else None
+                    if err:
+                        row["error"] = str(err)[:120]
+                        break
+                    got = parse_ticks(frame)
+                    if got:
+                        row["ticks"] += len(got)
+                        row["sample"] = row["sample"] or raw[:200]
+                ws.close()
+            except Exception as e:
+                row["error"] = str(e)[:120]
+            out["results"][sym] = row
+    except Exception as e:
+        out["error"] = str(e)[:160]
+    return out
+
+
 def start() -> bool:
     """One worker thread, started from the first request that needs it."""
     if not configured():
