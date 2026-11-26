@@ -200,6 +200,40 @@ OF._STATE.update(_OF_STALE)
 check("the method says plainly that it is a proxy",
       "proxy" in OF.snapshot()["method"].lower())
 
+# --- the exchange only accepts the account's own spelling of an instrument
+_real_ap = OF.access_point
+_real_get = OF._get_json
+OF.access_point = lambda force=False: "https://ap-9.example"
+_calls = {}
+def _inst_get(host, path):
+    _calls["path"] = path
+    return {"instruments": [{"name": "EURUSDm"}, {"name": "XAGUSDm"},
+                            {"name": "XAUUSDm"}, {"name": "XAUUSDM"}]}
+OF._get_json = _inst_get
+try:
+    _picked = OF.resolve_symbol(force=True)
+finally:
+    OF._get_json = _real_get
+check("the instrument list is read from the account that owns the key",
+      _calls.get("path", "").endswith("/instruments") and "/configuration/accounts/" in _calls["path"],
+      _calls)
+check("it subscribes with the exchange's own spelling, not the uppercase guess",
+      _picked == "XAUUSDm", _picked)
+check("only the gold contracts are kept for diagnostics",
+      OF._STATE["gold_names"][:1] == ["XAUUSDm"]
+      and "EURUSDm" not in OF._STATE["gold_names"]
+      and "XAGUSDm" not in OF._STATE["gold_names"], OF._STATE["gold_names"])
+check("a tick named the way the exchange names it is accepted",
+      OF._same_instrument("XAUUSDm"))
+check("a name the account really lists wins over the configured guess",
+      OF.pick_gold(["XAUUSD", "XAUUSDm"], "XAUUSDM") == "XAUUSDm"
+      and OF.pick_gold(["XAUUSD", "XAUUSDm"], "XAUUSD") == "XAUUSD"
+      and OF.pick_gold(["CORN", "XAUUSDM"], "ZZZ") == "XAUUSDM")
+check("with no gold in the list it keeps the configured name rather than inventing one",
+      OF.pick_gold(["EURUSDm", "GBPUSDm"], "XAUUSDM") == "" and OF.pick_gold([], "X") == "")
+OF._STATE["symbol_active"] = ""
+OF.access_point = _real_ap
+
 # --- two keys and an account number are enough; the DNS-widget host is optional
 os.environ["EXN_API_KEY"] = "exnsk-not-a-real-key"
 os.environ["EXN_PRIVATE_KEY"] = "0" * 128

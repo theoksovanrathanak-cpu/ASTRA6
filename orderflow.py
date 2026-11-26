@@ -51,6 +51,10 @@ _STATE = {
     "error": "",
     "access_point": "",
     "gateway": "",
+    "symbol_active": "",
+    "instruments_n": 0,
+    "gold_names": [],
+    "symbol_error": "",
     "last_tick": 0.0,
     "started": 0.0,
     "messages": 0,                       # frames seen
@@ -189,6 +193,75 @@ def account() -> dict:
     return _get_json(ap, "/v1/configuration/accounts/%s/account" % _env("EXN_ACCOUNT_ID"))
 
 
+def _names(node) -> list:
+    """Every instrument name a list response carries, whatever its shape."""
+    out = []
+    for d in _walk(node, []):
+        for k in ("name", "symbol", "instrument", "code", "id"):
+            v = d.get(k)
+            if isinstance(v, str) and v and v not in out:
+                out.append(v)
+                break
+    return out
+
+
+def instruments() -> list:
+    """The account's own instrument names - the only spelling the tick socket accepts."""
+    ap = access_point()
+    d = _get_json(ap, "/v1/configuration/accounts/%s/instruments" % _env("EXN_ACCOUNT_ID"))
+    return _names(d)
+
+
+def _norm(name) -> str:
+    return "".join(ch for ch in str(name or "").upper() if ch.isalnum())
+
+
+def pick_gold(names, wanted=None) -> str:
+    """Choose the gold contract out of the account's own list.
+
+    Exact name first, then the plain XAUUSD spelling, then any gold contract, so a
+    suffix such as XAUUSDm is found instead of being rejected by the exchange.
+    """
+    clean = [n for n in names if isinstance(n, str) and n.strip()]
+    if not clean:
+        return ""
+    want = _norm(wanted or "")
+    for n in clean:
+        if _norm(n) == want:
+            return n
+    for n in clean:
+        if _norm(n) == "XAUUSD":
+            return n
+    for n in clean:
+        if _norm(n).startswith("XAUUSD"):
+            return n
+    for n in clean:
+        if _norm(n).startswith("XAU"):
+            return n
+    return ""
+
+
+def resolve_symbol(force: bool = False) -> str:
+    """Ask the account which gold instrument it actually has, and use that exact name."""
+    with _LOCK:
+        hit = _STATE["symbol_active"]
+    if hit and not force:
+        return hit
+    try:
+        names = instruments()
+    except Exception as e:
+        _set(symbol_error=str(e)[:120])
+        return _STATE["symbol_active"] or SYMBOL
+    pick = pick_gold(names, SYMBOL) or SYMBOL
+    golds = [n for n in names if _norm(n).startswith("XAU")][:12]
+    _set(symbol_active=pick, instruments_n=len(names), gold_names=golds, symbol_error="")
+    return pick
+
+
+def active_symbol() -> str:
+    return _STATE["symbol_active"] or SYMBOL
+
+
 # ------------------------------------------------------------------ tick parsing
 _NUM_PATHS = {
     "bid": ("bid", "b", "bidPrice", "bid_price"),
@@ -272,8 +345,8 @@ def _same_instrument(sym) -> bool:
     letters only, and accepting either as a prefix of the other, keeps the tape
     intact instead of silently dropping every tick.
     """
-    a = "".join(ch for ch in str(sym or "").upper() if ch.isalnum())
-    b = "".join(ch for ch in str(SYMBOL or "").upper() if ch.isalnum())
+    a = _norm(sym)
+    b = _norm(active_symbol())
     if not a or not b:
         return not a                       # a tick with no name is the feed we asked for
     return a == b or a.startswith(b) or b.startswith(a)
@@ -348,7 +421,7 @@ def snapshot() -> dict:
     return {
         "status": status,
         "proxy": True,
-        "sym": SYMBOL,
+        "sym": active_symbol(),
         "unit": ("lots" if any(t[3] for t in ticks) else "ticks"),
         "price": (round(last_price, 4) if last_price is not None else None),
         "age": (round(age, 1) if age is not None else None),
@@ -378,6 +451,7 @@ def state() -> dict:
     s["missing"] = missing()
     s["gateway"] = s.get("gateway") or ""
     s["symbol"] = SYMBOL
+    s["symbol_active"] = active_symbol()
     s["crypto"] = _CRYPTO
     return s
 
@@ -396,12 +470,13 @@ def _ws_loop():
             _set(status="connecting", connected=False, error="")
             ap = access_point()
             host = ap.split("://", 1)[1]
+            sym = resolve_symbol()
             path = "/v1/server-events/accounts/%s/ws/ticks" % _env("EXN_ACCOUNT_ID")
             headers = signed_headers(path, method="GET")
             ws = websocket.create_connection("wss://" + host + path, header=headers, timeout=20)
             _set(connected=True, status="live", error="", started=time.time())
-            ws.send(json.dumps({"id": "ticks-%s" % SYMBOL.lower(),
-                                "subscribe": {"event": "ticks", "instruments": [SYMBOL]}}))
+            ws.send(json.dumps({"id": "ticks-%s" % _norm(sym).lower(),
+                                "subscribe": {"event": "ticks", "instruments": [sym]}}))
             while True:
                 raw = ws.recv()
                 if not raw:
@@ -413,6 +488,11 @@ def _ws_loop():
                 with _LOCK:
                     _STATE["messages"] += 1
                     _STATE["sample"] = raw[:900]
+                err = frame.get("error_message") if isinstance(frame, dict) else None
+                if err:
+                    _set(error="%s: %s" % (frame.get("code"), str(err)[:120]))
+                    if "INSTRUMENT_NOT_FOUND" in str(err).upper():
+                        _set(symbol_active="", symbol_error=str(err)[:120])  # re-resolve
                 got = parse_ticks(frame)
                 if got:
                     ingest(got)
