@@ -55,6 +55,8 @@ _STATE = {
     "instruments_n": 0,
     "gold_names": [],
     "symbol_error": "",
+    "inst_error": "",
+    "inst_raw": "",
     "last_tick": 0.0,
     "started": 0.0,
     "messages": 0,                       # frames seen
@@ -208,8 +210,28 @@ def _names(node) -> list:
 def instruments() -> list:
     """The account's own instrument names - the only spelling the tick socket accepts."""
     ap = access_point()
-    d = _get_json(ap, "/v1/configuration/accounts/%s/instruments" % _env("EXN_ACCOUNT_ID"))
-    return _names(d)
+    paths = ("/v1/configuration/accounts/%s/instruments" % _env("EXN_ACCOUNT_ID"),
+             "/v1/trading/accounts/%s/instruments" % _env("EXN_ACCOUNT_ID"),
+             "/v1/configuration/instruments")
+    tried = []
+    for path in paths:
+        try:
+            d = _get_json(ap, path)
+        except Exception as e:
+            tried.append("%s -> %s" % (path.split("/instruments")[0].rsplit("/", 1)[-1],
+                                       str(e)[:70]))
+            continue
+        names = _names(d)
+        with _LOCK:
+            _STATE["inst_raw"] = (json.dumps(d)[:800] if not isinstance(d, list)
+                                  else json.dumps(d)[:800])
+            _STATE["inst_error"] = ""
+        if names:
+            return names
+        tried.append("%s -> no names in %d bytes" % (path, len(json.dumps(d))))
+    with _LOCK:
+        _STATE["inst_error"] = "; ".join(tried)[:400]
+    return []
 
 
 def _norm(name) -> str:
