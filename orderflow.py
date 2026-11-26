@@ -135,8 +135,11 @@ def quote(sym: str = "") -> dict:
     with _LOCK:
         for name, (bid, ask, ts) in reversed(list(_LAST_BOOK.items())):
             if _norm(name) == _norm(sym):
-                return {"bid": bid, "ask": ask, "ts": ts,
-                        "spread": round(ask - bid, 8), "age": round(now - ts, 1),
+                # six places is finer than any instrument this desk quotes in, and keeps
+                # binary float noise (3571.9320000000002) out of the payload
+                b6, a6 = round(bid, 6), round(ask, 6)
+                return {"bid": b6, "ask": a6, "ts": ts,
+                        "spread": round(a6 - b6, 6), "age": round(now - ts, 1),
                         "symbol": name}
     return {}
 

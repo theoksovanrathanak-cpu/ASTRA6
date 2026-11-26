@@ -6133,7 +6133,7 @@ def _tape_payload(tf, step, bars, ratio, stack, minutes, sym="auto") -> dict:
         "connected": st.get("connected"),
         "age": (round(age, 1) if age is not None else None),
         "stale": bool(age is None or age > 60),
-        "price": px,
+        "price": (round(px, 6) if px is not None else None),
         "bid": quote.get("bid"),
         "ask": quote.get("ask"),
         "spread": quote.get("spread"),
