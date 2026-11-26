@@ -61,7 +61,7 @@ Vendor docs for the gold API live in [`xaus-api/`](xaus-api) (from
 
 | Service | URL | Plan |
 |---|---|---|
-| `astra6-real` | https://astra6-real.onrender.com | Render free, Singapore |
+| `desento-real` | https://desento-real.onrender.com | Render free, Singapore |
 | `renderbot-v2` | https://renderbot-v2.onrender.com | Render free, Singapore (now deploys from this repo) |
 
 Both run this repo's `main` branch. Health check: `/health`.

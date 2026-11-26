@@ -179,7 +179,7 @@ check("REQUIRE_LOGIN=1 closes it even without a client id", O.login_required() i
 
 class R3:
     def __init__(self):
-        self.base_url = "https://astra6-real.onrender.com/"
+        self.base_url = "https://desento-real.onrender.com/"
 
 
 page = O.signin_page(R3())

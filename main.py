@@ -5655,7 +5655,7 @@ def get_volume(symbol: str = "XAUUSD", venue: str = None, rows: int = 48,
 
 
 # === the phone push: one message per trade, while the tab is shut ===
-SITE_URL = "https://astra6-real.onrender.com"
+SITE_URL = "https://desento-real.onrender.com"
 
 def push_scan_once():
     """Compute the live cluster signal and push anything that is genuinely new."""

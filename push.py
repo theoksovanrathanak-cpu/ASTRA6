@@ -21,7 +21,7 @@ import requests
 BASE = os.path.dirname(os.path.abspath(__file__))
 SUBS_FILE = os.path.join(BASE, "telegram_subs.json")
 SEEN_FILE = os.path.join(BASE, "telegram_seen.json")
-SITE = "https://astra6-real.onrender.com"
+SITE = "https://desento-real.onrender.com"
 BOT_HANDLE = "@astra6renderbot"
 
 _SEEN_CAP = 400
