@@ -144,7 +144,8 @@ def _of_reset():
 
 
 _of_reset()
-for env in ("EXN_API_KEY", "EXN_PRIVATE_KEY", "EXN_ACCOUNT_ID", "EXN_DISCOVERY_BASE_URL"):
+for env in ("EXN_API_KEY", "EXN_PRIVATE_KEY", "EXN_ACCOUNT_ID", "EXN_DISCOVERY_BASE_URL",
+            "EXN_SYMBOL"):
     os.environ.pop(env, None)
 check("with no credentials it says so, and shows nothing else",
       OF.snapshot()["status"] == "not_configured" and OF.snapshot()["windows"]["60s"]["ticks"] == 0)
@@ -177,6 +178,12 @@ check("a foreign symbol is ignored, and the first tick votes for nobody",
       w["ticks"] == 3 and w["flat"] == 1, w)
 check("one buying tick and one selling tick", w["buy"] == 1 and w["sell"] == 1, w)
 check("the delta is their difference", w["delta"] == 0, w)
+check("gold is read as XAUUSDm by default, the name Exness lists it under",
+      OF.SYMBOL == "XAUUSDM" and snap["sym"] == "XAUUSDM", snap["sym"])
+check("the standard-account spelling XAUUSD is the same tape, not a foreign symbol",
+      OF._same_instrument("XAUUSD") and OF._same_instrument("XAUUSDm")
+      and OF._same_instrument("xauusdm") and not OF._same_instrument("EURUSD")
+      and not OF._same_instrument("XAUUSDX-ONLY"), "instrument matching")
 check("the price is the last one seen", snap["price"] == 100.5)
 check("the unit is ticks when no size arrives", snap["unit"] == "ticks")
 OF.ingest([{"sym": "XAUUSD", "price": 101.5, "volume": None, "ts": int(time.time())}])

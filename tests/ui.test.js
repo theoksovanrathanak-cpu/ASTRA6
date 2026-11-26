@@ -1269,6 +1269,10 @@ section('signals: read-only on the page, posting lives in the owner menu');
   ok('it offers the three windows and re-reads every five seconds',
      /data-w="60"/.test(html) && /data-w="300"/.test(html) && /data-w="900"/.test(html)
      && /setInterval\(ofLoad, 5000\)/.test(html));
+  ok('the card shows once real ticks are counted, whatever the socket status word',
+     /d\.proxy && w && w\.ticks > 0/.test(grab('ofPaint')) && !/status === 'ok'/.test(html));
+  ok('it wears the broker\'s own instrument name, XAUUSDm, not a guess',
+     /id="oflow-sym"/.test(html) && /put\('oflow-sym', d\.sym/.test(grab('ofPaint')));
   ok('a silent feed shows as stale instead of a live bar', /dot\.classList\.toggle\('stale'/.test(grab('ofPaint')));
   ok('the broker worker is server-side only and says when it is unconfigured',
      /def configured\(\)/.test(fs.readFileSync(path.join(root, 'orderflow.py'), 'utf8'))

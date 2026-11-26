@@ -2380,7 +2380,7 @@ body::before,[data-theme="dark"] body::before{
 
   <section class="card oflow" id="oflow" hidden aria-label="Order flow">
     <div class="oflow-hd">
-      <div class="card-title">Order flow · XAUUSD</div>
+      <div class="card-title">Order flow · <span id="oflow-sym">XAUUSDM</span></div>
       <span class="oflow-chip" id="oflow-chip" title="A retail broker does not publish per-trade aggressor side. This is a tick-rule proxy: a tick is booked as buying when the quoted price rises, selling when it falls.">proxy · broker ticks</span>
     </div>
     <div class="oflow-bar" aria-hidden="true"><i class="ob" id="oflow-buy" style="width:50%"></i><i class="os" id="oflow-sell" style="width:50%"></i></div>
@@ -10493,7 +10493,7 @@ function ofPaint() {
   if (!sec) return;
   const d = _of;
   const w = d && d.windows ? d.windows[_ofWin + 's'] : null;
-  const ok = !!(d && d.status === 'ok' && w && w.ticks > 0);
+  const ok = !!(d && d.proxy && w && w.ticks > 0);
   sec.hidden = !ok;
   if (!ok) return;
   const total = (w.buy + w.sell) || 0;
@@ -10506,7 +10506,8 @@ function ofPaint() {
   put('oflow-sv', ofNum(w.sell));
   put('oflow-dv', (w.delta > 0 ? '+' : '') + ofNum(w.delta));
   put('oflow-age', ofAge(d.age));
-  put('oflow-px', d.price != null ? 'XAUUSD ' + Number(d.price).toFixed(2) : 'no price');
+  put('oflow-sym', d.sym || 'XAUUSDM');
+  put('oflow-px', d.price != null ? (d.sym || 'XAUUSDM') + ' ' + Number(d.price).toFixed(2) : 'no price');
   put('oflow-chip', 'proxy · ' + (d.unit || 'ticks'));
   const dot = document.getElementById('oflow-dot');
   if (dot) dot.classList.toggle('stale', !!d.stale);

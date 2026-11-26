@@ -1,4 +1,4 @@
-"""Order flow for XAUUSD, straight from the trader's own Exness account.
+"""Order flow for gold, straight from the trader's own Exness account.
 
 What this is
 ------------
@@ -37,7 +37,7 @@ try:                                     # the signing key
 except Exception:                        # pragma: no cover - only on a broken install
     _CRYPTO = False
 
-SYMBOL = (os.getenv("EXN_SYMBOL") or "XAUUSD").upper()
+SYMBOL = (os.getenv("EXN_SYMBOL") or "XAUUSDM").upper()   # Exness lists gold as XAUUSDm
 WINDOWS = (60, 300, 900)                 # 1m, 5m, 15m
 KEEP_S = 900                             # how much tick history is held in memory
 RECONNECT_S = 5.0
@@ -236,6 +236,21 @@ def parse_ticks(frame) -> list:
     return out
 
 
+def _same_instrument(sym) -> bool:
+    """Do these two names mean the same gold contract?
+
+    Exness lists the standard account's gold as XAUUSDm and the raw/other feeds as
+    XAUUSD, and the wire may send either whatever it was asked for. Comparing the
+    letters only, and accepting either as a prefix of the other, keeps the tape
+    intact instead of silently dropping every tick.
+    """
+    a = "".join(ch for ch in str(sym or "").upper() if ch.isalnum())
+    b = "".join(ch for ch in str(SYMBOL or "").upper() if ch.isalnum())
+    if not a or not b:
+        return not a                       # a tick with no name is the feed we asked for
+    return a == b or a.startswith(b) or b.startswith(a)
+
+
 def ingest(ticks) -> int:
     """Book the ticks, classifying each as buying (price rose) or selling (it fell)."""
     added = 0
@@ -243,8 +258,7 @@ def ingest(ticks) -> int:
     with _LOCK:
         last = _TICKS[-1][1] if _TICKS else None
         for t in ticks:
-            sym = t.get("sym") or ""
-            if sym and SYMBOL not in sym and sym not in SYMBOL:
+            if not _same_instrument(t.get("sym")):
                 continue
             price = t["price"]
             if last is None or price == last:
